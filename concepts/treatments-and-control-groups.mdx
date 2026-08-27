@@ -1,0 +1,97 @@
+---
+title: Treatments and control groups
+description: Define the baseline and alternative behaviors being compared.
+---
+
+[Treatment and control groups](https://en.wikipedia.org/wiki/Treatment_and_control_groups) receive different experimental conditions. The control supplies a baseline, and each treatment supplies an alternative.
+
+## Interventions, treatments, and groups
+
+An intervention is the action being tested. A treatment is one defined form of the intervention. A group is the collection of units assigned to the same treatment.
+
+```text
+intervention: change search ranking
+treatment:   use reciprocal rank fusion
+group:       users assigned to reciprocal rank fusion
+```
+
+Statespace represents the group, its probability, and its treatment configuration together.
+
+```yaml
+groups:
+  - name: treatment       # group
+    weight: 0.20          # assignment probability
+    config:               # treatment
+      reranker: rrf       # intervention parameter
+```
+
+Other platforms can call groups **arms** or **variants**. Statespace uses `group` because the term includes both control and treatment groups.
+
+## Control group
+
+The control group receives the baseline behavior. The application uses its normal behavior when the assigned configuration does not contain a treatment value.
+
+```python
+reranker = run.config.get("reranker", None)
+result = search("query goes here", reranker=reranker)
+```
+
+The control estimates what would have happened without the tested change.
+
+## Implicit control
+
+Statespace adds control when the YAML does not define it. The control receives an empty configuration and the unallocated group weight.
+
+```yaml
+groups:
+  - name: treatment
+    weight: 0.20
+    config:
+      reranker: rrf
+```
+
+The effective control definition is shown below.
+
+```yaml
+name: control
+weight: 0.80
+config: {}
+```
+
+<Note>
+  Implicit control makes the application default mandatory. Define control explicitly only when its configuration must contain values.
+</Note>
+
+## Group weights
+
+A group weight is the conditional probability that a sampled unit receives that group. Explicit weights must be positive and must sum to no more than `1.0`.
+
+```yaml
+groups:
+  - name: rrf
+    weight: 0.20
+    config:
+      reranker: rrf
+  - name: weighted
+    weight: 0.20
+    config:
+      reranker: weighted
+```
+
+Statespace assigns the remaining weight to control. Unequal weights change the sample size and [power](/concepts/statistical-inference#statistical-power) of each comparison.
+
+See [Group allocation](/concepts/random-assignment#group-allocation) for how weights become stable assignments.
+
+## Treatment parameters
+
+Parameters are the concrete values that implement a treatment. Store them in the group `config` object.
+
+```yaml
+config:
+  reranker: weighted
+  fusion_weight: 0.70
+```
+
+A factor is a variable intentionally changed by the experiment. Its values are factor levels. Statespace does not require a separate factorial-design schema, so the group configuration records these values directly.
+
+Keep each treatment focused on the factors needed to answer the experiment question.

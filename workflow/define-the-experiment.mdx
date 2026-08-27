@@ -1,0 +1,128 @@
+---
+title: Define the experiment
+description: Turn one hypothesis into a valid experiment definition.
+---
+
+A useful definition states one question and makes every design choice explicit. Complete these choices before production assignment starts.
+
+<Steps>
+  <Step title="State the hypothesis">
+    Name the expected treatment, outcome, population, and direction of change.
+  </Step>
+  <Step title="Choose the project">
+    Use a project with the correct randomization unit and data boundary.
+  </Step>
+  <Step title="Configure the design">
+    Define sampling, groups, assignment, and any exclusion layer.
+  </Step>
+  <Step title="Validate the YAML">
+    Reject ambiguous or invalid definitions before creation.
+  </Step>
+</Steps>
+
+## State the hypothesis
+
+Write a falsifiable statement. Name the primary outcome before you inspect results.
+
+```text
+For eligible atlas-search users, reciprocal rank fusion increases
+mean relevance compared with the current ranking behavior.
+```
+
+<Note>
+  The hypothesis is not a YAML field. Put its concise operational form in `description`, and keep the complete rationale with the experiment review.
+</Note>
+
+## Choose the project
+
+Choose the unit at the level where treatment can vary independently. The project applies this unit to every contained experiment.
+
+```bash
+ssp project create --name atlas-search --unit user_id
+```
+
+Use a separate project when access, retention, data ownership, or the randomization unit must differ.
+
+## Define the population
+
+Describe the target population and implement one pre-treatment eligibility rule. The application evaluates eligibility before it calls the SDK.
+
+| Design item | `rank-v2` choice |
+| --- | --- |
+| Target population | Users of atlas search |
+| Sampling frame | Signed-in users with `user_id` |
+| Eligibility | Search enabled before assignment |
+| Primary outcome | Mean relevance per user |
+
+Review [Random sampling](/concepts/random-sampling) before you generalize the result beyond this population.
+
+## Configure the sample
+
+Set the fraction of eligible units that can enter the experiment.
+
+```yaml
+sampling:
+  traffic: 0.10
+```
+
+Start with limited traffic when the treatment has operational risk. Increase it only after health checks pass.
+
+## Define the groups
+
+Define each treatment group and its probability. Omit control when the application default is the correct baseline.
+
+```yaml
+groups:
+  - name: treatment
+    weight: 0.20
+    config:
+      reranker: rrf
+```
+
+Statespace gives the implicit control an empty configuration and weight `0.80`.
+
+## Configure the assignment
+
+Use random assignment unless planned categorical strata require tighter balance.
+
+```yaml
+assignment:
+  method: random
+```
+
+Use the stratified method only when the application can supply every declared pre-treatment value.
+
+## Add an exclusion layer
+
+Add a layer when concurrent treatments can interfere. Create the shared layer before the experiment references it.
+
+```bash
+ssp layer create \
+  --project atlas-search \
+  --name search-ranking \
+  --description "Prevent overlapping ranking experiments."
+```
+
+Reference the layer in the sampling section.
+
+```yaml
+sampling:
+  traffic: 0.10
+  layer: search-ranking
+```
+
+<Tip>
+  Do not use one global layer. Unrelated experiments can overlap without competing for the same sampling space.
+</Tip>
+
+## Validate the YAML
+
+Validate the file before you create or update the experiment.
+
+```bash
+ssp experiment validate --project atlas-search --file experiment.yaml
+```
+
+Validation checks unknown fields, probabilities, group names, strata, and layer capacity. It does not judge the hypothesis or metric choice.
+
+Continue with [Apply the treatments](/workflow/apply-the-treatments) after validation succeeds.

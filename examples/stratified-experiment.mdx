@@ -1,0 +1,78 @@
+---
+title: Stratified experiment
+description: Balance treatment assignment within planned categorical strata.
+---
+
+This example balances `rank-v2` within country and device combinations. It keeps the project randomization unit as `user_id`.
+
+## Define the strata
+
+Declare each required pre-treatment field and the block size.
+
+```yaml
+name: rank-v2
+description: Test RRF across countries and devices.
+
+sampling:
+  traffic: 1.0
+
+assignment:
+  method: stratified
+  strata:
+    - country
+    - device
+  block_size: 4
+
+groups:
+  - name: treatment
+    weight: 0.50
+    config:
+      reranker: rrf
+```
+
+## Assign within the strata
+
+Supply one value for every declared field.
+
+```python
+run = experiment.run(
+    "user_42",
+    strata={"country": "US", "device": "desktop"},
+)
+```
+
+<Warning>
+  Reject the assignment when a required stratum is missing. Do not replace a missing category after assignment.
+</Warning>
+
+## Check group balance
+
+Compare counts inside each observed stratum.
+
+```sql
+SELECT
+  json_extract_string(strata, '$.country') AS country,
+  json_extract_string(strata, '$.device') AS device,
+  group_name,
+  count(DISTINCT assignment) AS units
+FROM statespace.assignments
+WHERE experiment_name = 'rank-v2'
+GROUP BY country, device, group_name
+ORDER BY country, device, group_name;
+```
+
+## Estimate the effects
+
+Estimate the overall effect first. Use stratum-level estimates only when they support a planned estimand.
+
+| Analysis | Purpose |
+| --- | --- |
+| Overall effect | Answers the primary experiment question. |
+| Stratum adjustment | Improves precision when the model is specified correctly. |
+| Stratum effect | Examines planned treatment heterogeneity. |
+
+## Interpret the result
+
+Stratification improves assignment balance. It does not make the sampled users representative of all search users.
+
+Continue with [Statistical inference](/concepts/statistical-inference) before you interpret subgroup estimates.

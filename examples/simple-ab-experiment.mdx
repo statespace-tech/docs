@@ -1,0 +1,78 @@
+---
+title: Simple A/B experiment
+description: Compare one treatment with an implicit control.
+---
+
+This example tests reciprocal rank fusion against the current ranking behavior. It uses simple random assignment and one relevance outcome.
+
+<Steps>
+  <Step title="Define the experiment">
+    Save the definition as `experiment.yaml`.
+
+    ```yaml
+    name: rank-v2
+    description: Test reciprocal rank fusion.
+
+    sampling:
+      traffic: 1.0
+
+    assignment:
+      method: random
+
+    groups:
+      - name: treatment
+        weight: 0.20
+        config:
+          reranker: rrf
+    ```
+
+    Statespace assigns the remaining weight of `0.80` to implicit control.
+  </Step>
+
+  <Step title="Apply the treatments">
+    Use the assigned parameter or the application default.
+
+    ```python
+    run = experiment.run("user_42")
+    reranker = run.config.get("reranker", None)
+    result = search("query goes here", reranker=reranker)
+    run.outcome("relevance", value=result.relevance)
+    ```
+  </Step>
+
+  <Step title="Monitor the data">
+    Compare observed group shares with `0.80` control and `0.20` treatment.
+
+    ```sql
+    SELECT
+      group_name,
+      count(DISTINCT assignment) AS units
+    FROM statespace.assignments
+    WHERE experiment_name = 'rank-v2'
+    GROUP BY group_name;
+    ```
+  </Step>
+
+  <Step title="Analyze the outcomes">
+    Aggregate relevance at the user level before you compare groups.
+
+    ```sql
+    SELECT
+      group_name,
+      count(DISTINCT assignment) AS units,
+      avg(value) AS mean_relevance
+    FROM statespace.outcomes
+    WHERE experiment_name = 'rank-v2'
+      AND name = 'relevance'
+    GROUP BY group_name;
+    ```
+  </Step>
+
+  <Step title="Make a decision">
+    Ship only when the effect, uncertainty, and guardrails meet the planned criteria.
+  </Step>
+</Steps>
+
+<Info>
+  This design answers one comparison: RRF versus the current ranking behavior.
+</Info>

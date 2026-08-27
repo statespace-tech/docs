@@ -1,0 +1,92 @@
+---
+title: CLI
+description: Review every public ssp command, option, and output convention.
+---
+
+The `ssp` CLI manages accounts, projects, tokens, layers, and experiments. It prints structured YAML.
+
+```text
+ssp <resource> <action> [options]
+```
+
+## Account commands
+
+| Command | Purpose |
+| --- | --- |
+| `ssp login` | Sign in with GitHub or Google. |
+| `ssp logout` | Remove the saved account session. |
+| `ssp account` | Show the account and plan limits. |
+
+## Project commands
+
+| Command | Required options |
+| --- | --- |
+| `ssp project create` | `--name, -N`, `--unit` |
+| `ssp project list` | None |
+| `ssp project show` | `--name, -N` |
+| `ssp project delete` | `--name, -N`, `--yes` |
+
+Project creation prints one complete read-write token. The secret appears once.
+
+## Token commands
+
+| Command | Required options |
+| --- | --- |
+| `ssp project token create` | `--project, -P`, `--name, -N`, `--access` |
+| `ssp project token list` | `--project, -P` |
+| `ssp project token revoke` | `--project, -P`, `--id` |
+
+The `--access` option accepts `read-only` or `read-write`.
+
+## Layer commands
+
+| Command | Required options |
+| --- | --- |
+| `ssp layer create` | `--project, -P`, `--name, -N`, `--description` |
+| `ssp layer list` | `--project, -P` |
+| `ssp layer show` | `--project, -P`, `--name, -N` |
+| `ssp layer update` | `--project, -P`, `--name, -N` |
+| `ssp layer delete` | `--project, -P`, `--name, -N` |
+
+Use the optional `--holdout` value with `layer create` or `layer update`.
+
+## Experiment commands
+
+| Command | Required options |
+| --- | --- |
+| `ssp experiment validate` | `--project, -P`, `--file, -f` |
+| `ssp experiment create` | `--project, -P`, `--file, -f` |
+| `ssp experiment update` | `--project, -P`, `--name, -N` with `--file, -f` or `--traffic` |
+| `ssp experiment list` | `--project, -P` |
+| `ssp experiment show` | `--project, -P`, `--name, -N` |
+| `ssp experiment start` | `--project, -P`, `--name, -N` |
+| `ssp experiment stop` | `--project, -P`, `--name, -N` |
+| `ssp experiment archive` | `--project, -P`, `--name, -N` |
+| `ssp experiment delete` | `--project, -P`, `--name, -N` |
+
+<Warning>
+  Deletion removes metadata only when no retained experiment data depends on it. Archive completed experiments instead.
+</Warning>
+
+## Global options
+
+| Option | Environment variable | Purpose |
+| --- | --- | --- |
+| `--endpoint` | `STATESPACE_URL` | Override the API endpoint. |
+| `--account-token` | `STATESPACE_ACCOUNT_TOKEN` | Override the saved account session. |
+| `--help` | — | Print command help. |
+| `--version` | — | Print the installed version. |
+
+## Output format
+
+Every successful data command prints YAML. Errors use a nonzero exit status and write a concise message to standard error.
+
+```yaml
+id: atlas-search
+unit: user_id
+database_url: quack:atlas-search.db.statespace.app:443
+```
+
+<Note>
+  The CLI has no active project state. Pass the project name to each project-scoped command.
+</Note>

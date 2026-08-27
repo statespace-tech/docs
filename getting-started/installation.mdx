@@ -1,0 +1,87 @@
+---
+title: Installation
+description: Install the Statespace interfaces and authenticate access.
+---
+
+Install only the interfaces required by your workflow. The CLI manages resources, the SDK records experiment data, and DuckDB analyzes it.
+
+## Install the CLI
+
+Install the release binary on macOS or Linux.
+
+```bash
+curl -fsSL https://statespace.com/install | bash
+```
+
+Verify the installed version.
+
+```bash
+ssp --version
+```
+
+## Install the Python SDK
+
+Add the Python SDK to the application that applies treatments.
+
+```bash
+uv add statespace-sdk
+```
+
+Import the public experiment interface.
+
+```python
+from statespace import Experiment
+```
+
+## Authenticate the account
+
+Start browser-based authentication from the CLI.
+
+```bash
+ssp login
+```
+
+The CLI stores the account session in the operating-system credential store. Project tokens remain separate from the account session.
+
+<Note>
+  An account session manages projects. A project token reads or writes data for one project.
+</Note>
+
+## Store the project token
+
+Store production tokens in a secret manager. Use read-write tokens in applications and read-only tokens in analysis tools.
+
+| Token | Prefix | Access |
+| --- | --- | --- |
+| Read-write | `ssp_rw_` | Read configuration and write experiment events. |
+| Read-only | `ssp_ro_` | Query and download project data. |
+
+Never put a complete token in source control, logs, examples, or support messages.
+
+## Configure the endpoint
+
+Use the production API unless you are testing a local deployment.
+
+```bash
+export STATESPACE_URL=https://api.statespace.com
+```
+
+Set the project and token for SDK configuration when the application uses environment variables.
+
+```bash
+export STATESPACE_PROJECT=atlas-search
+export STATESPACE_TOKEN=ssp_rw_7j...
+```
+
+## Verify the installation
+
+Confirm account access and list the available projects.
+
+```bash
+ssp account
+ssp project list
+```
+
+<Tip>
+  Run the [Quickstart](/quickstart) after the CLI returns structured YAML for both commands.
+</Tip>

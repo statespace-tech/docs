@@ -1,0 +1,116 @@
+---
+title: Database schema
+description: Review the tables and guarantees published through DuckDB.
+---
+
+Each project publishes one analytical DuckDB database through the Quack protocol. The database represents accepted data after retention and compaction.
+
+## Database connection
+
+Attach the project with a read-only token.
+
+```sql
+ATTACH 'quack:atlas-search.db.statespace.app:443' AS statespace (
+  TOKEN 'ssp_ro_7j...'
+);
+```
+
+Use DuckDB 2.0 or later.
+
+## Experiments table
+
+The `experiments` table contains one row for each retained revision.
+
+| Column | Type |
+| --- | --- |
+| `name` | `VARCHAR` |
+| `description` | `VARCHAR` |
+| `revision` | `BIGINT` |
+| `status` | `VARCHAR` |
+| `sampling_traffic` | `DOUBLE` |
+| `layer_name` | `VARCHAR` |
+| `assignment_method` | `VARCHAR` |
+| `assignment_strata` | `JSON` |
+| `assignment_block_size` | `INTEGER` |
+| `created_at` | `TIMESTAMP` |
+
+## Groups table
+
+The `groups` table contains the control and treatment definitions for each revision.
+
+| Column | Type |
+| --- | --- |
+| `experiment_name` | `VARCHAR` |
+| `revision` | `BIGINT` |
+| `name` | `VARCHAR` |
+| `weight` | `DOUBLE` |
+| `config` | `JSON` |
+
+## Assignments table
+
+The `assignments` table contains one stable group decision for each sampled unit and revision.
+
+| Column | Type |
+| --- | --- |
+| `assignment_id` | `VARCHAR` |
+| `assigned_at` | `TIMESTAMP` |
+| `experiment_name` | `VARCHAR` |
+| `revision` | `BIGINT` |
+| `assignment` | `VARCHAR` |
+| `group_name` | `VARCHAR` |
+| `config` | `JSON` |
+| `strata` | `JSON` |
+| `forced` | `BOOLEAN` |
+| `layer_name` | `VARCHAR` |
+
+## Runs table
+
+The `runs` table contains one recorded treatment exposure.
+
+| Column | Type |
+| --- | --- |
+| `id` | `VARCHAR` |
+| `timestamp` | `TIMESTAMP` |
+| `experiment_name` | `VARCHAR` |
+| `revision` | `BIGINT` |
+| `assignment` | `VARCHAR` |
+| `assignment_id` | `VARCHAR` |
+| `group_name` | `VARCHAR` |
+| `config` | `JSON` |
+| `context` | `JSON` |
+| `strata` | `JSON` |
+| `forced` | `BOOLEAN` |
+| `layer_name` | `VARCHAR` |
+
+## Outcomes table
+
+The `outcomes` table contains numeric or structured responses attributed to runs.
+
+| Column | Type |
+| --- | --- |
+| `id` | `VARCHAR` |
+| `timestamp` | `TIMESTAMP` |
+| `name` | `VARCHAR` |
+| `value` | `DOUBLE` |
+| `data` | `JSON` |
+| `run_id` | `VARCHAR` |
+| `assignment_id` | `VARCHAR` |
+| `experiment_name` | `VARCHAR` |
+| `revision` | `BIGINT` |
+| `assignment` | `VARCHAR` |
+| `group_name` | `VARCHAR` |
+
+## Data guarantees
+
+The published schema provides these guarantees:
+
+1. Event identifiers are unique within a project.
+2. Accepted assignments do not change within one revision.
+3. Every run references one accepted assignment.
+4. Every outcome references one accepted run.
+5. Timestamps use UTC.
+6. Retention can remove complete historical records after the plan limit.
+
+<Info>
+  Parquet stores compacted columnar data. DuckDB provides the SQL interface and statistical aggregate functions. Clients do not need access to the underlying objects.
+</Info>

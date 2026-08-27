@@ -1,0 +1,104 @@
+---
+title: Random sampling
+description: Select a representative part of an eligible population for an experiment.
+---
+
+[Random sampling](https://en.wikipedia.org/wiki/Sampling_%28statistics%29) selects units from a population through a known random mechanism. It determines who can enter an experiment.
+
+```text
+target population → sampling frame → eligible population → random sample
+```
+
+## Target population
+
+The target population contains every unit to which the experiment result should apply. A search experiment might target all signed-in users who can use the ranking system.
+
+State the target population before you configure traffic. A precise population makes the final treatment effect interpretable.
+
+## Sampling frame
+
+The sampling frame is the set of units that the system can identify and sample. It can differ from the target population because of product access, missing identifiers, or incomplete instrumentation.
+
+```text
+target population: all search users
+sampling frame:    signed-in search users with a stable user_id
+```
+
+A result can generalize only to units represented by the sampling frame.
+
+## Eligibility criteria
+
+Eligibility rules select the part of the sampling frame that can enter the experiment. Apply the same pre-treatment rule to every possible group.
+
+```python
+if user.is_signed_in and user.search_enabled:
+    run = experiment.run(user.id, context={"country": user.country})
+```
+
+Do not use behavior caused by the treatment as an eligibility condition. This can bias the sample.
+
+## Sampling traffic
+
+Traffic is the sampling fraction. It is the probability that an eligible unit enters the experiment.
+
+```yaml
+sampling:
+  traffic: 0.10
+```
+
+This experiment samples approximately 10% of eligible units. Statespace uses stable hashing so repeated requests produce the same inclusion decision.
+
+Traffic and group weight apply in sequence. An experiment with `0.10` traffic and a treatment weight of `0.20` exposes approximately 2% of eligible units to that treatment.
+
+```text
+0.10 sampling traffic × 0.20 treatment weight = 0.02 of eligible units
+```
+
+Larger samples usually increase [statistical power](/concepts/statistical-inference#statistical-power).
+
+## Exclusion layers
+
+A layer is a shared sampling space for experiments that must not overlap. Create it once inside the project.
+
+```bash
+ssp layer create \
+  --project atlas-search \
+  --name search-ranking \
+  --description "Prevent overlapping ranking experiments."
+```
+
+Reference the layer from each related experiment.
+
+```yaml
+sampling:
+  traffic: 0.10
+  layer: search-ranking
+```
+
+One unit can enter only one running experiment in the layer. The same unit can enter experiments in other layers.
+
+<Note>
+  A project owns data and defines the randomization unit. A layer only prevents selected experiments from using overlapping samples. See [Define the experiment](/workflow/define-the-experiment).
+</Note>
+
+## Sampling bias
+
+Sampling bias occurs when the sampled units differ systematically from the target population. Random selection does not correct an incomplete sampling frame or a treatment-dependent eligibility rule.
+
+Common causes include missing identifiers, region restrictions, client-version requirements, and missing event delivery.
+
+## Sample representativeness
+
+A representative sample reflects the target population on attributes that matter to the experiment. Compare sampled units with eligible units before you generalize the result.
+
+```sql
+SELECT
+  country,
+  count(DISTINCT assignment) AS sampled_units
+FROM statespace.runs
+WHERE experiment_name = 'rank-v2'
+GROUP BY country
+ORDER BY sampled_units DESC;
+```
+
+Random sampling supports generalization to the target population. [Random assignment](/concepts/random-assignment) supports causal comparisons inside the sample.

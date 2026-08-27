@@ -1,0 +1,94 @@
+---
+title: Mutually exclusive experiments
+description: Prevent related experiments from sampling the same unit.
+---
+
+This example places two ranking experiments in one layer. A user can enter `rank-v2` or `query-rewrite`, but not both.
+
+## Create the layer
+
+Create one shared sampling space for ranking changes.
+
+```bash
+ssp layer create \
+  --project atlas-search \
+  --name search-ranking \
+  --description "Prevent overlapping ranking experiments."
+```
+
+## Define the experiments
+
+Reference the same layer from both definitions.
+
+<Tabs>
+  <Tab title="rank-v2">
+    Define the reranking experiment with 20% layer traffic.
+
+    ```yaml
+    name: rank-v2
+    description: Test reciprocal rank fusion.
+    sampling:
+      traffic: 0.20
+      layer: search-ranking
+    assignment:
+      method: random
+    groups:
+      - name: treatment
+        weight: 0.50
+        config:
+          reranker: rrf
+    ```
+  </Tab>
+  <Tab title="query-rewrite">
+    Define the query experiment with 30% layer traffic.
+
+    ```yaml
+    name: query-rewrite
+    description: Test semantic query rewriting.
+    sampling:
+      traffic: 0.30
+      layer: search-ranking
+    assignment:
+      method: random
+    groups:
+      - name: treatment
+        weight: 0.50
+        config:
+          query_rewrite: semantic
+    ```
+  </Tab>
+</Tabs>
+
+## Allocate the traffic
+
+The layer reserves disjoint hash ranges for the two experiments.
+
+```text
+rank-v2:       20%
+query-rewrite: 30%
+unused:        50%
+```
+
+## Verify the exclusion
+
+Confirm that no assignment appears in both active experiments.
+
+```sql
+SELECT
+  assignment,
+  count(DISTINCT experiment_name) AS experiments
+FROM statespace.assignments
+WHERE layer_name = 'search-ranking'
+GROUP BY assignment
+HAVING count(DISTINCT experiment_name) > 1;
+```
+
+The query must return no rows.
+
+## Compare the outcomes
+
+Analyze each experiment against its own control. Do not combine the control groups without a design that supports that estimand.
+
+<Note>
+  A layer prevents treatment interaction. It also reduces the traffic available to each experiment.
+</Note>

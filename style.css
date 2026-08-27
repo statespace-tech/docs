@@ -1,0 +1,27 @@
+.nav-logo {
+  height: 34px !important;
+  max-width: 210px !important;
+}
+
+.sidebar-group-header,
+.breadcrumb-item {
+  color: #3f6500 !important;
+}
+
+.dark .sidebar-group-header,
+.dark .breadcrumb-item {
+  color: #d8ff3e !important;
+}
+
+#footer a[href*="utm_campaign=poweredBy"],
+#footer button[data-testid^="mode-switch-"],
+#footer .h-px.w-full {
+  display: none !important;
+}
+
+@media (max-width: 767px) {
+  .nav-logo {
+    height: 30px !important;
+    max-width: 185px !important;
+  }
+}

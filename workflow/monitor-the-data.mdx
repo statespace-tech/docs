@@ -1,0 +1,121 @@
+---
+title: Monitor the data
+description: Detect delivery, allocation, and guardrail problems during an experiment.
+---
+
+Monitoring protects experiment validity and production safety. It does not evaluate whether the treatment has won.
+
+<CardGroup cols={2}>
+  <Card title="Data health" icon="database">
+    Check delivery, completeness, and assignment balance.
+  </Card>
+  <Card title="Product health" icon="activity">
+    Check guardrails before you increase treatment exposure.
+  </Card>
+</CardGroup>
+
+## Check event delivery
+
+Compare accepted events with SDK delivery errors and application request volume. Investigate sustained gaps.
+
+```sql
+SELECT
+  date_trunc('hour', timestamp) AS hour,
+  count(*) AS runs
+FROM statespace.runs
+WHERE experiment_name = 'rank-v2'
+GROUP BY hour
+ORDER BY hour DESC;
+```
+
+## Verify sampling traffic
+
+Compare sampled units with the eligible count from the application. The observed fraction should approach the configured traffic as the population grows.
+
+```text
+observed traffic = sampled eligible units / all eligible units
+```
+
+Small samples can differ by chance. Persistent large differences indicate an eligibility or instrumentation problem.
+
+## Compare group ratios
+
+Compare each observed group share with its configured weight.
+
+```sql
+WITH counts AS (
+  SELECT
+    group_name,
+    count(DISTINCT assignment) AS units
+  FROM statespace.assignments
+  WHERE experiment_name = 'rank-v2'
+    AND forced = false
+  GROUP BY group_name
+)
+SELECT
+  group_name,
+  units,
+  units::DOUBLE / sum(units) OVER () AS observed_share
+FROM counts
+ORDER BY group_name;
+```
+
+<Warning>
+  Stop causal analysis when a material sample-ratio mismatch remains unexplained. More data does not correct a broken assignment or logging mechanism.
+</Warning>
+
+## Find missing outcomes
+
+Measure the delay and loss between recorded runs and expected outcomes.
+
+```sql
+SELECT
+  runs.group_name,
+  count(*) AS runs,
+  count(outcomes.id) AS outcomes,
+  count(outcomes.id)::DOUBLE / count(*) AS outcome_rate
+FROM statespace.runs AS runs
+LEFT JOIN statespace.outcomes AS outcomes
+  ON outcomes.run_id = runs.id
+  AND outcomes.name = 'relevance'
+WHERE runs.experiment_name = 'rank-v2'
+GROUP BY runs.group_name;
+```
+
+Different outcome rates by group can introduce post-treatment selection bias.
+
+## Review guardrail metrics
+
+Review operational and safety outcomes before primary-effect estimates.
+
+| Guardrail | Stop condition example |
+| --- | --- |
+| Error rate | Treatment exceeds control by 1 percentage point. |
+| Latency | Treatment p95 exceeds 1,500 ms. |
+| Safety | Any critical policy violation occurs. |
+| Abandonment | Treatment exceeds the planned risk limit. |
+
+## Increase the traffic
+
+Increase traffic in planned stages after data and product health checks pass.
+
+```bash
+ssp experiment update \
+  --project atlas-search \
+  --name rank-v2 \
+  --traffic 0.50
+```
+
+Stable sampling expands the included population without removing existing sampled units.
+
+## Stop an unsafe experiment
+
+Stop new assignments when a guardrail fails or instrumentation becomes unreliable.
+
+```bash
+ssp experiment stop --project atlas-search --name rank-v2
+```
+
+Stopping preserves historical runs and outcomes for diagnosis.
+
+Continue with [Analyze the outcomes](/workflow/analyze-the-outcomes) after the planned sample and attribution window are complete.

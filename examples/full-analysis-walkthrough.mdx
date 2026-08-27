@@ -1,0 +1,123 @@
+---
+title: Full analysis walkthrough
+description: Convert raw experiment records into one reproducible decision.
+---
+
+This walkthrough analyzes `rank-v2` after its attribution window closes. It starts with raw tables and ends with a decision record.
+
+<Steps>
+  <Step title="Inspect the raw data">
+    Confirm that definitions, assignments, runs, and outcomes exist for the same experiment revision.
+  </Step>
+  <Step title="Validate the assignments">
+    Remove forced assignments and investigate group-ratio mismatch.
+  </Step>
+  <Step title="Build the unit dataset">
+    Aggregate repeated relevance outcomes for each assigned user.
+  </Step>
+  <Step title="Estimate the effect">
+    Compare unit-level group means and quantify uncertainty.
+  </Step>
+  <Step title="Record the decision">
+    Preserve the query, result, guardrails, rationale, and action.
+  </Step>
+</Steps>
+
+## Inspect the raw data
+
+Count records at each stage of the experiment pipeline.
+
+```sql
+SELECT 'assignments' AS record, count(*) AS rows
+FROM statespace.assignments
+WHERE experiment_name = 'rank-v2'
+UNION ALL
+SELECT 'runs', count(*)
+FROM statespace.runs
+WHERE experiment_name = 'rank-v2'
+UNION ALL
+SELECT 'outcomes', count(*)
+FROM statespace.outcomes
+WHERE experiment_name = 'rank-v2';
+```
+
+## Validate the assignments
+
+Summarize the randomized, non-forced assignment population.
+
+```sql
+SELECT
+  group_name,
+  count(DISTINCT assignment) AS units
+FROM statespace.assignments
+WHERE experiment_name = 'rank-v2'
+  AND forced = false
+GROUP BY group_name;
+```
+
+Stop the analysis when the observed ratio cannot be reconciled with the configured weights.
+
+## Build the unit dataset
+
+Create one row for each assigned user.
+
+```sql
+CREATE OR REPLACE TEMP TABLE rank_v2_units AS
+SELECT
+  assignment,
+  group_name,
+  avg(value) FILTER (WHERE name = 'relevance') AS relevance,
+  avg(value) FILTER (WHERE name = 'latency_ms') AS latency_ms,
+  max(value) FILTER (WHERE name = 'error') AS had_error
+FROM statespace.outcomes
+WHERE experiment_name = 'rank-v2'
+GROUP BY assignment, group_name;
+```
+
+## Estimate the effect
+
+Calculate the primary and guardrail summaries together.
+
+```sql
+SELECT
+  group_name,
+  count(*) AS units,
+  avg(relevance) AS mean_relevance,
+  avg(latency_ms) AS mean_latency_ms,
+  avg(had_error) AS error_rate,
+  stddev_samp(relevance) AS relevance_sd
+FROM rank_v2_units
+GROUP BY group_name;
+```
+
+<Info>
+  Add the planned confidence interval or regression after this descriptive check passes.
+</Info>
+
+## Check the guardrails
+
+Compare each observed guardrail with its predefined limit.
+
+| Guardrail | Planned limit | Observed status |
+| --- | ---: | --- |
+| Mean latency increase | +100 ms | Pass |
+| Error-rate increase | +1 percentage point | Pass |
+| Critical safety events | 0 | Pass |
+
+## Record the decision
+
+Store a concise record with the reproducible analysis.
+
+```yaml
+experiment: rank-v2
+decision: ship
+primary_outcome: relevance
+effect: 0.018
+guardrails: pass
+analysis: rank-v2-analysis.sql
+reason: Treatment improved relevance without material guardrail harm.
+```
+
+<Tip>
+  Give the raw database, SQL file, and decision record to a coding agent. It can audit the path from evidence to action.
+</Tip>

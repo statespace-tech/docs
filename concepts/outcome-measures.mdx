@@ -1,0 +1,119 @@
+---
+title: Outcome measures
+description: Record responses and define how an experiment measures change.
+---
+
+An [outcome measure](https://en.wikipedia.org/wiki/Outcome_measure) assesses the effect of an intervention or treatment. Statespace stores raw outcomes and lets SQL define metrics.
+
+```text
+assignment → exposure → raw outcome → metric
+```
+
+## Treatment exposure
+
+An assignment records which group a unit should receive. An exposure records that the application used the assigned configuration.
+
+Starting a run records the exposure and creates an attribution boundary.
+
+```python
+run = experiment.run("user_42")
+reranker = run.config.get("reranker", None)
+result = search("query goes here", reranker=reranker)
+```
+
+Assignment is not exposure. Do not record a run when the application does not apply or display the assigned condition.
+
+This distinction affects whether the [estimand](/concepts/statistical-inference#estimands) measures assignment or actual exposure.
+
+## Raw outcomes
+
+An outcome records a response attributed to one run. Record a numeric value when the result can be aggregated directly.
+
+```python
+run.outcome("relevance", value=result.relevance)
+```
+
+Use the same name, meaning, and unit for every treatment group.
+
+## Outcome metrics
+
+A metric is a rule that summarizes raw outcomes. Choose important metrics before you inspect the group comparison.
+
+| Metric | Purpose |
+| --- | --- |
+| Primary | Answers the main experiment question. |
+| Secondary | Measures another expected effect. |
+| Diagnostic | Explains why another metric changed. |
+| Data quality | Detects missing or invalid instrumentation. |
+
+Statespace does not require metric definitions in experiment YAML. This keeps the raw evidence available for new SQL analyses.
+
+## Outcome attribution
+
+Attribution connects an outcome to the run whose treatment could have caused it. It is an experiment join rule, not marketing attribution.
+
+Define an attribution window when the response can occur after exposure. Do not attribute an outcome to a later or unrelated run from the same unit.
+
+## Repeated observations
+
+One randomization unit can produce many runs and outcomes. These observations are related because they come from the same assigned unit.
+
+```text
+user_42
+├── run_1 → relevance: 0.81
+├── run_2 → relevance: 0.76
+└── run_3 → relevance: 0.88
+```
+
+Aggregate repeated observations at the randomization-unit level before a simple independent-unit analysis.
+
+```sql
+WITH unit_outcomes AS (
+  SELECT
+    assignment,
+    group_name,
+    avg(value) AS unit_relevance
+  FROM statespace.outcomes
+  WHERE experiment_name = 'rank-v2'
+    AND name = 'relevance'
+  GROUP BY assignment, group_name
+)
+SELECT
+  group_name,
+  count(*) AS units,
+  avg(unit_relevance) AS mean_relevance
+FROM unit_outcomes
+GROUP BY group_name;
+```
+
+<Warning>
+  Counting every run as an independent unit can understate uncertainty. Match the analysis unit to the [randomization unit](/concepts/random-assignment#randomization-units), or use a method that accounts for clustering.
+</Warning>
+
+## Guardrail metrics
+
+A guardrail metric detects unacceptable harm outside the primary objective. Common guardrails include latency, error rate, safety violations, and user abandonment.
+
+Record guardrail outcomes for control and every treatment group.
+
+```python
+run.outcome("latency_ms", value=result.latency_ms)
+run.outcome("error", value=float(result.failed))
+```
+
+## Structured outcomes
+
+An outcome can contain any JSON-compatible result. This supports conversations, traces, evaluations, and other semi-structured evidence.
+
+```python
+run.outcome(
+    "conversation",
+    data={
+        "messages": messages,
+        "tool_calls": 3,
+        "termination": "completed",
+    },
+)
+```
+
+Use both `value` and `data` when one score needs supporting evidence. Store large binary artifacts elsewhere and record a durable reference.

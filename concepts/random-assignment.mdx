@@ -1,0 +1,124 @@
+---
+title: Random assignment
+description: Allocate sampled units across groups without systematic bias.
+---
+
+[Random assignment](https://en.wikipedia.org/wiki/Random_assignment) uses chance to allocate sampled units across treatment and control groups. It makes the groups comparable before treatment.
+
+```text
+sampled unit → random mechanism → one treatment or control group
+```
+
+## Randomization units
+
+The [experimental unit](https://en.wikipedia.org/wiki/Statistical_unit#Experimental_and_sampling_units) is the smallest entity that can independently receive a treatment. Statespace calls its stable identifier type the randomization unit.
+
+Choose the unit when you create the project.
+
+```bash
+ssp project create --name atlas-search --unit user_id
+```
+
+Every experiment in the project inherits `user_id`. Pass one value of that type when the application starts a run.
+
+```python
+run = experiment.run("user_42")
+```
+
+Use a unit at the level where treatment can vary independently. See [Repeated observations](/concepts/outcome-measures#repeated-observations) when one unit produces several outcomes.
+
+## Stable hashing
+
+Statespace uses deterministic hashing. The same randomization-unit value receives the same sample and group decisions for one experiment revision.
+
+```text
+hash(experiment salt, assignment value) → group bucket
+```
+
+The SDK evaluates the cached experiment manifest locally. The backend verifies the decision when it receives the run.
+
+## Group allocation
+
+Allocation maps stable hash ranges to group weights. A treatment with weight `0.20` owns 20% of the experiment's assignment space.
+
+```yaml
+groups:
+  - name: treatment
+    weight: 0.20
+    config:
+      reranker: rrf
+```
+
+The remaining assignment space belongs to control. See [Group weights](/concepts/treatments-and-control-groups#group-weights) for multi-group definitions.
+
+Inspect the observed allocation after assignments arrive.
+
+```sql
+WITH group_counts AS (
+  SELECT
+    group_name,
+    count(DISTINCT assignment) AS units
+  FROM statespace.assignments
+  WHERE experiment_name = 'rank-v2'
+    AND forced = false
+  GROUP BY group_name
+)
+SELECT
+  group_name,
+  units,
+  units::DOUBLE / sum(units) OVER () AS observed_share
+FROM group_counts
+ORDER BY group_name;
+```
+
+Investigate a large sample-ratio mismatch before you compare outcomes.
+
+## Stratification and blocking
+
+[Blocking](https://en.wikipedia.org/wiki/Blocking_%28statistics%29) groups similar units before random assignment. Stratification applies this idea to known pre-treatment attributes.
+
+```yaml
+assignment:
+  method: stratified
+  strata:
+    - country
+    - device
+  block_size: 4
+```
+
+Supply one value for each declared stratum when you start a run.
+
+```python
+run = experiment.run(
+    "user_42",
+    strata={"country": "US", "device": "desktop"},
+)
+```
+
+Permuted blocks improve group balance within each stratum. Stratification does not make a biased sample representative.
+
+Use strata to support a planned comparison or improve precision. Do not add them only to search for [heterogeneous effects](/concepts/statistical-inference#heterogeneous-effects).
+
+## Cluster assignment
+
+Cluster assignment gives one treatment to a group of related observations. Choose a coarser project unit when members can affect one another.
+
+```text
+account_7 → treatment
+├── user_1
+└── user_2
+```
+
+For example, use `account_id` instead of `user_id` when users in one account share the tested feature. The unit is project-wide, not an experiment override.
+
+## Forced assignment
+
+A forced assignment sends a known unit to a selected group for development or quality assurance.
+
+```python
+run = experiment.run("user_42", force="treatment")
+```
+
+<Warning>
+  Forced assignments do not use the random mechanism. Statespace marks them as forced. Exclude them from causal analysis unless the [estimand](/concepts/statistical-inference#estimands) explicitly includes them.
+</Warning>

@@ -1,0 +1,128 @@
+---
+title: Experiment YAML
+description: Review the accepted experiment configuration fields and constraints.
+---
+
+The experiment file defines sampling, random assignment, and treatment groups. The project supplies the randomization unit.
+
+## Top-level fields
+
+<ParamField body="name" type="string" required>
+  Set a unique experiment name within the project.
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  State the change tested by the experiment.
+</ParamField>
+
+## Sampling
+
+<ParamField body="sampling" type="object" default="{ traffic: 1.0 }">
+  Define how the experiment samples eligible project units.
+</ParamField>
+
+<ParamField body="sampling.traffic" type="number" default="1.0">
+  Set the inclusion probability from greater than `0.0` through `1.0`.
+</ParamField>
+
+<ParamField body="sampling.layer" type="string">
+  Reference an existing project layer that makes related experiments mutually exclusive.
+</ParamField>
+
+The application defines eligibility before it requests an assignment. See [Random sampling](/concepts/random-sampling).
+
+## Assignment
+
+<ParamField body="assignment" type="object" default="{ method: random }">
+  Define how sampled units receive groups.
+</ParamField>
+
+<ParamField body="assignment.method" type="random | stratified" default="random">
+  Select simple or stratified random assignment.
+</ParamField>
+
+<ParamField body="assignment.strata" type="string[]">
+  List the pre-treatment context fields used for stratified assignment.
+</ParamField>
+
+<ParamField body="assignment.block_size" type="integer" default="4">
+  Set the randomization block size for each stratum.
+</ParamField>
+
+The project defines the randomization unit. The experiment cannot replace it. See [Random assignment](/concepts/random-assignment).
+
+## Groups
+
+<ParamField body="groups" type="array" required>
+  Define one or more treatment groups.
+</ParamField>
+
+<ParamField body="groups[].name" type="string" required>
+  Set a unique group name.
+</ParamField>
+
+<ParamField body="groups[].weight" type="number" required>
+  Set a positive, finite assignment probability. Explicit weights must sum to no more than `1.0`.
+</ParamField>
+
+<ParamField body="groups[].config" type="object" required>
+  Define the JSON-compatible treatment configuration.
+</ParamField>
+
+If `control` is absent, Statespace adds it with the remaining weight and an empty configuration. See [Treatments and control groups](/concepts/treatments-and-control-groups).
+
+## Default values
+
+Omitted optional fields use these values.
+
+| Field | Default |
+| --- | --- |
+| `sampling.traffic` | `1.0` |
+| `sampling.layer` | `null` |
+| `assignment.method` | `random` |
+| `assignment.block_size` | `4` |
+| `assignment.strata` | `[]` |
+| Implicit control weight | `1.0 - sum(groups[].weight)` |
+| Implicit control config | `{}` |
+
+## Validation rules
+
+Statespace rejects a definition when any of these conditions is true:
+
+1. A required field is absent.
+2. An unknown field is present.
+3. A probability is outside its accepted range.
+4. Group names are duplicated.
+5. Explicit group weights exceed `1.0`.
+6. A referenced layer does not exist or lacks capacity.
+7. Stratified assignment has no strata.
+8. A running revision changes an immutable design field.
+
+## Complete definition
+
+This definition uses stratified assignment and a shared exclusion layer.
+
+```yaml
+name: rank-v2
+description: Test reciprocal rank fusion.
+
+sampling:
+  traffic: 0.10
+  layer: search-ranking
+
+assignment:
+  method: stratified
+  strata:
+    - country
+  block_size: 4
+
+groups:
+  - name: treatment
+    weight: 0.20
+    config:
+      reranker: rrf
+```
+
+<Tip>
+  Use `ssp experiment validate --project atlas-search --file experiment.yaml` before creation.
+</Tip>

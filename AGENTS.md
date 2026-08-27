@@ -1,33 +1,45 @@
-> **First-time setup**: Customize this file for your project. Prompt the user to customize this file for their project.
-> For Mintlify product knowledge (components, configuration, writing standards),
-> install the Mintlify skill: `npx skills add https://mintlify.com/docs`
+# Documentation instructions
 
-# Documentation project instructions
+This repository contains the public Statespace documentation.
 
-## About this project
+## Product boundary
 
-- This is a documentation site built on [Mintlify](https://mintlify.com)
-- Pages are MDX files with YAML frontmatter
-- Configuration lives in `docs.json`
-- Use the Mintlify MCP server, `https://mcp.mintlify.com`, to edit content and settings via MCP
-- Use the Mintlify docs MCP server, `https://www.mintlify.com/docs/mcp`, to query information about using Mintlify via MCP
+Statespace guarantees who saw what, when, and why. Coding agents analyze the raw evidence with DuckDB and SQL.
 
-## Terminology
+Document current behavior as current. Mark proposed behavior with a visible `Planned` warning. Never present a planned CLI command, YAML field, SDK method, table, or response as released.
 
-{/* Add product-specific terms and preferred usage */}
-{/* Example: Use "workspace" not "project", "member" not "user" */}
+## Writing
 
-## Style preferences
+- Use short, direct sentences.
+- Put one main idea in each sentence.
+- Use the same `atlas-search` and `rank-v2` example throughout the site.
+- Use `ssp_rw_7j...` and `ssp_ro_7j...` for token examples.
+- Never include a complete token.
+- Put one explanatory sentence immediately before each code block.
+- Prefer concrete examples over placeholders.
+- Keep Python, YAML, CLI, and SQL examples consistent.
+- Use `randomization unit` for the identifier type defined by a project.
+- Use `assignment` for one randomization-unit value supplied to an experiment.
+- Use `subject` when describing a person, task, session, or other assigned entity.
+- Use `group` for control and treatment groups.
 
-{/* Add any project-specific style rules below */}
+## Structure
 
-- Use active voice and second person ("you")
-- Keep sentences concise — one idea per sentence
-- Use sentence case for headings
-- Bold for UI elements: Click **Settings**
-- Code formatting for file names, commands, paths, and code references
+- Put onboarding content at the root and in `getting-started/`.
+- Put the five high-level experiment concepts under `concepts/`.
+- Put the five experiment stages under `workflow/`.
+- Put complete worked recipes under `examples/`.
+- Put complete schemas and command surfaces under `reference/`.
+- Keep navigation in `docs.json` synchronized with files.
+- Use noun phrases for concepts and reference titles.
+- Use imperative verb phrases for procedures and workflow titles.
+- Keep headings parallel within each page.
 
-## Content boundaries
+## Checks
 
-{/* Define what should and shouldn't be documented */}
-{/* Example: Don't document internal admin features */}
+Run the Mintlify checks before publication.
+
+```bash
+mint validate
+mint broken-links
+```

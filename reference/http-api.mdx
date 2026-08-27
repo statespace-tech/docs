@@ -1,0 +1,103 @@
+---
+title: HTTP API
+description: Review public resources, authentication, and error responses.
+---
+
+The production API base URL is `https://api.statespace.com`. Prefer a supported SDK for runtime evaluation and event delivery.
+
+## Authentication
+
+Send account sessions or project tokens as bearer credentials.
+
+```http
+Authorization: Bearer ssp_rw_7j...
+```
+
+Account endpoints require an account session. Project configuration and data endpoints require a token with sufficient project access.
+
+## Project endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/v1/projects` | List account projects. |
+| `POST` | `/v1/projects` | Create a project. |
+| `GET` | `/v1/projects/{project}` | Show a project. |
+| `DELETE` | `/v1/projects/{project}` | Delete an empty project. |
+
+## Token endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/v1/projects/{project}/tokens` | List token metadata. |
+| `POST` | `/v1/projects/{project}/tokens` | Create a project token. |
+| `DELETE` | `/v1/projects/{project}/tokens/{id}` | Revoke a project token. |
+
+Complete token values appear only in create responses.
+
+## Layer endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/v1/projects/{project}/layers` | List layers. |
+| `POST` | `/v1/projects/{project}/layers` | Create a layer. |
+| `GET` | `/v1/projects/{project}/layers/{layer}` | Show allocations. |
+| `PUT` | `/v1/projects/{project}/layers/{layer}` | Update layer metadata. |
+| `DELETE` | `/v1/projects/{project}/layers/{layer}` | Delete an unused layer. |
+
+## Experiment endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/v1/projects/{project}/experiments` | List experiments. |
+| `POST` | `/v1/projects/{project}/experiments` | Create an experiment. |
+| `GET` | `/v1/projects/{project}/experiments/{experiment}` | Show an experiment. |
+| `PUT` | `/v1/projects/{project}/experiments/{experiment}` | Create a revision. |
+| `POST` | `/v1/projects/{project}/experiments/{experiment}/state` | Change lifecycle state. |
+| `DELETE` | `/v1/projects/{project}/experiments/{experiment}` | Delete an unused draft. |
+
+The runtime manifest uses a read-write project token.
+
+```http
+GET /v1/runtime/projects/atlas-search/experiments/rank-v2
+```
+
+## Run endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/runtime/runs` | Verify and record one exposure. |
+| `POST` | `/v1/runtime/outcomes` | Record one run outcome. |
+| `POST` | `/v1/runtime/batches` | Record a mixed event batch. |
+
+Send the stable event identifier with each write request.
+
+```http
+Idempotency-Key: request_91
+```
+
+## Error responses
+
+Error bodies use one stable code and one concise message.
+
+```json
+{
+  "error": {
+    "code": "layer_capacity_exceeded",
+    "message": "The search-ranking layer has insufficient traffic."
+  }
+}
+```
+
+| Status | Meaning |
+| --- | --- |
+| `400` | The request is invalid. |
+| `401` | Authentication is missing or invalid. |
+| `403` | The token lacks required access. |
+| `404` | The resource does not exist. |
+| `409` | The request conflicts with current state. |
+| `429` | The project exceeded its write limit. |
+| `500` | The service could not complete a valid request. |
+
+<Note>
+  Retry `429` and transient `500` responses with bounded exponential backoff. Do not retry validation or authorization errors without changing the request.
+</Note>

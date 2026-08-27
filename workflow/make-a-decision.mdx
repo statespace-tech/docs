@@ -1,0 +1,93 @@
+---
+title: Make a decision
+description: Convert the experiment evidence into one recorded action.
+---
+
+An experiment should support one primary decision. Review the complete evidence before you choose that action.
+
+```text
+primary outcome + uncertainty + guardrails + practical value → decision
+```
+
+## Review the primary outcome
+
+Start with the estimand and primary outcome defined before the experiment. Report the control value, treatment value, effect, and uncertainty together.
+
+| Result | Example |
+| --- | ---: |
+| Control mean relevance | 0.710 |
+| Treatment mean relevance | 0.728 |
+| Absolute effect | +0.018 |
+| Relative effect | +2.5% |
+| 95% confidence interval | +0.006 to +0.030 |
+
+## Review the guardrails
+
+Check every planned guardrail before you consider the primary benefit.
+
+<Warning>
+  Do not ship a treatment that crosses a predefined safety limit. A favorable primary outcome does not cancel guardrail harm.
+</Warning>
+
+## Assess practical significance
+
+Compare the estimated benefit with implementation cost, operating cost, risk, and reversibility.
+
+```text
+statistically detectable ≠ operationally worthwhile
+```
+
+A precise effect can still be too small to justify production complexity.
+
+## Choose an action
+
+Choose one action that follows from the evidence.
+
+<CardGroup cols={2}>
+  <Card title="Ship" icon="rocket">
+    Adopt the treatment when benefit and guardrails support it.
+  </Card>
+  <Card title="Reject" icon="circle-x">
+    Keep control when the treatment lacks sufficient value.
+  </Card>
+  <Card title="Revise" icon="pencil">
+    Change the treatment when evidence identifies a correctable problem.
+  </Card>
+  <Card title="Repeat" icon="rotate-cw">
+    Run a confirmatory experiment when uncertainty remains material.
+  </Card>
+</CardGroup>
+
+## Record the decision
+
+Record the inputs that another person or agent needs to reproduce the decision.
+
+```yaml
+experiment: rank-v2
+decision: ship
+primary_outcome: relevance
+effect: 0.018
+reason: Treatment improved relevance without crossing a guardrail.
+decided_at: 2026-08-27
+```
+
+Keep the analysis query, result snapshot, decision owner, and known limitations with this record.
+
+## Archive the experiment
+
+Stop new assignments before you archive the completed experiment.
+
+```bash
+ssp experiment stop --project atlas-search --name rank-v2
+ssp experiment archive --project atlas-search --name rank-v2
+```
+
+Archiving keeps the definition and evidence queryable. It removes the experiment from active operations.
+
+## Define the follow-up
+
+Turn unresolved evidence into a new hypothesis. Do not edit the completed experiment to answer a different question.
+
+<Tip>
+  Use the [Full analysis walkthrough](/examples/full-analysis-walkthrough) to see the complete path from raw events to a recorded decision.
+</Tip>

@@ -1,72 +1,132 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "Statespace",
+  "description": "Headless A/B testing for coding agents.",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#3F6500",
+    "light": "#D8FF3E",
+    "dark": "#6F881F"
   },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "pages": [
-      {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
+  "background": {
+    "color": {
+      "light": "#F2F0E9",
+      "dark": "#11120F"
     }
   },
   "logo": {
     "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "dark": "/logo/dark.svg",
+    "href": "https://statespace.com"
+  },
+  "favicon": "/favicon.svg",
+  "appearance": {
+    "default": "system",
+    "strict": false
+  },
+  "icons": {
+    "library": "lucide"
+  },
+  "styling": {
+    "eyebrows": "breadcrumbs",
+    "codeblocks": "system"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting started",
+        "pages": [
+          "index",
+          "quickstart",
+          "getting-started/installation"
+        ]
+      },
+      {
+        "group": "Concepts",
+        "pages": [
+          "concepts/random-sampling",
+          "concepts/treatments-and-control-groups",
+          "concepts/random-assignment",
+          "concepts/outcome-measures",
+          "concepts/statistical-inference"
+        ]
+      },
+      {
+        "group": "Experiment workflow",
+        "pages": [
+          "workflow/define-the-experiment",
+          "workflow/apply-the-treatments",
+          "workflow/monitor-the-data",
+          "workflow/analyze-the-outcomes",
+          "workflow/make-a-decision"
+        ]
+      },
+      {
+        "group": "Examples",
+        "pages": [
+          "examples/simple-ab-experiment",
+          "examples/stratified-experiment",
+          "examples/mutually-exclusive-experiments",
+          "examples/cluster-randomized-experiment",
+          "examples/full-analysis-walkthrough"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "reference/experiment-yaml",
+          "reference/cli",
+          "reference/sdks",
+          "reference/http-api",
+          "reference/database-schema"
+        ]
+      }
+    ]
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude", "cursor", "vscode"]
   },
   "navbar": {
     "links": [
       {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "label": "Website",
+        "href": "https://statespace.com"
+      },
+      {
+        "type": "github",
+        "href": "https://github.com/statespace-tech"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "label": "Sign up",
+      "href": "https://statespace.com/signup"
     }
-  },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+      "github": "https://github.com/statespace-tech",
+      "discord": "https://discord.gg/2jtfwu7xB",
+      "linkedin": "https://www.linkedin.com/company/statespace-tech/"
+    },
+    "links": [
+      {
+        "header": "Statespace",
+        "items": [
+          {
+            "label": "Website",
+            "href": "https://statespace.com"
+          },
+          {
+            "label": "CLI",
+            "href": "https://github.com/statespace-tech/cli"
+          },
+          {
+            "label": "Python SDK",
+            "href": "https://github.com/statespace-tech/python-sdk"
+          }
+        ]
+      }
+    ]
   }
 }

@@ -1,0 +1,82 @@
+---
+title: Cluster-randomized experiment
+description: Assign related observations through one shared cluster identifier.
+---
+
+This standalone example tests ranking at the organization level. Every user in one organization receives the same group.
+
+## Choose the cluster unit
+
+Create a project with `account_id` when users in one account share ranking state or can affect one another.
+
+```bash
+ssp project create --name atlas-organizations --unit account_id
+```
+
+<Warning>
+  The project unit cannot change after assignments exist. Use a separate project for a different randomization unit.
+</Warning>
+
+## Define the experiment
+
+The experiment inherits `account_id` from the project.
+
+```yaml
+name: rank-v2
+description: Test reciprocal rank fusion by account.
+sampling:
+  traffic: 1.0
+assignment:
+  method: random
+groups:
+  - name: treatment
+    weight: 0.50
+    config:
+      reranker: rrf
+```
+
+## Assign the clusters
+
+Pass the account identifier for every user request.
+
+```python
+run = experiment.run("account_7")
+reranker = run.config.get("reranker", None)
+```
+
+The same account receives one stable group across its users and runs.
+
+## Aggregate the outcomes
+
+Build one outcome value for each independently assigned account.
+
+```sql
+WITH account_outcomes AS (
+  SELECT
+    assignment AS account_id,
+    group_name,
+    avg(value) AS account_relevance
+  FROM statespace.outcomes
+  WHERE experiment_name = 'rank-v2'
+    AND name = 'relevance'
+  GROUP BY assignment, group_name
+)
+SELECT
+  group_name,
+  count(*) AS accounts,
+  avg(account_relevance) AS mean_relevance
+FROM account_outcomes
+GROUP BY group_name;
+```
+
+## Estimate the effect
+
+Use the number of assigned accounts, not the number of users or requests, as the independent sample size.
+
+| Count | Role |
+| --- | --- |
+| Accounts | Independent experimental units |
+| Users | Observations nested in accounts |
+| Requests | Repeated observations nested in users |
+
+Use a cluster-aware method when the analysis retains user-level or request-level rows.

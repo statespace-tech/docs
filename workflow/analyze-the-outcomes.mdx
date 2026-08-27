@@ -1,0 +1,133 @@
+---
+title: Analyze the outcomes
+description: Build the analysis dataset and estimate the treatment effect.
+---
+
+Begin with data validation. Then aggregate at the randomization-unit level and estimate the planned effect.
+
+## Connect DuckDB
+
+Attach the project database with a read-only token.
+
+```sql
+ATTACH 'quack:atlas-search.db.statespace.app:443' AS statespace (
+  TOKEN 'ssp_ro_7j...'
+);
+```
+
+Use DuckDB 2.0 or later for the Quack connection.
+
+## Inspect the schema
+
+List the published tables before you write the analysis.
+
+```sql
+SHOW ALL TABLES;
+DESCRIBE statespace.outcomes;
+```
+
+<Tip>
+  Ask a coding agent to inspect the schema and write the first query. Review its unit, filters, and assumptions before you use the result.
+</Tip>
+
+## Build the unit dataset
+
+Aggregate repeated observations at the `user_id` randomization-unit level.
+
+```sql
+CREATE OR REPLACE TEMP VIEW unit_relevance AS
+SELECT
+  assignment,
+  group_name,
+  avg(value) AS relevance,
+  count(*) AS observations
+FROM statespace.outcomes
+WHERE experiment_name = 'rank-v2'
+  AND name = 'relevance'
+GROUP BY assignment, group_name;
+```
+
+One row now represents one independently assigned user.
+
+## Estimate the treatment effect
+
+Compare the treatment and control means.
+
+```sql
+WITH means AS (
+  SELECT
+    group_name,
+    avg(relevance) AS mean_relevance
+  FROM unit_relevance
+  GROUP BY group_name
+)
+SELECT
+  max(mean_relevance) FILTER (WHERE group_name = 'treatment')
+    - max(mean_relevance) FILTER (WHERE group_name = 'control')
+      AS treatment_effect
+FROM means;
+```
+
+Report the group means with the difference. A difference without its baseline is difficult to interpret.
+
+## Quantify the uncertainty
+
+Estimate the standard error for the difference in unit-level means.
+
+```sql
+WITH stats AS (
+  SELECT
+    group_name,
+    count(*) AS n,
+    avg(relevance) AS mean_value,
+    stddev_samp(relevance) AS standard_deviation
+  FROM unit_relevance
+  GROUP BY group_name
+)
+SELECT
+  treatment.mean_value - control.mean_value AS treatment_effect,
+  sqrt(
+    pow(treatment.standard_deviation, 2) / treatment.n
+    + pow(control.standard_deviation, 2) / control.n
+  ) AS standard_error
+FROM stats AS treatment
+CROSS JOIN stats AS control
+WHERE treatment.group_name = 'treatment'
+  AND control.group_name = 'control';
+```
+
+Use a method that matches the outcome distribution, assignment design, and stopping rule.
+
+## Explore heterogeneous effects
+
+Use planned pre-treatment attributes for subgroup estimates. Join outcomes to the run that recorded the strata.
+
+```sql
+SELECT
+  json_extract_string(runs.strata, '$.country') AS country,
+  outcomes.group_name,
+  count(DISTINCT outcomes.assignment) AS units,
+  avg(outcomes.value) AS mean_relevance
+FROM statespace.outcomes AS outcomes
+JOIN statespace.runs AS runs
+  ON outcomes.run_id = runs.id
+WHERE outcomes.experiment_name = 'rank-v2'
+  AND outcomes.name = 'relevance'
+GROUP BY country, outcomes.group_name;
+```
+
+<Warning>
+  Treat an unplanned subgroup result as exploratory. Confirm it with a new experiment.
+</Warning>
+
+## Check the assumptions
+
+Complete these checks before you interpret the estimate:
+
+1. Confirm that assignment remained stable.
+2. Confirm that group ratios match the design.
+3. Confirm that missing outcomes do not differ materially by group.
+4. Confirm that the analysis unit matches the randomization unit.
+5. Confirm that the stopping rule matches the statistical method.
+
+Continue with [Make a decision](/workflow/make-a-decision) after the estimate and uncertainty are reproducible.

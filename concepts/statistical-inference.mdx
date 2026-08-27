@@ -1,0 +1,132 @@
+---
+title: Statistical inference
+description: Estimate treatment effects and quantify uncertainty in experiment results.
+---
+
+[Statistical inference](https://en.wikipedia.org/wiki/Statistical_inference) uses observed data to estimate properties of a broader population. It turns experiment outcomes into evidence for a decision.
+
+```text
+outcomes → estimate → uncertainty → decision
+```
+
+## Estimands
+
+An estimand states exactly which effect the experiment intends to estimate. It identifies the population, treatment, outcome, and summary measure.
+
+```text
+Among eligible search users, what is the average effect of RRF
+assignment on relevance compared with the current ranking behavior?
+```
+
+An intention-to-treat estimand compares units by their random assignment. An exposure-based estimand compares units that received the condition. The second can lose the protection of random assignment when exposure is selective.
+
+Define the estimand before selecting a statistical procedure. See [Treatment exposure](/concepts/outcome-measures#treatment-exposure) and [Forced assignment](/concepts/random-assignment#forced-assignment).
+
+## Treatment effects
+
+The [average treatment effect](https://en.wikipedia.org/wiki/Average_treatment_effect) is the difference between the expected outcome under treatment and control.
+
+```text
+ATE = mean outcome under treatment − mean outcome under control
+```
+
+Calculate the observed difference in DuckDB.
+
+```sql
+WITH group_means AS (
+  SELECT
+    group_name,
+    avg(value) AS mean_value
+  FROM statespace.outcomes
+  WHERE experiment_name = 'rank-v2'
+    AND name = 'relevance'
+  GROUP BY group_name
+)
+SELECT
+  max(mean_value) FILTER (WHERE group_name = 'treatment')
+    - max(mean_value) FILTER (WHERE group_name = 'control') AS treatment_effect
+FROM group_means;
+```
+
+## Effect sizes
+
+An [effect size](https://en.wikipedia.org/wiki/Effect_size) describes the magnitude of a difference. Report it in a unit that supports a product decision.
+
+```text
+absolute effect = treatment mean − control mean
+relative effect = absolute effect / control mean
+```
+
+Always report the control value with a relative effect. A large relative change can represent a small absolute change.
+
+## Statistical uncertainty
+
+Every estimate contains sampling variation. Report a confidence interval or another uncertainty measure with the point estimate.
+
+Estimate the standard error of a difference in means.
+
+```sql
+WITH group_stats AS (
+  SELECT
+    group_name,
+    count(*) AS n,
+    avg(value) AS mean_value,
+    stddev_samp(value) AS standard_deviation
+  FROM statespace.outcomes
+  WHERE experiment_name = 'rank-v2'
+    AND name = 'relevance'
+  GROUP BY group_name
+)
+SELECT
+  treatment.mean_value - control.mean_value AS treatment_effect,
+  sqrt(
+    pow(treatment.standard_deviation, 2) / treatment.n
+    + pow(control.standard_deviation, 2) / control.n
+  ) AS standard_error
+FROM group_stats AS treatment
+CROSS JOIN group_stats AS control
+WHERE treatment.group_name = 'treatment'
+  AND control.group_name = 'control';
+```
+
+## Statistical power
+
+[Statistical power](https://en.wikipedia.org/wiki/Statistical_power) is the probability that a test detects an effect of a specified size when that effect exists.
+
+Power depends on these inputs:
+
+- [Sampling traffic](/concepts/random-sampling#sampling-traffic)
+- [Group weights](/concepts/treatments-and-control-groups#group-weights)
+- Outcome variance
+- Minimum effect of interest
+- Decision threshold
+
+Do not stop an experiment only because an intermediate result looks favorable. Repeated inspection changes the error properties unless the analysis accounts for sequential decisions.
+
+## Heterogeneous effects
+
+An average effect can hide differences across populations. Estimate subgroup effects with pre-treatment attributes only when the sample supports them.
+
+```sql
+SELECT
+  json_extract_string(runs.strata, '$.country') AS country,
+  outcomes.group_name,
+  count(*) AS observations,
+  avg(outcomes.value) AS mean_relevance
+FROM statespace.outcomes AS outcomes
+JOIN statespace.runs AS runs
+  ON outcomes.run_id = runs.id
+WHERE outcomes.experiment_name = 'rank-v2'
+  AND outcomes.name = 'relevance'
+GROUP BY country, outcomes.group_name;
+```
+
+Treat an unplanned subgroup result as exploratory evidence. Validate it in a new experiment before acting on it.
+
+See [Stratification and blocking](/concepts/random-assignment#stratification-and-blocking) when a subgroup is part of the experiment design.
+
+## Practical significance
+
+Statistical significance asks whether random variation can reasonably explain an estimate. Practical significance asks whether the effect is large enough to justify a decision.
+
+Compare the estimated benefit with implementation cost, operational risk, and guardrail changes. A precise effect can still be too small to matter.
