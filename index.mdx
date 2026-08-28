@@ -28,8 +28,8 @@ Statespace provides a CLI, SDKs, and a SQL database instead of a fixed dashboard
 | Interface | Purpose |
 | --- | --- |
 | YAML | Defines sampling, assignment, and groups. |
-| CLI | Manages projects, layers, and experiments. |
-| SDK | Applies assignments and records outcomes. |
+| CLI | Shows the account and manages tokens, layers, and experiment state. |
+| SDK | Creates experiments, assigns subjects, and records outcomes. |
 | DuckDB | Queries raw experiment data with SQL. |
 
 ## Coding-agent workflow
@@ -56,15 +56,14 @@ The platform separates experiment evidence from the analysis that uses it.
 
 ## Direct SQL analysis
 
-Each project publishes one DuckDB database through the Quack protocol. The database contains experiment definitions, assignments, runs, and outcomes.
+Each account publishes one DuckDB database through the Quack protocol. The database contains experiment definitions, assignments, runs, outcomes, and the `logs` view.
 
 ```sql
 SELECT
   group_name,
-  avg(value) AS mean_relevance
-FROM statespace.outcomes
+  avg(data.relevance::DOUBLE) AS mean_relevance
+FROM statespace.logs
 WHERE experiment_name = 'rank-v2'
-  AND name = 'relevance'
 GROUP BY group_name;
 ```
 
@@ -74,11 +73,11 @@ GROUP BY group_name;
 
 ## Data ownership
 
-Your project keeps the raw evidence behind every aggregate. You can query and download the database with a project token.
+Your account database keeps the raw evidence behind every aggregate. You can query and download it with a database token.
 
-- Statespace does not train on project data.
-- Statespace does not share project data.
-- Project retention follows the account plan.
+- Statespace does not train on account data.
+- Statespace does not share account data.
+- Data retention follows the account plan.
 - Revoked tokens lose access immediately.
 
 ## Product scope
@@ -86,5 +85,5 @@ Your project keeps the raw evidence behind every aggregate. You can query and do
 Statespace guarantees who received what, when, and why. Your team remains responsible for the hypothesis, metric definitions, statistical method, and final decision.
 
 <Tip>
-  Start with the [Quickstart](/quickstart). It completes the full loop with one project and one experiment.
+  Start with the [Quickstart](/quickstart). It completes the full loop with one experiment.
 </Tip>

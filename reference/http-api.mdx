@@ -1,90 +1,82 @@
 ---
 title: HTTP API
-description: Review public resources, authentication, and error responses.
+description: Review public authentication, token, experiment, and event routes.
 ---
 
-The production API base URL is `https://api.statespace.com`. Prefer a supported SDK for runtime evaluation and event delivery.
+The production API base URL is `https://api.statespace.com`. Prefer the SDK for runtime assignment and event delivery.
 
 ## Authentication
 
-Send account sessions or project tokens as bearer credentials.
+Send an account session or database token as a bearer credential.
 
 ```http
 Authorization: Bearer ssp_rw_7j...
 ```
 
-Account endpoints require an account session. Project configuration and data endpoints require a token with sufficient project access.
+Account sessions manage tokens and experiment state. Read-write tokens initialize experiments, assign subjects, and record outcomes. Read-only tokens query DuckDB.
 
-## Project endpoints
+## Account endpoint
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/v1/projects` | List account projects. |
-| `POST` | `/v1/projects` | Create a project. |
-| `GET` | `/v1/projects/{project}` | Show a project. |
-| `DELETE` | `/v1/projects/{project}` | Delete an empty project. |
+| `GET` | `/v1/account` | Show plan limits, usage, and the database URL. |
 
 ## Token endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/v1/projects/{project}/tokens` | List token metadata. |
-| `POST` | `/v1/projects/{project}/tokens` | Create a project token. |
-| `DELETE` | `/v1/projects/{project}/tokens/{id}` | Revoke a project token. |
+| `GET` | `/v1/tokens` | List token metadata. |
+| `POST` | `/v1/tokens` | Create a read-only or read-write token. |
+| `DELETE` | `/v1/tokens/{id}` | Revoke a token. |
 
-Complete token values appear only in create responses.
+Token creation returns the complete secret once.
 
 ## Layer endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/v1/projects/{project}/layers` | List layers. |
-| `POST` | `/v1/projects/{project}/layers` | Create a layer. |
-| `GET` | `/v1/projects/{project}/layers/{layer}` | Show allocations. |
-| `PUT` | `/v1/projects/{project}/layers/{layer}` | Update layer metadata. |
-| `DELETE` | `/v1/projects/{project}/layers/{layer}` | Delete an unused layer. |
+| `GET` | `/v1/layers` | List exclusion layers. |
+| `POST` | `/v1/layers` | Create a layer. |
+| `GET` | `/v1/layers/{name}` | Show a layer. |
+| `PUT` | `/v1/layers/{name}` | Replace a layer definition. |
+| `DELETE` | `/v1/layers/{name}` | Delete an unused layer. |
 
 ## Experiment endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/v1/projects/{project}/experiments` | List experiments. |
-| `POST` | `/v1/projects/{project}/experiments` | Create an experiment. |
-| `GET` | `/v1/projects/{project}/experiments/{experiment}` | Show an experiment. |
-| `PUT` | `/v1/projects/{project}/experiments/{experiment}` | Create a revision. |
-| `POST` | `/v1/projects/{project}/experiments/{experiment}/state` | Change lifecycle state. |
-| `DELETE` | `/v1/projects/{project}/experiments/{experiment}` | Delete an unused draft. |
+| `GET` | `/v1/experiments` | List experiments. |
+| `POST` | `/v1/experiments` | Register a runtime experiment definition. |
+| `GET` | `/v1/experiments/{name}` | Show an experiment. |
+| `PUT` | `/v1/experiments/{name}` | Replace a draft or stopped definition. |
+| `DELETE` | `/v1/experiments/{name}` | Delete an experiment and its data. |
+| `POST` | `/v1/experiments/{name}/state` | Start or stop an experiment. |
+| `POST` | `/v1/experiments/{name}/traffic` | Increase running traffic. |
 
-The runtime manifest uses a read-write project token.
+The SDK reads the runtime manifest with a read-write token.
 
 ```http
-GET /v1/runtime/projects/atlas-search/experiments/rank-v2
+GET /v1/runtime/experiments/rank-v2
 ```
 
-## Run endpoints
+## Assignment and outcome endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/v1/runtime/runs` | Verify and record one exposure. |
-| `POST` | `/v1/runtime/outcomes` | Record one run outcome. |
-| `POST` | `/v1/runtime/batches` | Record a mixed event batch. |
+| `POST` | `/v1/assign` | Resolve one stable subject assignment. |
+| `POST` | `/v1/runs` | Record one applied configuration. |
+| `POST` | `/v1/run-outcomes` | Record one JSON outcome for a run. |
+| `POST` | `/v1/outcomes` | Record a structured outcome for an assignment. |
 
-Send the stable event identifier with each write request.
-
-```http
-Idempotency-Key: request_91
-```
+Each write request includes its stable event identifier in the JSON body. Repeating an accepted identifier does not create a second record.
 
 ## Error responses
 
-Error bodies use one stable code and one concise message.
+Error responses contain one concise message.
 
 ```json
 {
-  "error": {
-    "code": "layer_capacity_exceeded",
-    "message": "The search-ranking layer has insufficient traffic."
-  }
+  "error": "experiment already exists"
 }
 ```
 
@@ -92,12 +84,11 @@ Error bodies use one stable code and one concise message.
 | --- | --- |
 | `400` | The request is invalid. |
 | `401` | Authentication is missing or invalid. |
-| `403` | The token lacks required access. |
 | `404` | The resource does not exist. |
 | `409` | The request conflicts with current state. |
-| `429` | The project exceeded its write limit. |
+| `429` | The account exceeded its write limit. |
 | `500` | The service could not complete a valid request. |
 
 <Note>
-  Retry `429` and transient `500` responses with bounded exponential backoff. Do not retry validation or authorization errors without changing the request.
+  Retry `429` and transient `500` responses with bounded exponential backoff. Do not retry validation or authentication errors without changing the request.
 </Note>

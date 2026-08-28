@@ -1,117 +1,112 @@
 ---
 title: SDKs
-description: Review runtime assignment, caching, outcomes, and delivery interfaces.
+description: Review runtime initialization, assignment, caching, and delivery.
 ---
 
-Statespace SDKs evaluate cached manifests, apply stable assignments, and deliver experiment events. Use the same project and experiment reference in each language.
+The Python SDK creates experiments at runtime, assigns subjects, and records arbitrary JSON outcomes. A read-write token identifies the account database.
 
-## Python SDK
+## Load YAML
 
-Connect and record one run with Python.
+Load and validate one YAML definition.
 
 ```python
-from statespace import Experiment
+import statespace
 
-experiment = Experiment.connect(
-    "atlas-search/rank-v2",
-    token="ssp_rw_7j...",
+definition = statespace.load("experiment.yaml")
+```
+
+`load()` returns a dictionary that can be passed directly to `init()`.
+
+## Define Python objects
+
+Use the public Pydantic models when the definition belongs in Python code.
+
+```python
+experiment = statespace.Experiment(
+    name="rank-v2",
+    description="Test reciprocal rank fusion.",
+    assignment="user_id",
+    groups=[
+        statespace.Group(
+            name="treatment",
+            weight=0.2,
+            config={"reranker": "rrf"},
+        )
+    ],
 )
-
-run = experiment.run("user_42")
-run.outcome("relevance", value=0.87)
-experiment.close(timeout=10.0)
 ```
 
-## TypeScript SDK
+`Group.config` can contain live Python objects. The SDK keeps these objects in the process and uploads only their JSON-compatible projection.
 
-Connect and record the same run with TypeScript.
+## Initialize a run
 
-```typescript
-import { Experiment } from "@statespace/sdk";
+Initialize with the loaded dictionary.
 
-const experiment = await Experiment.connect("atlas-search/rank-v2", {
-  token: "ssp_rw_7j...",
-});
-
-const run = experiment.run("user_42");
-run.outcome("relevance", { value: 0.87 });
-await experiment.close({ timeout: 10_000 });
+```python
+with statespace.init(**definition) as run:
+    config = run.get_config("u_42")
+    run.log({"relevance": 0.7})
 ```
 
-## Local evaluation
+Pass the Pydantic model directly when the definition is in Python code.
 
-The run method takes one stable assignment value and optional runtime metadata.
+```python
+with statespace.init(experiment) as run:
+    config = run.get_config("u_42")
+    run.log({"relevance": 0.7})
+```
 
-<Tabs>
-  <Tab title="Python">
-    Supply strata, context, or a forced quality-assurance group.
+The first call creates and starts an absent experiment. The SDK accepts an identical definition and rejects a conflict with the same name.
 
-    ```python
-    run = experiment.run(
-        "user_42",
-        strata={"country": "US"},
-        context={"client_version": "3.4.0"},
-        force=None,
-    )
-    ```
-  </Tab>
-  <Tab title="TypeScript">
-    Supply the same runtime fields with an options object.
+## Assign a subject
 
-    ```typescript
-    const run = experiment.run("user_42", {
-      strata: { country: "US" },
-      context: { client_version: "3.4.0" },
-    });
-    ```
-  </Tab>
-</Tabs>
+Pass one stable assignment value and optional pre-treatment context.
 
-The returned run includes `id`, `assignment`, `group`, `config`, `enrolled`, and `revision`.
+```python
+config = run.get_config(
+    "u_42",
+    context={"country": "US", "device": "desktop"},
+)
+```
 
-## Manifest caching
+`get_config()` returns an immutable mapping. Use an explicit application default for each optional runtime value.
 
-| State | Behavior |
+## Record an outcome
+
+Pass exactly one dictionary to `log()`.
+
+```python
+run.log({"relevance": 0.7, "latency_ms": 84})
+```
+
+Call `get_config()` before each `log()` call. One `Run` can process many subjects.
+
+## Refresh the definition
+
+The SDK polls experiment metadata every 60 seconds by default.
+
+| Condition | Behavior |
 | --- | --- |
-| Valid cached manifest | Evaluate locally. |
-| New manifest available | Verify and replace the cache. |
-| Refresh unavailable | Keep the last valid manifest. |
-| No valid manifest | Return an SDK error. |
+| Refresh succeeds | Use the current definition for later assignments. |
+| Refresh fails | Keep the last valid definition and expose `run.refresh_error`. |
+| Experiment stops | Reject new configuration requests. |
 
-The default refresh interval is 60 seconds. Configure `STATESPACE_URL` only for a nonproduction endpoint.
+## Flush and close
 
-## Event delivery
-
-The SDK batches runs and outcomes in the background. Event identifiers make retries idempotent.
+The context manager flushes queued records and closes background resources. Use the explicit lifecycle when a framework controls shutdown.
 
 ```python
-experiment.flush(timeout=10.0)
-experiment.close(timeout=10.0)
-```
-
-`flush()` waits for current events. `close()` flushes events and stops background work.
-
-## Idempotency
-
-Supply a run identifier when the application already has a stable request identifier.
-
-```python
-run = experiment.run("user_42", id="request_91")
-```
-
-Repeating the same accepted identifier does not create a second run.
-
-## Error handling
-
-SDK errors identify configuration, evaluation, and delivery failures separately.
-
-```python
-from statespace import StatespaceError
-
+run = statespace.init(experiment)
 try:
-    experiment.close(timeout=10.0)
-except StatespaceError as error:
-    report_delivery_failure(error)
+    config = run.get_config("u_42")
+    run.log({"relevance": 0.7})
+    run.flush()
+finally:
+    run.close()
 ```
 
-Do not silently discard final delivery failures.
+`close()` is idempotent. Record identifiers remain stable across delivery retries.
+
+<Warning>
+  Do not ignore a final flush or close error. The error means that one or more records did not receive durable acknowledgement.
+</Warning>

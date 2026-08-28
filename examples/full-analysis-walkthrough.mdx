@@ -48,7 +48,7 @@ Summarize the randomized, non-forced assignment population.
 ```sql
 SELECT
   group_name,
-  count(DISTINCT assignment) AS units
+  count(DISTINCT subject_id) AS units
 FROM statespace.assignments
 WHERE experiment_name = 'rank-v2'
   AND forced = false
@@ -64,14 +64,14 @@ Create one row for each assigned user.
 ```sql
 CREATE OR REPLACE TEMP TABLE rank_v2_units AS
 SELECT
-  assignment,
+  subject_id,
   group_name,
-  avg(value) FILTER (WHERE name = 'relevance') AS relevance,
-  avg(value) FILTER (WHERE name = 'latency_ms') AS latency_ms,
-  max(value) FILTER (WHERE name = 'error') AS had_error
-FROM statespace.outcomes
+  avg(data.relevance::DOUBLE) AS relevance,
+  avg(data.latency_ms::DOUBLE) AS latency_ms,
+  max(data.error::BOOLEAN)::INTEGER AS had_error
+FROM statespace.logs
 WHERE experiment_name = 'rank-v2'
-GROUP BY assignment, group_name;
+GROUP BY subject_id, group_name;
 ```
 
 ## Estimate the effect

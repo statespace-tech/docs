@@ -3,96 +3,76 @@ title: Quickstart
 description: Complete one experiment from YAML to SQL.
 ---
 
-This quickstart tests reciprocal rank fusion for the `atlas-search` project. It uses one treatment, an implicit control, and a numeric relevance outcome.
+This quickstart tests reciprocal rank fusion. The SDK creates the experiment at runtime and records one JSON outcome for each subject.
 
 <Steps>
-  <Step title="Install the CLI">
+  <Step title="Install and sign in">
     Install the current `ssp` binary on macOS or Linux.
 
     ```bash
     curl -fsSL https://statespace.com/install | bash
-    ```
-
-    Sign in when the CLI requests an account session.
-
-    ```bash
     ssp login
     ```
   </Step>
 
-  <Step title="Create the project">
-    Create a globally named project that randomizes users.
+  <Step title="Create a token">
+    Create a read-write token for the runtime application.
 
     ```bash
-    ssp project create --name atlas-search --unit user_id
+    ssp token create -n quickstart --access read-write
     ```
 
     <Tip>
-      The command shows the default read-write token once. Store it in a secret manager.
+      The command shows the token secret once. Store it in a secret manager.
     </Tip>
   </Step>
 
   <Step title="Define the experiment">
-    Save this definition as `experiment.yaml`.
+    Save the complete definition as `experiment.yaml`.
 
     ```yaml
     name: rank-v2
     description: Test reciprocal rank fusion.
-
-    sampling:
-      traffic: 1.0
-
-    assignment:
-      method: random
-
+    assignment: user_id
     groups:
       - name: treatment
-        weight: 0.20
+        weight: 0.2
         config:
           reranker: rrf
     ```
 
     <Note>
-      Statespace adds an empty control group with the remaining weight of `0.80`.
+      Statespace adds an empty control group with the remaining weight of `0.8`.
     </Note>
-
-    Create and start the experiment.
-
-    ```bash
-    ssp experiment create --project atlas-search --file experiment.yaml
-    ssp experiment start --project atlas-search --name rank-v2
-    ```
   </Step>
 
-  <Step title="Apply the treatments">
-    Install the Python SDK.
+  <Step title="Run the experiment">
+    Install the SDK and configure the token.
 
     ```bash
     uv add statespace-sdk
+    export STATESPACE_TOKEN=ssp_rw_7j...
     ```
 
-    Assign three users and record one relevance outcome for each run.
+    Load the definition. The first `init` call creates and starts the experiment.
 
     ```python
-    from statespace import Experiment
+    import statespace
 
-    experiment = Experiment.connect(
-        "atlas-search/rank-v2",
-        token="ssp_rw_7j...",
-    )
+    experiment = statespace.load("experiment.yaml")
 
-    for user_id in ["u_42", "u_73", "u_91"]:
-        run = experiment.run(user_id)
-        reranker = run.config.get("reranker", None)
-        result = search("query goes here", reranker=reranker)
-        run.outcome("relevance", value=result.relevance)
-
-    experiment.close()
+    with statespace.init(**experiment) as run:
+        for user_id in ["u_42", "u_73", "u_91"]:
+            config = run.get_config(user_id)
+            result = search("query goes here", reranker=config.get("reranker", None))
+            run.log({"relevance": result.relevance})
     ```
+
+    Later calls accept the same definition. A conflicting definition with the same name returns an error.
   </Step>
 
   <Step title="Analyze the outcomes">
-    Attach the project database through the DuckDB Quack protocol.
+    Run `ssp account` to get the database URL. Attach it through the DuckDB Quack protocol.
 
     ```sql
     ATTACH 'quack:atlas-search.db.statespace.app:443' AS statespace (
@@ -102,15 +82,14 @@ This quickstart tests reciprocal rank fusion for the `atlas-search` project. It 
     SELECT
       group_name,
       count(*) AS outcomes,
-      avg(value) AS mean_relevance
-    FROM statespace.outcomes
+      avg(data.relevance::DOUBLE) AS mean_relevance
+    FROM statespace.logs
     WHERE experiment_name = 'rank-v2'
-      AND name = 'relevance'
     GROUP BY group_name;
     ```
 
     <Info>
-      This query describes the observed groups. Use the workflow pages before you make a production decision.
+      Use DuckDB 2.0 or later. Review the workflow pages before you make a production decision.
     </Info>
   </Step>
 </Steps>

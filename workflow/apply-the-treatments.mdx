@@ -1,100 +1,107 @@
 ---
 title: Apply the treatments
-description: Assign units, apply configurations, and record observable responses.
+description: Initialize the experiment, assign subjects, and record outcomes.
 ---
 
-The SDK converts an experiment definition into one stable runtime decision. The application must apply that decision before it records an exposure.
+The SDK creates an absent experiment from its definition. It then assigns each subject and records the resulting JSON outcome.
 
 ```text
-connect → assign → apply → expose → record → flush
+load → initialize → assign → apply → log → flush
 ```
 
-## Connect the SDK
+## Configure the token
 
-Connect with a read-write token scoped to the project.
+Use a read-write token in the application runtime.
+
+```bash
+export STATESPACE_TOKEN=ssp_rw_7j...
+```
+
+The token identifies the account database. The SDK does not need a separate database name.
+
+## Load the definition
+
+Load and validate the YAML file before initialization.
 
 ```python
-from statespace import Experiment
+import statespace
 
-experiment = Experiment.connect(
-    "atlas-search/rank-v2",
-    token="ssp_rw_7j...",
+definition = statespace.load("experiment.yaml")
+```
+
+You can also build a definition with the public Pydantic models.
+
+```python
+experiment = statespace.Experiment(
+    name="rank-v2",
+    description="Test reciprocal rank fusion.",
+    assignment="user_id",
+    groups=[
+        statespace.Group(
+            name="treatment",
+            weight=0.2,
+            config={"reranker": "rrf"},
+        )
+    ],
 )
 ```
 
-The SDK downloads the signed experiment manifest and starts background refresh.
+## Initialize the experiment
 
-## Load the experiment
-
-The SDK caches the manifest for local evaluation. It polls for a new active revision at a bounded interval.
-
-| Condition | SDK behavior |
-| --- | --- |
-| Cached manifest is current | Evaluate without a network request. |
-| Refresh succeeds | Use the new revision for later assignments. |
-| Refresh fails | Keep the last valid manifest and report the error. |
-| No valid manifest exists | Fail closed and return an SDK error. |
-
-## Assign the unit
-
-Pass one value of the project randomization unit.
+Pass the loaded definition to `init`.
 
 ```python
-run = experiment.run("user_42")
+with statespace.init(**definition) as run:
+    ...
 ```
 
-The returned run contains `id`, `assignment`, `group`, `config`, `enrolled`, and `revision`.
-
-<Note>
-  Repeated calls with `user_42` use the same sampling and group decisions for one revision.
-</Note>
-
-## Apply the configuration
-
-Read each parameter with the application default. The default implements the implicit control.
+Pass a code-defined `Experiment` directly.
 
 ```python
-reranker = run.config.get("reranker", None)
+with statespace.init(experiment) as run:
+    ...
+```
+
+The first call creates and starts the experiment. Later calls accept the same definition and reject a conflict with the same name.
+
+## Assign each subject
+
+Request the configuration before you apply the tested behavior.
+
+```python
+config = run.get_config("u_42")
+reranker = config.get("reranker", None)
+```
+
+Repeated calls with the same subject use the same group. Stratified experiments pass declared pre-treatment values through `context`.
+
+## Record each outcome
+
+Record one arbitrary JSON dictionary after the tested behavior runs.
+
+```python
 result = search("query goes here", reranker=reranker)
+run.log({"relevance": result.relevance, "latency_ms": result.latency_ms})
 ```
 
-If `run.enrolled` is false, apply the default behavior and do not attribute an experiment outcome.
-
-## Record the exposure
-
-Create a run only where the application can apply the assigned configuration. This keeps assignment and exposure distinct.
-
-<Warning>
-  Do not call `experiment.run()` during prefetch when the user might never receive the behavior. Early exposure logging can dilute the measured effect.
-</Warning>
-
-## Record the outcomes
-
-Record one or more responses on the run that caused them.
+Structured outcomes can include complete conversations or nested application data.
 
 ```python
-run.outcome("relevance", value=result.relevance)
-run.outcome("latency_ms", value=result.latency_ms)
+run.log({"messages": messages, "termination": "completed"})
 ```
 
-Use structured data when a scalar cannot preserve the evidence.
+## Flush pending records
+
+The context manager flushes and closes the run. Use the explicit lifecycle when a framework controls shutdown.
 
 ```python
-run.outcome(
-    "conversation",
-    data={"messages": messages, "termination": "completed"},
-)
+run = statespace.init(**definition)
+try:
+    config = run.get_config("u_42")
+    run.log({"relevance": 0.7})
+    run.flush()
+finally:
+    run.close()
 ```
 
-## Flush the events
-
-Flush pending events at a durable application boundary.
-
-```python
-experiment.flush(timeout=10.0)
-experiment.close(timeout=10.0)
-```
-
-The SDK batches retries and uses idempotent event identifiers. The application must handle a final delivery error.
-
-Continue with [Monitor the data](/workflow/monitor-the-data) after production events arrive.
+Continue with [Monitor the data](/workflow/monitor-the-data) after production records arrive.

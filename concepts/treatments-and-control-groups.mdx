@@ -32,7 +32,8 @@ Other platforms can call groups **arms** or **variants**. Statespace uses `group
 The control group receives the baseline behavior. The application uses its normal behavior when the assigned configuration does not contain a treatment value.
 
 ```python
-reranker = run.config.get("reranker", None)
+config = run.get_config("user_42")
+reranker = config.get("reranker", None)
 result = search("query goes here", reranker=reranker)
 ```
 

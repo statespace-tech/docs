@@ -9,8 +9,8 @@ A useful definition states one question and makes every design choice explicit. 
   <Step title="State the hypothesis">
     Name the expected treatment, outcome, population, and direction of change.
   </Step>
-  <Step title="Choose the project">
-    Use a project with the correct randomization unit and data boundary.
+  <Step title="Choose the unit">
+    Select the identifier that can receive treatment independently.
   </Step>
   <Step title="Configure the design">
     Define sampling, groups, assignment, and any exclusion layer.
@@ -33,15 +33,15 @@ mean relevance compared with the current ranking behavior.
   The hypothesis is not a YAML field. Put its concise operational form in `description`, and keep the complete rationale with the experiment review.
 </Note>
 
-## Choose the project
+## Choose the unit
 
-Choose the unit at the level where treatment can vary independently. The project applies this unit to every contained experiment.
+Choose the unit at the level where treatment can vary independently. Put it in the experiment definition.
 
-```bash
-ssp project create --name atlas-search --unit user_id
+```yaml
+assignment: user_id
 ```
 
-Use a separate project when access, retention, data ownership, or the randomization unit must differ.
+Use the same unit for experiments that share an exclusion layer.
 
 ## Define the population
 
@@ -61,8 +61,7 @@ Review [Random sampling](/concepts/random-sampling) before you generalize the re
 Set the fraction of eligible units that can enter the experiment.
 
 ```yaml
-sampling:
-  traffic: 0.10
+traffic: 0.10
 ```
 
 Start with limited traffic when the treatment has operational risk. Increase it only after health checks pass.
@@ -86,8 +85,7 @@ Statespace gives the implicit control an empty configuration and weight `0.80`.
 Use random assignment unless planned categorical strata require tighter balance.
 
 ```yaml
-assignment:
-  method: random
+assignment: user_id
 ```
 
 Use the stratified method only when the application can supply every declared pre-treatment value.
@@ -96,19 +94,24 @@ Use the stratified method only when the application can supply every declared pr
 
 Add a layer when concurrent treatments can interfere. Create the shared layer before the experiment references it.
 
-```bash
-ssp layer create \
-  --project atlas-search \
-  --name search-ranking \
-  --description "Prevent overlapping ranking experiments."
+```yaml
+name: search-ranking
+description: Prevent overlapping ranking experiments.
+assignment: user_id
+holdout: 0.0
 ```
 
-Reference the layer in the sampling section.
+Create the layer from `layer.yaml`.
+
+```bash
+ssp experiment layer create --file layer.yaml
+```
+
+Reference the layer in the experiment definition.
 
 ```yaml
-sampling:
-  traffic: 0.10
-  layer: search-ranking
+traffic: 0.10
+layer: search-ranking
 ```
 
 <Tip>
@@ -117,12 +120,14 @@ sampling:
 
 ## Validate the YAML
 
-Validate the file before you create or update the experiment.
+Validate the file before the runtime initializes the experiment.
 
-```bash
-ssp experiment validate --project atlas-search --file experiment.yaml
+```python
+import statespace
+
+experiment = statespace.load("experiment.yaml")
 ```
 
-Validation checks unknown fields, probabilities, group names, strata, and layer capacity. It does not judge the hypothesis or metric choice.
+`statespace.load()` validates unknown fields, probabilities, group names, and assignment settings. The backend validates layer capacity when `statespace.init(...)` starts the experiment. Neither check judges the hypothesis or outcome choice.
 
 Continue with [Apply the treatments](/workflow/apply-the-treatments) after validation succeeds.

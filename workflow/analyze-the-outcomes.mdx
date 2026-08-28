@@ -7,7 +7,7 @@ Begin with data validation. Then aggregate at the randomization-unit level and e
 
 ## Connect DuckDB
 
-Attach the project database with a read-only token.
+Attach the account database with a read-only token.
 
 ```sql
 ATTACH 'quack:atlas-search.db.statespace.app:443' AS statespace (
@@ -23,7 +23,7 @@ List the published tables before you write the analysis.
 
 ```sql
 SHOW ALL TABLES;
-DESCRIBE statespace.outcomes;
+DESCRIBE statespace.logs;
 ```
 
 <Tip>
@@ -37,14 +37,13 @@ Aggregate repeated observations at the `user_id` randomization-unit level.
 ```sql
 CREATE OR REPLACE TEMP VIEW unit_relevance AS
 SELECT
-  assignment,
+  subject_id,
   group_name,
-  avg(value) AS relevance,
+  avg(data.relevance::DOUBLE) AS relevance,
   count(*) AS observations
-FROM statespace.outcomes
+FROM statespace.logs
 WHERE experiment_name = 'rank-v2'
-  AND name = 'relevance'
-GROUP BY assignment, group_name;
+GROUP BY subject_id, group_name;
 ```
 
 One row now represents one independently assigned user.
@@ -104,16 +103,15 @@ Use planned pre-treatment attributes for subgroup estimates. Join outcomes to th
 
 ```sql
 SELECT
-  json_extract_string(runs.strata, '$.country') AS country,
-  outcomes.group_name,
-  count(DISTINCT outcomes.assignment) AS units,
-  avg(outcomes.value) AS mean_relevance
-FROM statespace.outcomes AS outcomes
+  json_extract_string(runs.context, '$.country') AS country,
+  logs.group_name,
+  count(DISTINCT logs.subject_id) AS units,
+  avg(logs.data.relevance::DOUBLE) AS mean_relevance
+FROM statespace.logs AS logs
 JOIN statespace.runs AS runs
-  ON outcomes.run_id = runs.id
-WHERE outcomes.experiment_name = 'rank-v2'
-  AND outcomes.name = 'relevance'
-GROUP BY country, outcomes.group_name;
+  ON logs.run_id = runs.id
+WHERE logs.experiment_name = 'rank-v2'
+GROUP BY country, logs.group_name;
 ```
 
 <Warning>

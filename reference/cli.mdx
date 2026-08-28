@@ -3,7 +3,7 @@ title: CLI
 description: Review every public ssp command, option, and output convention.
 ---
 
-The `ssp` CLI manages accounts, projects, tokens, layers, and experiments. It prints structured YAML.
+The `ssp` CLI manages account access, tokens, layers, and experiment state. It prints structured YAML.
 
 ```text
 ssp <resource> <action> [options]
@@ -15,58 +15,42 @@ ssp <resource> <action> [options]
 | --- | --- |
 | `ssp login` | Sign in with GitHub or Google. |
 | `ssp logout` | Remove the saved account session. |
-| `ssp account` | Show the account and plan limits. |
+| `ssp account` | Show account usage, plan limits, and the database URL. |
 
-## Project commands
-
-| Command | Required options |
-| --- | --- |
-| `ssp project create` | `--name, -N`, `--unit` |
-| `ssp project list` | None |
-| `ssp project show` | `--name, -N` |
-| `ssp project delete` | `--name, -N`, `--yes` |
-
-Project creation prints one complete read-write token. The secret appears once.
+`ssp account` has no subcommands. Sign-up creates one account database, which the CLI selects automatically.
 
 ## Token commands
 
 | Command | Required options |
 | --- | --- |
-| `ssp project token create` | `--project, -P`, `--name, -N`, `--access` |
-| `ssp project token list` | `--project, -P` |
-| `ssp project token revoke` | `--project, -P`, `--id` |
+| `ssp token create` | `--name, -n` and `--access` |
+| `ssp token list` | None |
+| `ssp token revoke` | `--id` |
 
-The `--access` option accepts `read-only` or `read-write`.
-
-## Layer commands
-
-| Command | Required options |
-| --- | --- |
-| `ssp layer create` | `--project, -P`, `--name, -N`, `--description` |
-| `ssp layer list` | `--project, -P` |
-| `ssp layer show` | `--project, -P`, `--name, -N` |
-| `ssp layer update` | `--project, -P`, `--name, -N` |
-| `ssp layer delete` | `--project, -P`, `--name, -N` |
-
-Use the optional `--holdout` value with `layer create` or `layer update`.
+The `--access` option accepts `read-only` or `read-write`. Token creation prints the complete secret once.
 
 ## Experiment commands
 
 | Command | Required options |
 | --- | --- |
-| `ssp experiment validate` | `--project, -P`, `--file, -f` |
-| `ssp experiment create` | `--project, -P`, `--file, -f` |
-| `ssp experiment update` | `--project, -P`, `--name, -N` with `--file, -f` or `--traffic` |
-| `ssp experiment list` | `--project, -P` |
-| `ssp experiment show` | `--project, -P`, `--name, -N` |
-| `ssp experiment start` | `--project, -P`, `--name, -N` |
-| `ssp experiment stop` | `--project, -P`, `--name, -N` |
-| `ssp experiment archive` | `--project, -P`, `--name, -N` |
-| `ssp experiment delete` | `--project, -P`, `--name, -N` |
+| `ssp experiment list` | None |
+| `ssp experiment show` | `--name, -n` |
+| `ssp experiment start` | `--name, -n` |
+| `ssp experiment stop` | `--name, -n` |
+| `ssp experiment delete` | `--name, -n` |
+| `ssp experiment traffic set` | `--name, -n` and `--traffic` |
 
-<Warning>
-  Deletion removes metadata only when no retained experiment data depends on it. Archive completed experiments instead.
-</Warning>
+The SDK creates experiments at runtime. The CLI does not create or update their definitions.
+
+## Layer commands
+
+| Command | Required options |
+| --- | --- |
+| `ssp experiment layer create` | `--file, -f` |
+| `ssp experiment layer update` | `--file, -f` |
+| `ssp experiment layer list` | None |
+| `ssp experiment layer show` | `--name, -n` |
+| `ssp experiment layer delete` | `--name, -n` |
 
 ## Global options
 
@@ -82,11 +66,13 @@ Use the optional `--holdout` value with `layer create` or `layer update`.
 Every successful data command prints YAML. Errors use a nonzero exit status and write a concise message to standard error.
 
 ```yaml
-id: atlas-search
-unit: user_id
+id: acct_7j...
+provider: github
+login: atlas-search
+plan: free
+usage_bytes: 0
+storage_limit_bytes: 1000000000
+write_events_per_minute: 100
+retention_days: 7
 database_url: quack:atlas-search.db.statespace.app:443
 ```
-
-<Note>
-  The CLI has no active project state. Pass the project name to each project-scoped command.
-</Note>

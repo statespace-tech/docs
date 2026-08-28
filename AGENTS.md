@@ -18,10 +18,11 @@ Document current behavior as current. Mark proposed behavior with a visible `Pla
 - Put one explanatory sentence immediately before each code block.
 - Prefer concrete examples over placeholders.
 - Keep Python, YAML, CLI, and SQL examples consistent.
-- Use `randomization unit` for the identifier type defined by a project.
+- Use `randomization unit` for the identifier type defined by an experiment.
 - Use `assignment` for one randomization-unit value supplied to an experiment.
 - Use `subject` when describing a person, task, session, or other assigned entity.
 - Use `group` for control and treatment groups.
+- Do not expose an entity as a user-managed resource. Each account has one immutable database identity that appears only in its Quack URL.
 
 ## Structure
 

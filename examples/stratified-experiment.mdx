@@ -3,7 +3,7 @@ title: Stratified experiment
 description: Balance treatment assignment within planned categorical strata.
 ---
 
-This example balances `rank-v2` within country and device combinations. It keeps the project randomization unit as `user_id`.
+This example balances `rank-v2` within country and device combinations. It uses `user_id` as the randomization unit.
 
 ## Define the strata
 
@@ -13,15 +13,15 @@ Declare each required pre-treatment field and the block size.
 name: rank-v2
 description: Test RRF across countries and devices.
 
-sampling:
-  traffic: 1.0
-
 assignment:
+  unit: user_id
   method: stratified
   strata:
     - country
     - device
   block_size: 4
+
+traffic: 1.0
 
 groups:
   - name: treatment
@@ -35,9 +35,9 @@ groups:
 Supply one value for every declared field.
 
 ```python
-run = experiment.run(
+config = run.get_config(
     "user_42",
-    strata={"country": "US", "device": "desktop"},
+    context={"country": "US", "device": "desktop"},
 )
 ```
 
@@ -54,7 +54,7 @@ SELECT
   json_extract_string(strata, '$.country') AS country,
   json_extract_string(strata, '$.device') AS device,
   group_name,
-  count(DISTINCT assignment) AS units
+  count(DISTINCT subject_id) AS units
 FROM statespace.assignments
 WHERE experiment_name = 'rank-v2'
 GROUP BY country, device, group_name

@@ -5,29 +5,15 @@ description: Assign related observations through one shared cluster identifier.
 
 This standalone example tests ranking at the organization level. Every user in one organization receives the same group.
 
-## Choose the cluster unit
-
-Create a project with `account_id` when users in one account share ranking state or can affect one another.
-
-```bash
-ssp project create --name atlas-organizations --unit account_id
-```
-
-<Warning>
-  The project unit cannot change after assignments exist. Use a separate project for a different randomization unit.
-</Warning>
-
 ## Define the experiment
 
-The experiment inherits `account_id` from the project.
+Set `account_id` as the experiment randomization unit.
 
 ```yaml
 name: rank-v2
 description: Test reciprocal rank fusion by account.
-sampling:
-  traffic: 1.0
-assignment:
-  method: random
+assignment: account_id
+traffic: 1.0
 groups:
   - name: treatment
     weight: 0.50
@@ -40,8 +26,8 @@ groups:
 Pass the account identifier for every user request.
 
 ```python
-run = experiment.run("account_7")
-reranker = run.config.get("reranker", None)
+config = run.get_config("account_7")
+reranker = config.get("reranker", None)
 ```
 
 The same account receives one stable group across its users and runs.
@@ -53,13 +39,12 @@ Build one outcome value for each independently assigned account.
 ```sql
 WITH account_outcomes AS (
   SELECT
-    assignment AS account_id,
+    subject_id AS account_id,
     group_name,
-    avg(value) AS account_relevance
-  FROM statespace.outcomes
+    avg(data.relevance::DOUBLE) AS account_relevance
+  FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
-    AND name = 'relevance'
-  GROUP BY assignment, group_name
+  GROUP BY subject_id, group_name
 )
 SELECT
   group_name,

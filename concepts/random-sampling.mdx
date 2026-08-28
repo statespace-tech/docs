@@ -32,7 +32,7 @@ Eligibility rules select the part of the sampling frame that can enter the exper
 
 ```python
 if user.is_signed_in and user.search_enabled:
-    run = experiment.run(user.id, context={"country": user.country})
+    config = run.get_config(user.id, context={"country": user.country})
 ```
 
 Do not use behavior caused by the treatment as an eligibility condition. This can bias the sample.
@@ -42,8 +42,7 @@ Do not use behavior caused by the treatment as an eligibility condition. This ca
 Traffic is the sampling fraction. It is the probability that an eligible unit enters the experiment.
 
 ```yaml
-sampling:
-  traffic: 0.10
+traffic: 0.10
 ```
 
 This experiment samples approximately 10% of eligible units. Statespace uses stable hashing so repeated requests produce the same inclusion decision.
@@ -58,27 +57,32 @@ Larger samples usually increase [statistical power](/concepts/statistical-infere
 
 ## Exclusion layers
 
-A layer is a shared sampling space for experiments that must not overlap. Create it once inside the project.
+A layer is a shared sampling space for experiments that must not overlap. Create it once for the account database.
+
+```yaml
+name: search-ranking
+description: Prevent overlapping ranking experiments.
+assignment: user_id
+holdout: 0.0
+```
+
+Create the layer from `layer.yaml`.
 
 ```bash
-ssp layer create \
-  --project atlas-search \
-  --name search-ranking \
-  --description "Prevent overlapping ranking experiments."
+ssp experiment layer create --file layer.yaml
 ```
 
 Reference the layer from each related experiment.
 
 ```yaml
-sampling:
-  traffic: 0.10
-  layer: search-ranking
+traffic: 0.10
+layer: search-ranking
 ```
 
 One unit can enter only one running experiment in the layer. The same unit can enter experiments in other layers.
 
 <Note>
-  A project owns data and defines the randomization unit. A layer only prevents selected experiments from using overlapping samples. See [Define the experiment](/workflow/define-the-experiment).
+  Each experiment defines its randomization unit. A layer prevents selected experiments with the same unit from using overlapping samples.
 </Note>
 
 ## Sampling bias

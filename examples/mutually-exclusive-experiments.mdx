@@ -9,11 +9,17 @@ This example places two ranking experiments in one layer. A user can enter `rank
 
 Create one shared sampling space for ranking changes.
 
+```yaml
+name: search-ranking
+description: Prevent overlapping ranking experiments.
+assignment: user_id
+holdout: 0.0
+```
+
+Create the layer from `layer.yaml`.
+
 ```bash
-ssp layer create \
-  --project atlas-search \
-  --name search-ranking \
-  --description "Prevent overlapping ranking experiments."
+ssp experiment layer create --file layer.yaml
 ```
 
 ## Define the experiments
@@ -27,11 +33,9 @@ Reference the same layer from both definitions.
     ```yaml
     name: rank-v2
     description: Test reciprocal rank fusion.
-    sampling:
-      traffic: 0.20
-      layer: search-ranking
-    assignment:
-      method: random
+    assignment: user_id
+    traffic: 0.20
+    layer: search-ranking
     groups:
       - name: treatment
         weight: 0.50
@@ -45,11 +49,9 @@ Reference the same layer from both definitions.
     ```yaml
     name: query-rewrite
     description: Test semantic query rewriting.
-    sampling:
-      traffic: 0.30
-      layer: search-ranking
-    assignment:
-      method: random
+    assignment: user_id
+    traffic: 0.30
+    layer: search-ranking
     groups:
       - name: treatment
         weight: 0.50
@@ -75,11 +77,11 @@ Confirm that no assignment appears in both active experiments.
 
 ```sql
 SELECT
-  assignment,
+  subject_id,
   count(DISTINCT experiment_name) AS experiments
 FROM statespace.assignments
 WHERE layer_name = 'search-ranking'
-GROUP BY assignment
+GROUP BY subject_id
 HAVING count(DISTINCT experiment_name) > 1;
 ```
 

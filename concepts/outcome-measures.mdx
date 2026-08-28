@@ -13,11 +13,11 @@ assignment → exposure → raw outcome → metric
 
 An assignment records which group a unit should receive. An exposure records that the application used the assigned configuration.
 
-Starting a run records the exposure and creates an attribution boundary.
+Calling `get_config()` records the assignment and starts an observation boundary.
 
 ```python
-run = experiment.run("user_42")
-reranker = run.config.get("reranker", None)
+config = run.get_config("user_42")
+reranker = config.get("reranker", None)
 result = search("query goes here", reranker=reranker)
 ```
 
@@ -27,10 +27,10 @@ This distinction affects whether the [estimand](/concepts/statistical-inference#
 
 ## Raw outcomes
 
-An outcome records a response attributed to one run. Record a numeric value when the result can be aggregated directly.
+An outcome records a JSON response attributed to the current observation.
 
 ```python
-run.outcome("relevance", value=result.relevance)
+run.log({"relevance": result.relevance})
 ```
 
 Use the same name, meaning, and unit for every treatment group.
@@ -70,13 +70,12 @@ Aggregate repeated observations at the randomization-unit level before a simple 
 ```sql
 WITH unit_outcomes AS (
   SELECT
-    assignment,
+    subject_id,
     group_name,
-    avg(value) AS unit_relevance
-  FROM statespace.outcomes
+    avg(data.relevance::DOUBLE) AS unit_relevance
+  FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
-    AND name = 'relevance'
-  GROUP BY assignment, group_name
+  GROUP BY subject_id, group_name
 )
 SELECT
   group_name,
@@ -97,8 +96,7 @@ A guardrail metric detects unacceptable harm outside the primary objective. Comm
 Record guardrail outcomes for control and every treatment group.
 
 ```python
-run.outcome("latency_ms", value=result.latency_ms)
-run.outcome("error", value=float(result.failed))
+run.log({"latency_ms": result.latency_ms, "error": result.failed})
 ```
 
 ## Structured outcomes
@@ -106,14 +104,11 @@ run.outcome("error", value=float(result.failed))
 An outcome can contain any JSON-compatible result. This supports conversations, traces, evaluations, and other semi-structured evidence.
 
 ```python
-run.outcome(
-    "conversation",
-    data={
-        "messages": messages,
-        "tool_calls": 3,
-        "termination": "completed",
-    },
-)
+run.log({
+    "messages": messages,
+    "tool_calls": 3,
+    "termination": "completed",
+})
 ```
 
-Use both `value` and `data` when one score needs supporting evidence. Store large binary artifacts elsewhere and record a durable reference.
+Store scalar and structured evidence in the same dictionary when needed. Store large binary artifacts elsewhere and record a durable reference.

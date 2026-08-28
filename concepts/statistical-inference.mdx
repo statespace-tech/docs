@@ -36,10 +36,9 @@ Calculate the observed difference in DuckDB.
 WITH group_means AS (
   SELECT
     group_name,
-    avg(value) AS mean_value
-  FROM statespace.outcomes
+    avg(data.relevance::DOUBLE) AS mean_value
+  FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
-    AND name = 'relevance'
   GROUP BY group_name
 )
 SELECT
@@ -70,11 +69,10 @@ WITH group_stats AS (
   SELECT
     group_name,
     count(*) AS n,
-    avg(value) AS mean_value,
-    stddev_samp(value) AS standard_deviation
-  FROM statespace.outcomes
+    avg(data.relevance::DOUBLE) AS mean_value,
+    stddev_samp(data.relevance::DOUBLE) AS standard_deviation
+  FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
-    AND name = 'relevance'
   GROUP BY group_name
 )
 SELECT
@@ -109,16 +107,15 @@ An average effect can hide differences across populations. Estimate subgroup eff
 
 ```sql
 SELECT
-  json_extract_string(runs.strata, '$.country') AS country,
-  outcomes.group_name,
+  json_extract_string(runs.context, '$.country') AS country,
+  logs.group_name,
   count(*) AS observations,
-  avg(outcomes.value) AS mean_relevance
-FROM statespace.outcomes AS outcomes
+  avg(logs.data.relevance::DOUBLE) AS mean_relevance
+FROM statespace.logs AS logs
 JOIN statespace.runs AS runs
-  ON outcomes.run_id = runs.id
-WHERE outcomes.experiment_name = 'rank-v2'
-  AND outcomes.name = 'relevance'
-GROUP BY country, outcomes.group_name;
+  ON logs.run_id = runs.id
+WHERE logs.experiment_name = 'rank-v2'
+GROUP BY country, logs.group_name;
 ```
 
 Treat an unplanned subgroup result as exploratory evidence. Validate it in a new experiment before acting on it.

@@ -46,7 +46,7 @@ Compare each observed group share with its configured weight.
 WITH counts AS (
   SELECT
     group_name,
-    count(DISTINCT assignment) AS units
+    count(DISTINCT subject_id) AS units
   FROM statespace.assignments
   WHERE experiment_name = 'rank-v2'
     AND forced = false
@@ -72,12 +72,11 @@ Measure the delay and loss between recorded runs and expected outcomes.
 SELECT
   runs.group_name,
   count(*) AS runs,
-  count(outcomes.id) AS outcomes,
-  count(outcomes.id)::DOUBLE / count(*) AS outcome_rate
+  count(logs.id) AS outcomes,
+  count(logs.id)::DOUBLE / count(*) AS outcome_rate
 FROM statespace.runs AS runs
-LEFT JOIN statespace.outcomes AS outcomes
-  ON outcomes.run_id = runs.id
-  AND outcomes.name = 'relevance'
+LEFT JOIN statespace.logs AS logs
+  ON logs.run_id = runs.id
 WHERE runs.experiment_name = 'rank-v2'
 GROUP BY runs.group_name;
 ```
@@ -100,10 +99,7 @@ Review operational and safety outcomes before primary-effect estimates.
 Increase traffic in planned stages after data and product health checks pass.
 
 ```bash
-ssp experiment update \
-  --project atlas-search \
-  --name rank-v2 \
-  --traffic 0.50
+ssp experiment traffic set -n rank-v2 --traffic 0.50
 ```
 
 Stable sampling expands the included population without removing existing sampled units.
@@ -113,7 +109,7 @@ Stable sampling expands the included population without removing existing sample
 Stop new assignments when a guardrail fails or instrumentation becomes unreliable.
 
 ```bash
-ssp experiment stop --project atlas-search --name rank-v2
+ssp experiment stop -n rank-v2
 ```
 
 Stopping preserves historical runs and outcomes for diagnosis.

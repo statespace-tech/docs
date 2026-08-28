@@ -13,16 +13,16 @@ sampled unit → random mechanism → one treatment or control group
 
 The [experimental unit](https://en.wikipedia.org/wiki/Statistical_unit#Experimental_and_sampling_units) is the smallest entity that can independently receive a treatment. Statespace calls its stable identifier type the randomization unit.
 
-Choose the unit when you create the project.
+Choose the unit in each experiment definition.
 
-```bash
-ssp project create --name atlas-search --unit user_id
+```yaml
+assignment: user_id
 ```
 
-Every experiment in the project inherits `user_id`. Pass one value of that type when the application starts a run.
+Pass one value of that type when the application requests a configuration.
 
 ```python
-run = experiment.run("user_42")
+config = run.get_config("user_42")
 ```
 
 Use a unit at the level where treatment can vary independently. See [Repeated observations](/concepts/outcome-measures#repeated-observations) when one unit produces several outcomes.
@@ -35,7 +35,7 @@ Statespace uses deterministic hashing. The same randomization-unit value receive
 hash(experiment salt, assignment value) → group bucket
 ```
 
-The SDK evaluates the cached experiment manifest locally. The backend verifies the decision when it receives the run.
+The SDK polls the experiment manifest. The backend resolves and stores each stable assignment.
 
 ## Group allocation
 
@@ -57,7 +57,7 @@ Inspect the observed allocation after assignments arrive.
 WITH group_counts AS (
   SELECT
     group_name,
-    count(DISTINCT assignment) AS units
+    count(DISTINCT subject_id) AS units
   FROM statespace.assignments
   WHERE experiment_name = 'rank-v2'
     AND forced = false
@@ -79,6 +79,7 @@ Investigate a large sample-ratio mismatch before you compare outcomes.
 
 ```yaml
 assignment:
+  unit: user_id
   method: stratified
   strata:
     - country
@@ -86,12 +87,12 @@ assignment:
   block_size: 4
 ```
 
-Supply one value for each declared stratum when you start a run.
+Supply one value for each declared stratum when you request a configuration.
 
 ```python
-run = experiment.run(
+config = run.get_config(
     "user_42",
-    strata={"country": "US", "device": "desktop"},
+    context={"country": "US", "device": "desktop"},
 )
 ```
 
@@ -101,7 +102,7 @@ Use strata to support a planned comparison or improve precision. Do not add them
 
 ## Cluster assignment
 
-Cluster assignment gives one treatment to a group of related observations. Choose a coarser project unit when members can affect one another.
+Cluster assignment gives one treatment to a group of related observations. Choose a coarser experiment unit when members can affect one another.
 
 ```text
 account_7 → treatment
@@ -109,16 +110,10 @@ account_7 → treatment
 └── user_2
 ```
 
-For example, use `account_id` instead of `user_id` when users in one account share the tested feature. The unit is project-wide, not an experiment override.
+For example, use `account_id` instead of `user_id` when users in one account share the tested feature. Use the same unit for experiments that share an exclusion layer.
 
 ## Forced assignment
 
-A forced assignment sends a known unit to a selected group for development or quality assurance.
-
-```python
-run = experiment.run("user_42", force="treatment")
-```
-
 <Warning>
-  Forced assignments do not use the random mechanism. Statespace marks them as forced. Exclude them from causal analysis unless the [estimand](/concepts/statistical-inference#estimands) explicitly includes them.
+  **Planned:** Forced assignments will send a known unit to a selected group for development or quality assurance. They will be marked as forced and must be excluded from causal analysis unless the [estimand](/concepts/statistical-inference#estimands) includes them.
 </Warning>

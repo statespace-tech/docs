@@ -27,10 +27,10 @@ Add the Python SDK to the application that applies treatments.
 uv add statespace-sdk
 ```
 
-Import the public experiment interface.
+Import the public experiment models and runtime functions.
 
 ```python
-from statespace import Experiment
+from statespace import Experiment, Group, init, load
 ```
 
 ## Authenticate the account
@@ -41,20 +41,20 @@ Start browser-based authentication from the CLI.
 ssp login
 ```
 
-The CLI stores the account session in the operating-system credential store. Project tokens remain separate from the account session.
+The CLI stores the account session in its local configuration with restricted permissions. Database tokens remain separate from the account session.
 
 <Note>
-  An account session manages projects. A project token reads or writes data for one project.
+  An account session manages tokens and experiment state. A database token reads or writes experiment data.
 </Note>
 
-## Store the project token
+## Store the database token
 
 Store production tokens in a secret manager. Use read-write tokens in applications and read-only tokens in analysis tools.
 
 | Token | Prefix | Access |
 | --- | --- | --- |
 | Read-write | `ssp_rw_` | Read configuration and write experiment events. |
-| Read-only | `ssp_ro_` | Query and download project data. |
+| Read-only | `ssp_ro_` | Query and download account data. |
 
 Never put a complete token in source control, logs, examples, or support messages.
 
@@ -66,20 +66,18 @@ Use the production API unless you are testing a local deployment.
 export STATESPACE_URL=https://api.statespace.com
 ```
 
-Set the project and token for SDK configuration when the application uses environment variables.
+Set the token for SDK configuration.
 
 ```bash
-export STATESPACE_PROJECT=atlas-search
 export STATESPACE_TOKEN=ssp_rw_7j...
 ```
 
 ## Verify the installation
 
-Confirm account access and list the available projects.
+Confirm account access and inspect the database URL.
 
 ```bash
 ssp account
-ssp project list
 ```
 
 <Tip>

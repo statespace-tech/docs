@@ -13,11 +13,8 @@ This example tests reciprocal rank fusion against the current ranking behavior. 
     name: rank-v2
     description: Test reciprocal rank fusion.
 
-    sampling:
-      traffic: 1.0
-
-    assignment:
-      method: random
+    assignment: user_id
+    traffic: 1.0
 
     groups:
       - name: treatment
@@ -33,10 +30,14 @@ This example tests reciprocal rank fusion against the current ranking behavior. 
     Use the assigned parameter or the application default.
 
     ```python
-    run = experiment.run("user_42")
-    reranker = run.config.get("reranker", None)
-    result = search("query goes here", reranker=reranker)
-    run.outcome("relevance", value=result.relevance)
+    import statespace
+
+    experiment = statespace.load("experiment.yaml")
+
+    with statespace.init(**experiment) as run:
+        config = run.get_config("user_42")
+        result = search("query goes here", reranker=config.get("reranker", None))
+        run.log({"relevance": result.relevance})
     ```
   </Step>
 
@@ -46,7 +47,7 @@ This example tests reciprocal rank fusion against the current ranking behavior. 
     ```sql
     SELECT
       group_name,
-      count(DISTINCT assignment) AS units
+      count(DISTINCT subject_id) AS units
     FROM statespace.assignments
     WHERE experiment_name = 'rank-v2'
     GROUP BY group_name;
@@ -59,11 +60,10 @@ This example tests reciprocal rank fusion against the current ranking behavior. 
     ```sql
     SELECT
       group_name,
-      count(DISTINCT assignment) AS units,
-      avg(value) AS mean_relevance
-    FROM statespace.outcomes
+      count(DISTINCT subject_id) AS units,
+      avg(data.relevance::DOUBLE) AS mean_relevance
+    FROM statespace.logs
     WHERE experiment_name = 'rank-v2'
-      AND name = 'relevance'
     GROUP BY group_name;
     ```
   </Step>

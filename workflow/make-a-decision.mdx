@@ -73,16 +73,15 @@ decided_at: 2026-08-27
 
 Keep the analysis query, result snapshot, decision owner, and known limitations with this record.
 
-## Archive the experiment
+## Stop the experiment
 
-Stop new assignments before you archive the completed experiment.
+Stop new assignments after the planned attribution window ends.
 
 ```bash
-ssp experiment stop --project atlas-search --name rank-v2
-ssp experiment archive --project atlas-search --name rank-v2
+ssp experiment stop -n rank-v2
 ```
 
-Archiving keeps the definition and evidence queryable. It removes the experiment from active operations.
+Stopping keeps the definition and evidence queryable. Restart it only when the original design remains valid.
 
 ## Define the follow-up
 
