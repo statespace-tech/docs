@@ -1,123 +1,62 @@
 ---
-title: Full analysis walkthrough
-description: Convert raw experiment records into one reproducible decision.
+title: Analysis walkthrough
+description: Check delivery and compare one JSON outcome.
 ---
 
-This walkthrough analyzes `rank-v2` after its attribution window closes. It starts with raw tables and ends with a decision record.
+Analyze one immutable version at a time.
 
-<Steps>
-  <Step title="Inspect the raw data">
-    Confirm that definitions, assignments, runs, and outcomes exist for the same experiment revision.
-  </Step>
-  <Step title="Validate the assignments">
-    Remove forced assignments and investigate group-ratio mismatch.
-  </Step>
-  <Step title="Build the unit dataset">
-    Aggregate repeated relevance outcomes for each assigned user.
-  </Step>
-  <Step title="Estimate the effect">
-    Compare unit-level group means and quantify uncertainty.
-  </Step>
-  <Step title="Record the decision">
-    Preserve the query, result, guardrails, rationale, and action.
-  </Step>
-</Steps>
+## Check delivery
 
-## Inspect the raw data
-
-Count records at each stage of the experiment pipeline.
+Confirm that the SDK recorded assigned and unassigned runs.
 
 ```sql
-SELECT 'assignments' AS record, count(*) AS rows
-FROM statespace.assignments
-WHERE experiment_name = 'rank-v2'
-UNION ALL
-SELECT 'runs', count(*)
+SELECT assigned, reason, count(*)
 FROM statespace.runs
 WHERE experiment_name = 'rank-v2'
-UNION ALL
-SELECT 'outcomes', count(*)
-FROM statespace.outcomes
-WHERE experiment_name = 'rank-v2';
+  AND experiment_version = 1
+GROUP BY assigned, reason;
 ```
 
-## Validate the assignments
+## Check allocation
 
-Summarize the randomized, non-forced assignment population.
+Compare observed group shares with configured weights.
 
 ```sql
 SELECT
   group_name,
-  count(DISTINCT subject_id) AS units
-FROM statespace.assignments
+  count(*) AS runs,
+  count(*)::double precision / sum(count(*)) OVER () AS observed_share
+FROM statespace.runs
 WHERE experiment_name = 'rank-v2'
-  AND forced = false
+  AND experiment_version = 1
+  AND assigned
 GROUP BY group_name;
 ```
 
-Stop the analysis when the observed ratio cannot be reconciled with the configured weights.
+## Compare the outcome
 
-## Build the unit dataset
-
-Create one row for each assigned user.
+Read the planned field from each JSON outcome.
 
 ```sql
-CREATE OR REPLACE TEMP TABLE rank_v2_units AS
 SELECT
-  subject_id,
   group_name,
-  avg(data.relevance::DOUBLE) AS relevance,
-  avg(data.latency_ms::DOUBLE) AS latency_ms,
-  max(data.error::BOOLEAN)::INTEGER AS had_error
+  count(*) AS observations,
+  avg((data->>'relevance')::double precision) AS mean_relevance,
+  stddev_samp((data->>'relevance')::double precision) AS sd_relevance
 FROM statespace.logs
 WHERE experiment_name = 'rank-v2'
-GROUP BY subject_id, group_name;
-```
-
-## Estimate the effect
-
-Calculate the primary and guardrail summaries together.
-
-```sql
-SELECT
-  group_name,
-  count(*) AS units,
-  avg(relevance) AS mean_relevance,
-  avg(latency_ms) AS mean_latency_ms,
-  avg(had_error) AS error_rate,
-  stddev_samp(relevance) AS relevance_sd
-FROM rank_v2_units
+  AND experiment_version = 1
+  AND outcome_name = 'result'
 GROUP BY group_name;
 ```
 
-<Info>
-  Add the planned confidence interval or regression after this descriptive check passes.
-</Info>
+## Preserve the decision
 
-## Check the guardrails
-
-Compare each observed guardrail with its predefined limit.
-
-| Guardrail | Planned limit | Observed status |
-| --- | ---: | --- |
-| Mean latency increase | +100 ms | Pass |
-| Error-rate increase | +1 percentage point | Pass |
-| Critical safety events | 0 | Pass |
-
-## Record the decision
-
-Store a concise record with the reproducible analysis.
+Keep the experiment version, query, result, and decision together in the system that tracks production changes.
 
 ```yaml
 experiment: rank-v2
-decision: ship
-primary_outcome: relevance
-effect: 0.018
-guardrails: pass
-analysis: rank-v2-analysis.sql
-reason: Treatment improved relevance without material guardrail harm.
+version: 1
+decision: keep-control
+reason: Treatment did not improve the primary relevance outcome.
 ```
-
-<Tip>
-  Give the raw database, SQL file, and decision record to a coding agent. It can audit the path from evidence to action.
-</Tip>

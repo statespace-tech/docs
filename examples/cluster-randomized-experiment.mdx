@@ -1,67 +1,39 @@
 ---
-title: Cluster-randomized experiment
-description: Assign related observations through one shared cluster identifier.
+title: Account-level experiment
+description: Keep all users in one account in the same group.
 ---
 
-This standalone example tests ranking at the organization level. Every user in one organization receives the same group.
-
-## Define the experiment
-
-Set `account_id` as the experiment randomization unit.
+Use `account_id` when users in one account share data or can affect each other.
 
 ```yaml
 name: rank-v2
 description: Test reciprocal rank fusion by account.
 assignment: account_id
-traffic: 1.0
 groups:
   - name: treatment
-    weight: 0.50
+    weight: 0.2
     config:
       reranker: rrf
 ```
 
-## Assign the clusters
-
-Pass the account identifier for every user request.
+Pass the account ID as the stable subject ID.
 
 ```python
-config = run.get_config("account_7")
-reranker = config.get("reranker", None)
+run = statespace.init("rank-v2")
+config = run.get_config(account.id, context={"country": account.country})
 ```
 
-The same account receives one stable group across its users and runs.
+Every service instance uses the same experiment salt and hash algorithm. The same account therefore receives the same group on every instance.
 
-## Aggregate the outcomes
+```text
+account_42 → rank-v2 v1 → control or one treatment
+```
 
-Build one outcome value for each independently assigned account.
+Analyze the number of independent accounts instead of the number of requests.
 
 ```sql
-WITH account_outcomes AS (
-  SELECT
-    subject_id AS account_id,
-    group_name,
-    avg(data.relevance::DOUBLE) AS account_relevance
-  FROM statespace.logs
-  WHERE experiment_name = 'rank-v2'
-  GROUP BY subject_id, group_name
-)
-SELECT
-  group_name,
-  count(*) AS accounts,
-  avg(account_relevance) AS mean_relevance
-FROM account_outcomes
+SELECT group_name, count(DISTINCT subject_id) AS accounts
+FROM statespace.runs
+WHERE experiment_name = 'rank-v2' AND experiment_version = 1
 GROUP BY group_name;
 ```
-
-## Estimate the effect
-
-Use the number of assigned accounts, not the number of users or requests, as the independent sample size.
-
-| Count | Role |
-| --- | --- |
-| Accounts | Independent experimental units |
-| Users | Observations nested in accounts |
-| Requests | Repeated observations nested in users |
-
-Use a cluster-aware method when the analysis retains user-level or request-level rows.
