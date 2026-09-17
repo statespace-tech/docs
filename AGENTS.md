@@ -45,3 +45,10 @@ Run the Mintlify checks before publication.
 mint validate
 mint broken-links
 ```
+
+## Commits
+
+- Use Conventional Commits for every commit.
+- Use the format `<type>(<scope>): <description>` when a scope is useful.
+- Omit the scope when it does not add useful context.
+- Keep each commit focused on one change.
