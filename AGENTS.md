@@ -4,7 +4,7 @@ This repository contains the public Statespace documentation.
 
 ## Product boundary
 
-Statespace guarantees who saw what, when, and why. Coding agents analyze the raw evidence with DuckDB and SQL.
+Statespace guarantees who saw what, when, and why. Users analyze raw evidence with PostgreSQL and SQL.
 
 Document current behavior as current. Mark proposed behavior with a visible `Planned` warning. Never present a planned CLI command, YAML field, SDK method, table, or response as released.
 
@@ -13,7 +13,7 @@ Document current behavior as current. Mark proposed behavior with a visible `Pla
 - Use short, direct sentences.
 - Put one main idea in each sentence.
 - Use the same `atlas-search` and `rank-v2` example throughout the site.
-- Use `ssp_rw_7j...` and `ssp_ro_7j...` for token examples.
+- Use `ssp_token_7j...` for SDK token examples.
 - Never include a complete token.
 - Put one explanatory sentence immediately before each code block.
 - Prefer concrete examples over placeholders.
@@ -22,7 +22,8 @@ Document current behavior as current. Mark proposed behavior with a visible `Pla
 - Use `assignment` for one randomization-unit value supplied to an experiment.
 - Use `subject` when describing a person, task, session, or other assigned entity.
 - Use `group` for control and treatment groups.
-- Do not expose an entity as a user-managed resource. Each account has one immutable database identity that appears only in its Quack URL.
+- Each account has one isolated PostgreSQL database.
+- The CLI creates and versions experiments. SDKs only consume running configurations.
 
 ## Structure
 
