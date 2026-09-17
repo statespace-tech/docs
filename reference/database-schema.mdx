@@ -1,124 +1,67 @@
 ---
-title: Database schema
-description: Review the tables and views published through DuckDB.
+title: PostgreSQL schema
+description: Review account database tables and the logs view.
 ---
 
-Each account publishes one analytical DuckDB database through the Quack protocol. The database contains accepted data after retention and compaction.
+Each account has one isolated PostgreSQL database. Statespace writes to it through the API. Direct credentials have read-only access.
 
-## Connect the database
-
-Run `ssp account` to get the URL. Attach it with a read-only token and DuckDB 2.0 or later.
-
-```sql
-ATTACH 'quack:atlas-search.db.statespace.app:443' AS statespace (
-  TOKEN 'ssp_ro_7j...'
-);
+```text
+statespace.experiments
+statespace.experiment_versions
+statespace.experiment_groups
+statespace.runs
+statespace.outcomes
+statespace.logs
 ```
 
-## Experiments table
+## Runs
 
-The `experiments` table contains one row for each experiment.
-
-| Column | Type |
-| --- | --- |
-| `name` | `VARCHAR` |
-| `description` | `VARCHAR` |
-| `status` | `VARCHAR` |
-| `assignment` | `VARCHAR` |
-| `assignment_method` | `VARCHAR` |
-| `assignment_strata` | `VARCHAR` containing JSON |
-| `assignment_block_size` | `BIGINT` |
-| `traffic` | `DOUBLE` |
-| `layer_name` | `VARCHAR` |
-| `created_at` | `VARCHAR` containing RFC 3339 time |
-
-## Groups table
-
-The `groups` table contains every control and treatment group.
+Each SDK assignment creates one row in `statespace.runs`.
 
 | Column | Type |
 | --- | --- |
-| `experiment_name` | `VARCHAR` |
-| `name` | `VARCHAR` |
-| `weight` | `DOUBLE` |
-| `config` | `VARCHAR` containing JSON |
+| `id` | `TEXT` |
+| `timestamp` | `TIMESTAMPTZ` |
+| `experiment_name` | `TEXT` |
+| `experiment_version` | `INTEGER` |
+| `assignment_type` | `TEXT` |
+| `subject_id` | `TEXT` |
+| `group_name` | `TEXT` or `NULL` |
+| `assigned` | `BOOLEAN` |
+| `reason` | `TEXT` |
+| `config` | `JSONB` |
+| `context` | `JSONB` |
 
-## Assignments table
+## Outcomes
 
-The `assignments` table contains one stable group decision for each assigned subject.
-
-| Column | Type |
-| --- | --- |
-| `assignment_id` | `VARCHAR` |
-| `assigned_at` | `VARCHAR` containing RFC 3339 time |
-| `experiment_name` | `VARCHAR` |
-| `subject_id` | `VARCHAR` |
-| `group_name` | `VARCHAR` |
-| `config` | `VARCHAR` containing JSON |
-| `context` | `VARCHAR` containing JSON |
-| `assignment_method` | `VARCHAR` |
-| `strata` | `VARCHAR` containing JSON |
-| `forced` | `BOOLEAN` |
-| `layer_name` | `VARCHAR` |
-
-## Runs table
-
-The `runs` table contains one recorded use of an assigned configuration.
+A run can have zero or more rows in `statespace.outcomes`.
 
 | Column | Type |
 | --- | --- |
-| `id` | `VARCHAR` |
-| `timestamp` | `VARCHAR` containing RFC 3339 time |
-| `experiment_name` | `VARCHAR` |
-| `assignment` | `VARCHAR` |
-| `assignment_id` | `VARCHAR` |
-| `group_name` | `VARCHAR` |
-| `config` | `VARCHAR` containing JSON |
-| `context` | `VARCHAR` containing JSON |
-
-## Outcomes table
-
-The `outcomes` table contains numeric or structured records attributed to assignments or runs.
-
-| Column | Type |
-| --- | --- |
-| `id` | `VARCHAR` |
-| `timestamp` | `VARCHAR` containing RFC 3339 time |
-| `name` | `VARCHAR` |
-| `value` | `DOUBLE` |
-| `data` | `VARCHAR` containing JSON |
-| `run_id` | `VARCHAR` |
-| `assignment_id` | `VARCHAR` |
-| `experiment_name` | `VARCHAR` |
-| `subject_id` | `VARCHAR` |
-| `group_name` | `VARCHAR` |
+| `id` | `TEXT` |
+| `run_id` | `TEXT` |
+| `name` | `TEXT` |
+| `data` | `JSONB` |
+| `timestamp` | `TIMESTAMPTZ` |
 
 ## Logs view
 
-The `logs` view exposes records created by `run.log(...)`. Its `data` column uses DuckDB's `JSON` type.
+`statespace.logs` left joins runs to outcomes. It keeps runs that do not yet have an outcome.
 
 ```sql
 SELECT
+  experiment_version,
   group_name,
-  avg(data.relevance::DOUBLE) AS mean_relevance
+  count(*) AS observations,
+  avg((data->>'relevance')::double precision) AS mean_relevance
 FROM statespace.logs
 WHERE experiment_name = 'rank-v2'
-GROUP BY group_name;
+  AND assigned
+GROUP BY experiment_version, group_name;
 ```
 
-The view contains `id`, `timestamp`, `data`, `run_id`, `assignment_id`, `experiment_name`, `subject_id`, and `group_name`.
+Create a revocable connection URL for a SQL client.
 
-## Data guarantees
-
-The published database provides these guarantees:
-
-1. Event identifiers are unique within the account database.
-2. An accepted subject assignment remains stable for its experiment.
-3. Every run references one accepted assignment.
-4. Every `run.log(...)` record references one accepted run.
-5. Timestamps use UTC and RFC 3339 text.
-6. Retention can remove historical records after the plan limit.
-
-<Info>
-  Parquet stores compacted columnar data. DuckDB provides the SQL interface and statistical aggregate functions. Clients do not need access to the underlying objects.
-</Info>
+```shell
+ssp database credential create --name analyst
+```

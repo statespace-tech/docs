@@ -1,110 +1,49 @@
 ---
 title: Experiment YAML
-description: Review the accepted experiment definition and constraints.
+description: Review all experiment definition fields.
 ---
 
-An experiment definition contains its identity, assignment design, traffic, and groups. `statespace.load()` validates the same schema used by the public `Experiment` and `Group` models.
-
-## Identity fields
-
-<ParamField body="name" type="string" required>
-  Set a unique experiment name within the account database.
-</ParamField>
-
-<ParamField body="description" type="string" required>
-  State the change tested by the experiment.
-</ParamField>
-
-## Assignment field
-
-<ParamField body="assignment" type="string | object" required>
-  Set the stable randomization unit or configure stratified assignment.
-</ParamField>
-
-A string selects simple random assignment.
-
-```yaml
-assignment: user_id
-```
-
-An object configures the complete assignment method.
-
-```yaml
-assignment:
-  unit: user_id
-  method: stratified
-  strata:
-    - country
-  block_size: 10
-```
-
-| Field | Type | Default |
-| --- | --- | --- |
-| `assignment.unit` | `string` | Required |
-| `assignment.method` | `random \| stratified` | `random` |
-| `assignment.strata` | `string[]` | `[]` |
-| `assignment.block_size` | positive integer | `4` |
-
-## Sampling fields
-
-<ParamField body="traffic" type="number" default="1.0">
-  Set the stable sampling probability from greater than `0.0` through `1.0`.
-</ParamField>
-
-<ParamField body="layer" type="string">
-  Reference an exclusion layer for experiments that must not overlap.
-</ParamField>
-
-## Group fields
-
-<ParamField body="groups" type="array" required>
-  Define one or more named treatment groups.
-</ParamField>
-
-<ParamField body="groups[].name" type="string" required>
-  Set a unique group name.
-</ParamField>
-
-<ParamField body="groups[].weight" type="number">
-  Set a positive assignment probability.
-</ParamField>
-
-<ParamField body="groups[].config" type="object" default="{}">
-  Define the JSON-compatible runtime configuration.
-</ParamField>
-
-If `control` is absent, the SDK adds it with the remaining weight and an empty configuration. If all weights are absent, the SDK divides assignment equally across the explicit groups and control.
-
-## Complete definition
-
-This definition uses stratified assignment, limited traffic, and one treatment.
+An experiment file contains one logical experiment and one or more treatment groups.
 
 ```yaml
 name: rank-v2
 description: Test reciprocal rank fusion.
-assignment:
-  unit: user_id
-  method: stratified
-  strata:
-    - country
-  block_size: 10
-traffic: 0.1
-layer: search-ranking
+assignment: user_id
+eligibility: 'context.country == "US" && context.plan == "pro"'
 groups:
   - name: treatment
     weight: 0.2
     config:
       reranker: rrf
+  - name: treatment-large
+    weight: 0.1
+    config:
+      reranker: rrf
+      candidates: 100
 ```
 
-Validate the file in application code.
+## Fields
 
-```python
-import statespace
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `name` | Yes | Stable experiment name. |
+| `description` | No | Short statement of the tested change. |
+| `assignment` | No | Identifier type, such as `user_id`. The default is `subject_id`. |
+| `eligibility` | No | CEL expression over the SDK `context` object. |
+| `groups` | Yes | One or more treatment groups. |
+| `groups[].name` | Yes | Unique treatment name. `control` is reserved. |
+| `groups[].weight` | Yes | Assignment probability greater than `0` and less than `1`. |
+| `groups[].config` | No | JSON object returned to assigned subjects. |
 
-experiment = statespace.load("experiment.yaml")
+Treatment weights must total less than `1.0`. Statespace adds implicit control with the remaining weight and `{}` configuration.
+
+```text
+control weight = 1 - sum(treatment weights)
 ```
 
-<Note>
-  `statespace.init(**experiment)` creates and starts an absent experiment. It rejects a conflicting registered definition with the same name.
-</Note>
+The CLI validates YAML and CEL before it creates a version.
+
+```shell
+ssp experiment create --file experiment.yaml
+ssp experiment publish --file experiment.yaml
+```

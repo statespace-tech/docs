@@ -1,78 +1,59 @@
 ---
 title: CLI
-description: Review every public ssp command, option, and output convention.
+description: Review the public ssp command surface.
 ---
 
-The `ssp` CLI manages account access, tokens, layers, and experiment state. It prints structured YAML.
+The CLI prints successful results as JSON. It prints diagnostics on standard error.
 
-```text
-ssp <resource> <action> [options]
+## Authentication
+
+Use account login for management commands.
+
+```shell
+ssp login
+ssp account
+ssp logout
 ```
 
-## Account commands
+## Experiments
 
-| Command | Purpose |
-| --- | --- |
-| `ssp login` | Sign in with GitHub or Google. |
-| `ssp logout` | Remove the saved account session. |
-| `ssp account` | Show account usage, plan limits, and the database URL. |
+Create `v1`, publish later immutable versions, and control which version runs.
 
-`ssp account` has no subcommands. Sign-up creates one account database, which the CLI selects automatically.
+```shell
+ssp experiment create --file experiment.yaml
+ssp experiment publish --file experiment.yaml
+ssp experiment list
+ssp experiment show --name rank-v2
+ssp experiment start --name rank-v2 --version 2
+ssp experiment stop --name rank-v2
+ssp experiment delete --name rank-v2
+```
 
-## Token commands
+Starting a new version stops new assignments to the prior running version.
 
-| Command | Required options |
-| --- | --- |
-| `ssp token create` | `--name, -n` and `--access` |
-| `ssp token list` | None |
-| `ssp token revoke` | `--id` |
+## SDK tokens
 
-The `--access` option accepts `read-only` or `read-write`. Token creation prints the complete secret once.
+Token secrets appear only in create responses.
 
-## Experiment commands
+```shell
+ssp token create --name production
+ssp token list
+ssp token revoke --id tok_123
+```
 
-| Command | Required options |
-| --- | --- |
-| `ssp experiment list` | None |
-| `ssp experiment show` | `--name, -n` |
-| `ssp experiment start` | `--name, -n` |
-| `ssp experiment stop` | `--name, -n` |
-| `ssp experiment delete` | `--name, -n` |
-| `ssp experiment traffic set` | `--name, -n` and `--traffic` |
+## PostgreSQL
 
-The SDK creates experiments at runtime. The CLI does not create or update their definitions.
+Run one read-only query or create credentials for another SQL client.
 
-## Layer commands
+```shell
+ssp query 'SELECT * FROM statespace.logs LIMIT 20'
+ssp database credential create --name analyst
+ssp database credential list
+ssp database credential revoke --id dbc_123
+```
 
-| Command | Required options |
-| --- | --- |
-| `ssp experiment layer create` | `--file, -f` |
-| `ssp experiment layer update` | `--file, -f` |
-| `ssp experiment layer list` | None |
-| `ssp experiment layer show` | `--name, -n` |
-| `ssp experiment layer delete` | `--name, -n` |
+Set `STATESPACE_ACCOUNT_TOKEN` for headless CLI and CI use. This value is an account session, not an SDK token.
 
-## Global options
-
-| Option | Environment variable | Purpose |
-| --- | --- | --- |
-| `--endpoint` | `STATESPACE_URL` | Override the API endpoint. |
-| `--account-token` | `STATESPACE_ACCOUNT_TOKEN` | Override the saved account session. |
-| `--help` | — | Print command help. |
-| `--version` | — | Print the installed version. |
-
-## Output format
-
-Every successful data command prints YAML. Errors use a nonzero exit status and write a concise message to standard error.
-
-```yaml
-id: acct_7j...
-provider: github
-login: atlas-search
-plan: free
-usage_bytes: 0
-storage_limit_bytes: 1000000000
-write_events_per_minute: 100
-retention_days: 7
-database_url: quack:atlas-search.db.statespace.app:443
+```shell
+export STATESPACE_ACCOUNT_TOKEN=ssp_account_...
 ```

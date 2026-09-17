@@ -1,94 +1,58 @@
 ---
 title: HTTP API
-description: Review public authentication, token, experiment, and event routes.
+description: Review account, experiment, runtime, and event routes.
 ---
 
-The production API base URL is `https://api.statespace.com`. Prefer the SDK for runtime assignment and event delivery.
+The CLI uses an account session. SDKs use `STATESPACE_TOKEN`.
 
-## Authentication
+## Account routes
 
-Send an account session or database token as a bearer credential.
-
-```http
-Authorization: Bearer ssp_rw_7j...
+```text
+GET    /v1/account
+GET    /v1/tokens
+POST   /v1/tokens
+DELETE /v1/tokens/{id}
+GET    /v1/database/credentials
+POST   /v1/database/credentials
+DELETE /v1/database/credentials/{id}
+POST   /v1/query
 ```
 
-Account sessions manage tokens and experiment state. Read-write tokens initialize experiments, assign subjects, and record outcomes. Read-only tokens query DuckDB.
+## Experiment routes
 
-## Account endpoint
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/v1/account` | Show plan limits, usage, and the database URL. |
-
-## Token endpoints
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/v1/tokens` | List token metadata. |
-| `POST` | `/v1/tokens` | Create a read-only or read-write token. |
-| `DELETE` | `/v1/tokens/{id}` | Revoke a token. |
-
-Token creation returns the complete secret once.
-
-## Layer endpoints
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/v1/layers` | List exclusion layers. |
-| `POST` | `/v1/layers` | Create a layer. |
-| `GET` | `/v1/layers/{name}` | Show a layer. |
-| `PUT` | `/v1/layers/{name}` | Replace a layer definition. |
-| `DELETE` | `/v1/layers/{name}` | Delete an unused layer. |
-
-## Experiment endpoints
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/v1/experiments` | List experiments. |
-| `POST` | `/v1/experiments` | Register a runtime experiment definition. |
-| `GET` | `/v1/experiments/{name}` | Show an experiment. |
-| `PUT` | `/v1/experiments/{name}` | Replace a draft or stopped definition. |
-| `DELETE` | `/v1/experiments/{name}` | Delete an experiment and its data. |
-| `POST` | `/v1/experiments/{name}/state` | Start or stop an experiment. |
-| `POST` | `/v1/experiments/{name}/traffic` | Increase running traffic. |
-
-The SDK reads the runtime manifest with a read-write token.
-
-```http
-GET /v1/runtime/experiments/rank-v2
+```text
+GET    /v1/experiments
+POST   /v1/experiments
+GET    /v1/experiments/{name}
+PUT    /v1/experiments/{name}
+DELETE /v1/experiments/{name}
+POST   /v1/experiments/{name}/state
 ```
 
-## Assignment and outcome endpoints
+`POST /v1/experiments` creates `v1`. `PUT /v1/experiments/{name}` creates the next immutable draft version.
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `POST` | `/v1/assign` | Resolve one stable subject assignment. |
-| `POST` | `/v1/runs` | Record one applied configuration. |
-| `POST` | `/v1/run-outcomes` | Record one JSON outcome for a run. |
-| `POST` | `/v1/outcomes` | Record a structured outcome for an assignment. |
+## SDK routes
 
-Each write request includes its stable event identifier in the JSON body. Repeating an accepted identifier does not create a second record.
+```text
+GET  /v1/runtime/experiments/{name}
+POST /v1/events
+POST /v1/runs
+POST /v1/outcomes
+```
 
-## Error responses
-
-Error responses contain one concise message.
+The batch endpoint accepts runs before outcomes in one request.
 
 ```json
 {
-  "error": "experiment already exists"
+  "runs": [],
+  "outcomes": []
 }
 ```
 
-| Status | Meaning |
-| --- | --- |
-| `400` | The request is invalid. |
-| `401` | Authentication is missing or invalid. |
-| `404` | The resource does not exist. |
-| `409` | The request conflicts with current state. |
-| `429` | The account exceeded its write limit. |
-| `500` | The service could not complete a valid request. |
+Errors use one JSON object and an HTTP error status.
 
-<Note>
-  Retry `429` and transient `500` responses with bounded exponential backoff. Do not retry validation or authentication errors without changing the request.
-</Note>
+```json
+{
+  "error": "bad request: treatment weights must leave a positive weight for control"
+}
+```

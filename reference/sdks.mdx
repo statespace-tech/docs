@@ -1,112 +1,65 @@
 ---
 title: SDKs
-description: Review runtime initialization, assignment, caching, and delivery.
+description: Assign subjects and record JSON outcomes at runtime.
 ---
 
-The Python SDK creates experiments at runtime, assigns subjects, and records arbitrary JSON outcomes. A read-write token identifies the account database.
+SDKs consume remote experiments. They do not create, edit, start, or stop them.
 
-## Load YAML
-
-Load and validate one YAML definition.
-
-```python
+<CodeGroup>
+```python Python
 import statespace
 
-definition = statespace.load("experiment.yaml")
-```
-
-`load()` returns a dictionary that can be passed directly to `init()`.
-
-## Define Python objects
-
-Use the public Pydantic models when the definition belongs in Python code.
-
-```python
-experiment = statespace.Experiment(
-    name="rank-v2",
-    description="Test reciprocal rank fusion.",
-    assignment="user_id",
-    groups=[
-        statespace.Group(
-            name="treatment",
-            weight=0.2,
-            config={"reranker": "rrf"},
-        )
-    ],
-)
-```
-
-`Group.config` can contain live Python objects. The SDK keeps these objects in the process and uploads only their JSON-compatible projection.
-
-## Initialize a run
-
-Initialize with the loaded dictionary.
-
-```python
-with statespace.init(**definition) as run:
-    config = run.get_config("u_42")
+with statespace.init("rank-v2") as run:
+    config = run.get_config("u_42", context={"country": "US"})
+    reranker = config.get("reranker")
     run.log({"relevance": 0.7})
 ```
 
-Pass the Pydantic model directly when the definition is in Python code.
+```typescript TypeScript
+import { init } from "@statespace-tech/sdk";
 
-```python
-with statespace.init(experiment) as run:
-    config = run.get_config("u_42")
-    run.log({"relevance": 0.7})
+const run = await init("rank-v2");
+const config = run.getConfig("u_42", { country: "US" });
+const reranker = config.reranker;
+run.log({ relevance: 0.7 });
+run.close();
 ```
 
-The first call creates and starts an absent experiment. The SDK accepts an identical definition and rejects a conflict with the same name.
+```go Go
+run, err := statespace.Init(context.Background(), "rank-v2")
+defer run.Close()
+config, err := run.GetConfig("u_42", statespace.Object{"country": "US"})
+reranker := config["reranker"]
+_, err = run.Log(statespace.Object{"relevance": 0.7})
+```
+</CodeGroup>
 
-## Assign a subject
+## Assignment
 
-Pass one stable assignment value and optional pre-treatment context.
+The SDK evaluates CEL against the supplied JSON `context`. Eligible subjects use a stable SHA-256 bucket. Ineligible subjects are unassigned and receive `{}`.
 
-```python
-config = run.get_config(
-    "u_42",
-    context={"country": "US", "device": "desktop"},
-)
+```text
+bucket = first 53 bits of SHA-256(assignment_salt + ":" + subject_id) / 2^53
 ```
 
-`get_config()` returns an immutable mapping. Use an explicit application default for each optional runtime value.
+## Caching
 
-## Record an outcome
+Each SDK refreshes active configuration every 60 seconds. It uses the last valid configuration for up to 48 hours during an outage. It then stops new assignments and returns `{}`.
 
-Pass exactly one dictionary to `log()`.
+## Delivery
 
-```python
-run.log({"relevance": 0.7, "latency_ms": 84})
+Assignment records and JSON outcomes use an in-memory queue. The SDK sends batches in the background. Flush short-lived processes before exit.
+
+<CodeGroup>
+```python Python
+statespace.flush()
 ```
 
-Call `get_config()` before each `log()` call. One `Run` can process many subjects.
-
-## Refresh the definition
-
-The SDK polls experiment metadata every 60 seconds by default.
-
-| Condition | Behavior |
-| --- | --- |
-| Refresh succeeds | Use the current definition for later assignments. |
-| Refresh fails | Keep the last valid definition and expose `run.refresh_error`. |
-| Experiment stops | Reject new configuration requests. |
-
-## Flush and close
-
-The context manager flushes queued records and closes background resources. Use the explicit lifecycle when a framework controls shutdown.
-
-```python
-run = statespace.init(experiment)
-try:
-    config = run.get_config("u_42")
-    run.log({"relevance": 0.7})
-    run.flush()
-finally:
-    run.close()
+```typescript TypeScript
+await flush();
 ```
 
-`close()` is idempotent. Record identifiers remain stable across delivery retries.
-
-<Warning>
-  Do not ignore a final flush or close error. The error means that one or more records did not receive durable acknowledgement.
-</Warning>
+```go Go
+err := run.Close()
+```
+</CodeGroup>
