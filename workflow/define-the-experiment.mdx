@@ -1,133 +1,54 @@
 ---
 title: Define the experiment
-description: Turn one hypothesis into a valid experiment definition.
+description: Write one testable treatment and eligibility rule.
 ---
 
-A useful definition states one question and makes every design choice explicit. Complete these choices before production assignment starts.
+Start with one decision. Choose the subject identifier, eligible population, treatment configurations, and outcome before you start.
 
-<Steps>
-  <Step title="State the hypothesis">
-    Name the expected treatment, outcome, population, and direction of change.
-  </Step>
-  <Step title="Choose the unit">
-    Select the identifier that can receive treatment independently.
-  </Step>
-  <Step title="Configure the design">
-    Define sampling, groups, assignment, and any exclusion layer.
-  </Step>
-  <Step title="Validate the YAML">
-    Reject ambiguous or invalid definitions before creation.
-  </Step>
-</Steps>
+## Choose the assignment type
 
-## State the hypothesis
-
-Write a falsifiable statement. Name the primary outcome before you inspect results.
-
-```text
-For eligible atlas-search users, reciprocal rank fusion increases
-mean relevance compared with the current ranking behavior.
-```
-
-<Note>
-  The hypothesis is not a YAML field. Put its concise operational form in `description`, and keep the complete rationale with the experiment review.
-</Note>
-
-## Choose the unit
-
-Choose the unit at the level where treatment can vary independently. Put it in the experiment definition.
+Use an identifier that remains stable for the full experiment.
 
 ```yaml
 assignment: user_id
 ```
 
-Use the same unit for experiments that share an exclusion layer.
+Use `account_id` when people in one account can affect each other. Use `session_id` when each session can receive an independent treatment.
 
-## Define the population
+## Define eligibility
 
-Describe the target population and implement one pre-treatment eligibility rule. The application evaluates eligibility before it calls the SDK.
-
-| Design item | `rank-v2` choice |
-| --- | --- |
-| Target population | Users of atlas search |
-| Sampling frame | Signed-in users with `user_id` |
-| Eligibility | Search enabled before assignment |
-| Primary outcome | Mean relevance per user |
-
-Review [Random sampling](/concepts/random-sampling) before you generalize the result beyond this population.
-
-## Configure the sample
-
-Set the fraction of eligible units that can enter the experiment.
+Write a CEL expression that uses only pre-treatment context.
 
 ```yaml
-traffic: 0.10
+eligibility: 'context.country == "US" && context.plan == "pro"'
 ```
 
-Start with limited traffic when the treatment has operational risk. Increase it only after health checks pass.
+An ineligible subject receives the application default and is recorded as unassigned.
 
-## Define the groups
+## Define treatments
 
-Define each treatment group and its probability. Omit control when the application default is the correct baseline.
+Put only changed values in each treatment configuration.
 
 ```yaml
 groups:
   - name: treatment
-    weight: 0.20
+    weight: 0.2
     config:
       reranker: rrf
 ```
 
-Statespace gives the implicit control an empty configuration and weight `0.80`.
+Control is implicit. The application uses its existing defaults when the SDK returns `{}`.
 
-## Configure the assignment
+## Create the draft
 
-Use random assignment unless planned categorical strata require tighter balance.
+Save the complete definition and create `v1`.
 
-```yaml
-assignment: user_id
+```shell
+ssp experiment create --file experiment.yaml
 ```
 
-Use the stratified method only when the application can supply every declared pre-treatment value.
+Review the draft before you start it.
 
-## Add an exclusion layer
-
-Add a layer when concurrent treatments can interfere. Create the shared layer before the experiment references it.
-
-```yaml
-name: search-ranking
-description: Prevent overlapping ranking experiments.
-assignment: user_id
-holdout: 0.0
+```shell
+ssp experiment show --name rank-v2
 ```
-
-Create the layer from `layer.yaml`.
-
-```bash
-ssp experiment layer create --file layer.yaml
-```
-
-Reference the layer in the experiment definition.
-
-```yaml
-traffic: 0.10
-layer: search-ranking
-```
-
-<Tip>
-  Do not use one global layer. Unrelated experiments can overlap without competing for the same sampling space.
-</Tip>
-
-## Validate the YAML
-
-Validate the file before the runtime initializes the experiment.
-
-```python
-import statespace
-
-experiment = statespace.load("experiment.yaml")
-```
-
-`statespace.load()` validates unknown fields, probabilities, group names, and assignment settings. The backend validates layer capacity when `statespace.init(...)` starts the experiment. Neither check judges the hypothesis or outcome choice.
-
-Continue with [Apply the treatments](/workflow/apply-the-treatments) after validation succeeds.

@@ -1,107 +1,53 @@
 ---
 title: Apply the treatments
-description: Initialize the experiment, assign subjects, and record outcomes.
+description: Start an experiment and use its configuration safely.
 ---
 
-The SDK creates an absent experiment from its definition. It then assigns each subject and records the resulting JSON outcome.
+Start the draft only after the application can use every treatment configuration.
 
-```text
-load → initialize → assign → apply → log → flush
+```shell
+ssp experiment start --name rank-v2
 ```
 
-## Configure the token
+## Assign subjects
 
-Use a read-write token in the application runtime.
-
-```bash
-export STATESPACE_TOKEN=ssp_rw_7j...
-```
-
-The token identifies the account database. The SDK does not need a separate database name.
-
-## Load the definition
-
-Load and validate the YAML file before initialization.
+Pass the stable subject ID and the JSON context used by eligibility.
 
 ```python
 import statespace
 
-definition = statespace.load("experiment.yaml")
+run = statespace.init("rank-v2")
+config = run.get_config("u_42", context={"country": "US", "plan": "pro"})
 ```
 
-You can also build a definition with the public Pydantic models.
+Read treatment values with explicit application defaults.
 
 ```python
-experiment = statespace.Experiment(
-    name="rank-v2",
-    description="Test reciprocal rank fusion.",
-    assignment="user_id",
-    groups=[
-        statespace.Group(
-            name="treatment",
-            weight=0.2,
-            config={"reranker": "rrf"},
-        )
-    ],
-)
+reranker = config.get("reranker", default_reranker)
 ```
 
-## Initialize the experiment
+## Record outcomes
 
-Pass the loaded definition to `init`.
+Record JSON objects on the run whose configuration could affect the result.
 
 ```python
-with statespace.init(**definition) as run:
-    ...
+run.log({"relevance": 0.7, "latency_ms": 42})
 ```
 
-Pass a code-defined `Experiment` directly.
+One run can have multiple named outcomes.
 
 ```python
-with statespace.init(experiment) as run:
-    ...
+run.log({"clicked": True}, name="engagement")
+run.log({"latency_ms": 42}, name="performance")
 ```
 
-The first call creates and starts the experiment. Later calls accept the same definition and reject a conflict with the same name.
+## Publish a change
 
-## Assign each subject
+Edit the YAML and publish the next immutable draft version.
 
-Request the configuration before you apply the tested behavior.
-
-```python
-config = run.get_config("u_42")
-reranker = config.get("reranker", None)
+```shell
+ssp experiment publish --file experiment.yaml
+ssp experiment start --name rank-v2 --version 2
 ```
 
-Repeated calls with the same subject use the same group. Stratified experiments pass declared pre-treatment values through `context`.
-
-## Record each outcome
-
-Record one arbitrary JSON dictionary after the tested behavior runs.
-
-```python
-result = search("query goes here", reranker=reranker)
-run.log({"relevance": result.relevance, "latency_ms": result.latency_ms})
-```
-
-Structured outcomes can include complete conversations or nested application data.
-
-```python
-run.log({"messages": messages, "termination": "completed"})
-```
-
-## Flush pending records
-
-The context manager flushes and closes the run. Use the explicit lifecycle when a framework controls shutdown.
-
-```python
-run = statespace.init(**definition)
-try:
-    config = run.get_config("u_42")
-    run.log({"relevance": 0.7})
-    run.flush()
-finally:
-    run.close()
-```
-
-Continue with [Monitor the data](/workflow/monitor-the-data) after production records arrive.
+Starting `v2` stops new assignments to `v1`. Existing `v1` data remains unchanged.
