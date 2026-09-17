@@ -56,7 +56,6 @@
         "pages": [
           "workflow/define-the-experiment",
           "workflow/apply-the-treatments",
-          "workflow/monitor-the-data",
           "workflow/analyze-the-outcomes",
           "workflow/make-a-decision"
         ]
@@ -65,8 +64,6 @@
         "group": "Examples",
         "pages": [
           "examples/simple-ab-experiment",
-          "examples/stratified-experiment",
-          "examples/mutually-exclusive-experiments",
           "examples/cluster-randomized-experiment",
           "examples/full-analysis-walkthrough"
         ]
@@ -124,6 +121,14 @@
           {
             "label": "Python SDK",
             "href": "https://github.com/statespace-tech/python-sdk"
+          },
+          {
+            "label": "TypeScript SDK",
+            "href": "https://github.com/statespace-tech/typescript-sdk"
+          },
+          {
+            "label": "Go SDK",
+            "href": "https://github.com/statespace-tech/go-sdk"
           }
         ]
       }

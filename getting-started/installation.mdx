@@ -1,85 +1,49 @@
 ---
 title: Installation
-description: Install the Statespace interfaces and authenticate access.
+description: Install the CLI and a runtime SDK.
 ---
 
-Install only the interfaces required by your workflow. The CLI manages resources, the SDK records experiment data, and DuckDB analyzes it.
+## CLI
 
-## Install the CLI
+Install `ssp` on macOS or Linux.
 
-Install the release binary on macOS or Linux.
-
-```bash
+```shell
 curl -fsSL https://statespace.com/install | bash
 ```
 
-Verify the installed version.
+Confirm the installation.
 
-```bash
+```shell
 ssp --version
 ```
 
-## Install the Python SDK
+## SDKs
 
-Add the Python SDK to the application that applies treatments.
+Install the SDK for the application language.
 
-```bash
-uv add statespace-sdk
+<CodeGroup>
+```shell Python
+pip install statespace-sdk
 ```
 
-Import the public experiment models and runtime functions.
-
-```python
-from statespace import Experiment, Group, init, load
+```shell TypeScript
+npm install @statespace-tech/sdk
 ```
 
-## Authenticate the account
+```shell Go
+go get github.com/statespace-tech/go-sdk
+```
+</CodeGroup>
 
-Start browser-based authentication from the CLI.
+Create an application token with the CLI, then store it in a secret manager.
 
-```bash
-ssp login
+```shell
+ssp token create --name production
+export STATESPACE_TOKEN=ssp_token_7j...
 ```
 
-The CLI stores the account session in its local configuration with restricted permissions. Database tokens remain separate from the account session.
+Use `STATESPACE_URL` only when the application connects to a self-hosted or local API.
 
-<Note>
-  An account session manages tokens and experiment state. A database token reads or writes experiment data.
-</Note>
-
-## Store the database token
-
-Store production tokens in a secret manager. Use read-write tokens in applications and read-only tokens in analysis tools.
-
-| Token | Prefix | Access |
-| --- | --- | --- |
-| Read-write | `ssp_rw_` | Read configuration and write experiment events. |
-| Read-only | `ssp_ro_` | Query and download account data. |
-
-Never put a complete token in source control, logs, examples, or support messages.
-
-## Configure the endpoint
-
-Use the production API unless you are testing a local deployment.
-
-```bash
-export STATESPACE_URL=https://api.statespace.com
+```shell
+export STATESPACE_URL=http://127.0.0.1:8080
 ```
-
-Set the token for SDK configuration.
-
-```bash
-export STATESPACE_TOKEN=ssp_rw_7j...
-```
-
-## Verify the installation
-
-Confirm account access and inspect the database URL.
-
-```bash
-ssp account
-```
-
-<Tip>
-  Run the [Quickstart](/quickstart) after the CLI returns structured YAML for both commands.
-</Tip>

@@ -3,37 +3,26 @@ title: Quickstart
 description: Complete one experiment from YAML to SQL.
 ---
 
-This quickstart tests reciprocal rank fusion. The SDK creates the experiment at runtime and records one JSON outcome for each subject.
+This example tests reciprocal rank fusion for eligible US users.
 
 <Steps>
   <Step title="Install and sign in">
-    Install the current `ssp` binary on macOS or Linux.
+    Install the CLI, then sign in with GitHub or Google.
 
-    ```bash
+    ```shell
     curl -fsSL https://statespace.com/install | bash
     ssp login
     ```
   </Step>
 
-  <Step title="Create a token">
-    Create a read-write token for the runtime application.
-
-    ```bash
-    ssp token create -n quickstart --access read-write
-    ```
-
-    <Tip>
-      The command shows the token secret once. Store it in a secret manager.
-    </Tip>
-  </Step>
-
   <Step title="Define the experiment">
-    Save the complete definition as `experiment.yaml`.
+    Save this definition as `experiment.yaml`.
 
     ```yaml
     name: rank-v2
     description: Test reciprocal rank fusion.
     assignment: user_id
+    eligibility: 'context.country == "US"'
     groups:
       - name: treatment
         weight: 0.2
@@ -41,57 +30,51 @@ This quickstart tests reciprocal rank fusion. The SDK creates the experiment at 
           reranker: rrf
     ```
 
-    <Note>
-      Statespace adds an empty control group with the remaining weight of `0.8`.
-    </Note>
+    Control is implicit. It receives the remaining `0.8` weight and an empty configuration.
+  </Step>
+
+  <Step title="Create and start version 1">
+    Create the draft, then start it explicitly.
+
+    ```shell
+    ssp experiment create --file experiment.yaml
+    ssp experiment start --name rank-v2
+    ```
+  </Step>
+
+  <Step title="Create an SDK token">
+    Store the returned secret as `STATESPACE_TOKEN` in the application.
+
+    ```shell
+    ssp token create --name production
+    export STATESPACE_TOKEN=ssp_token_7j...
+    ```
   </Step>
 
   <Step title="Run the experiment">
-    Install the SDK and configure the token.
+    Install the Python SDK and reference the remote experiment by name.
 
-    ```bash
-    uv add statespace-sdk
-    export STATESPACE_TOKEN=ssp_rw_7j...
+    ```shell
+    pip install statespace-sdk
     ```
 
-    Load the definition. The first `init` call creates and starts the experiment.
+    Assign a subject and record one JSON outcome.
 
     ```python
     import statespace
 
-    experiment = statespace.load("experiment.yaml")
-
-    with statespace.init(**experiment) as run:
-        for user_id in ["u_42", "u_73", "u_91"]:
-            config = run.get_config(user_id)
-            result = search("query goes here", reranker=config.get("reranker", None))
-            run.log({"relevance": result.relevance})
+    with statespace.init("rank-v2") as run:
+        config = run.get_config("u_42", context={"country": "US"})
+        reranker = config.get("reranker")
+        run.log({"relevance": 0.7})
     ```
-
-    Later calls accept the same definition. A conflicting definition with the same name returns an error.
   </Step>
 
-  <Step title="Analyze the outcomes">
-    Run `ssp account` to get the database URL. Attach it through the DuckDB Quack protocol.
+  <Step title="Query the result">
+    Query the account database through the CLI.
 
-    ```sql
-    ATTACH 'quack:atlas-search.db.statespace.app:443' AS statespace (
-      TOKEN 'ssp_ro_7j...'
-    );
-
-    SELECT
-      group_name,
-      count(*) AS outcomes,
-      avg(data.relevance::DOUBLE) AS mean_relevance
-    FROM statespace.logs
-    WHERE experiment_name = 'rank-v2'
-    GROUP BY group_name;
+    ```shell
+    ssp query 'SELECT experiment_version, group_name, data FROM statespace.logs'
     ```
-
-    <Info>
-      Use DuckDB 2.0 or later. Review the workflow pages before you make a production decision.
-    </Info>
   </Step>
 </Steps>
-
-Continue with [Define the experiment](/workflow/define-the-experiment) to review each design decision.

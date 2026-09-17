@@ -1,89 +1,45 @@
 ---
-title: Introduction
-description: Headless A/B testing for coding agents.
+title: Statespace
+description: Run controlled A/B tests and analyze their JSON results with SQL.
 ---
 
-Statespace lets a coding agent define experiments, apply treatments, record outcomes, and analyze the evidence with SQL.
+Statespace manages A/B tests for applications and AI systems. The CLI publishes experiment definitions. Language SDKs assign subjects and record JSON results.
 
 ```text
-hypothesis → YAML → SDK → outcomes → DuckDB → decision
+experiment.yaml → ssp CLI → SDK assignment → JSON outcomes → PostgreSQL
 ```
 
-<CardGroup cols={3}>
-  <Card title="Run the quickstart" icon="play" href="/quickstart">
-    Complete one experiment from YAML to SQL.
+## Start here
+
+<CardGroup cols={2}>
+  <Card title="Complete the quickstart" icon="rocket" href="/quickstart">
+    Create, start, run, and query one experiment.
   </Card>
-  <Card title="Learn the concepts" icon="book-open" href="/concepts/random-sampling">
-    Connect experiment theory to the Statespace model.
+  <Card title="Install the tools" icon="download" href="/getting-started/installation">
+    Install the CLI and one runtime SDK.
   </Card>
-  <Card title="Follow the workflow" icon="route" href="/workflow/define-the-experiment">
-    Define, run, monitor, analyze, and decide.
+  <Card title="Review the workflow" icon="route" href="/workflow/define-the-experiment">
+    Follow an experiment from definition to analysis.
+  </Card>
+  <Card title="Use the reference" icon="book" href="/reference/experiment-yaml">
+    Review exact fields, commands, APIs, and tables.
   </Card>
 </CardGroup>
 
-## Headless experimentation
+## Interfaces
 
-Statespace provides a CLI, SDKs, and a SQL database instead of a fixed dashboard. Your coding agent can use each interface directly.
+Each interface has one responsibility.
 
-| Interface | Purpose |
+| Interface | Responsibility |
 | --- | --- |
-| YAML | Defines sampling, assignment, and groups. |
-| CLI | Shows the account and manages tokens, layers, and experiment state. |
-| SDK | Creates experiments, assigns subjects, and records outcomes. |
-| DuckDB | Queries raw experiment data with SQL. |
+| `ssp` CLI | Creates versions, starts experiments, and manages credentials. |
+| SDK | Caches configurations, assigns subjects, and records JSON events. |
+| PostgreSQL | Stores one isolated account database and exposes `statespace.logs`. |
 
-## Coding-agent workflow
+The Python, TypeScript, and Go SDKs use the same stable assignment algorithm.
 
-The platform separates experiment evidence from the analysis that uses it.
-
-<Steps>
-  <Step title="Define the experiment">
-    Write the hypothesis and configuration in a reviewable YAML file.
-  </Step>
-  <Step title="Apply the treatments">
-    Use an SDK to assign units and apply the selected configuration.
-  </Step>
-  <Step title="Monitor the data">
-    Check delivery, sampling traffic, group balance, and guardrails.
-  </Step>
-  <Step title="Analyze the outcomes">
-    Query raw data and estimate treatment effects with DuckDB.
-  </Step>
-  <Step title="Make a decision">
-    Record the evidence, action, and follow-up experiment.
-  </Step>
-</Steps>
-
-## Direct SQL analysis
-
-Each account publishes one DuckDB database through the Quack protocol. The database contains experiment definitions, assignments, runs, outcomes, and the `logs` view.
-
-```sql
-SELECT
-  group_name,
-  avg(data.relevance::DOUBLE) AS mean_relevance
-FROM statespace.logs
-WHERE experiment_name = 'rank-v2'
-GROUP BY group_name;
+```text
+Python:     statespace-sdk
+TypeScript: @statespace-tech/sdk
+Go:         github.com/statespace-tech/go-sdk
 ```
-
-<Info>
-  A coding agent can inspect the schema, write a query, test an assumption, and revise the analysis without a dashboard-specific API.
-</Info>
-
-## Data ownership
-
-Your account database keeps the raw evidence behind every aggregate. You can query and download it with a database token.
-
-- Statespace does not train on account data.
-- Statespace does not share account data.
-- Data retention follows the account plan.
-- Revoked tokens lose access immediately.
-
-## Product scope
-
-Statespace guarantees who received what, when, and why. Your team remains responsible for the hypothesis, metric definitions, statistical method, and final decision.
-
-<Tip>
-  Start with the [Quickstart](/quickstart). It completes the full loop with one experiment.
-</Tip>

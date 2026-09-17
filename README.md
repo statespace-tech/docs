@@ -1,6 +1,8 @@
 # Statespace documentation
 
-Documentation for Statespace, built with Mintlify.
+Documentation site for Statespace.
+
+Mintlify builds and serves the site.
 
 ## Preview
 
