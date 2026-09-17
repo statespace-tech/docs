@@ -30,13 +30,13 @@ The [average treatment effect](https://en.wikipedia.org/wiki/Average_treatment_e
 ATE = mean outcome under treatment − mean outcome under control
 ```
 
-Calculate the observed difference in DuckDB.
+Calculate the observed difference in PostgreSQL.
 
 ```sql
 WITH group_means AS (
   SELECT
     group_name,
-    avg(data.relevance::DOUBLE) AS mean_value
+    avg((data->>'relevance')::double precision) AS mean_value
   FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
   GROUP BY group_name
@@ -69,8 +69,8 @@ WITH group_stats AS (
   SELECT
     group_name,
     count(*) AS n,
-    avg(data.relevance::DOUBLE) AS mean_value,
-    stddev_samp(data.relevance::DOUBLE) AS standard_deviation
+    avg((data->>'relevance')::double precision) AS mean_value,
+    stddev_samp((data->>'relevance')::double precision) AS standard_deviation
   FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
   GROUP BY group_name
@@ -93,7 +93,7 @@ WHERE treatment.group_name = 'treatment'
 
 Power depends on these inputs:
 
-- [Sampling traffic](/concepts/random-sampling#sampling-traffic)
+- [Eligibility](/concepts/random-sampling)
 - [Group weights](/concepts/treatments-and-control-groups#group-weights)
 - Outcome variance
 - Minimum effect of interest
@@ -107,20 +107,16 @@ An average effect can hide differences across populations. Estimate subgroup eff
 
 ```sql
 SELECT
-  json_extract_string(runs.context, '$.country') AS country,
-  logs.group_name,
+  context->>'country' AS country,
+  group_name,
   count(*) AS observations,
-  avg(logs.data.relevance::DOUBLE) AS mean_relevance
-FROM statespace.logs AS logs
-JOIN statespace.runs AS runs
-  ON logs.run_id = runs.id
-WHERE logs.experiment_name = 'rank-v2'
-GROUP BY country, logs.group_name;
+  avg((data->>'relevance')::double precision) AS mean_relevance
+FROM statespace.logs
+WHERE experiment_name = 'rank-v2'
+GROUP BY country, group_name;
 ```
 
-Treat an unplanned subgroup result as exploratory evidence. Validate it in a new experiment before acting on it.
-
-See [Stratification and blocking](/concepts/random-assignment#stratification-and-blocking) when a subgroup is part of the experiment design.
+Treat an unplanned subgroup result as exploratory. Confirm it with a new experiment.
 
 ## Practical significance
 

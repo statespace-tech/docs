@@ -1,119 +1,46 @@
 ---
 title: Random assignment
-description: Allocate sampled units across groups without systematic bias.
+description: Produce stable groups across SDKs and service instances.
 ---
 
-[Random assignment](https://en.wikipedia.org/wiki/Random_assignment) uses chance to allocate sampled units across treatment and control groups. It makes the groups comparable before treatment.
+Random assignment gives each eligible subject one group within an immutable experiment version.
 
-```text
-sampled unit → random mechanism → one treatment or control group
-```
+## Stable identity
 
-## Randomization units
-
-The [experimental unit](https://en.wikipedia.org/wiki/Statistical_unit#Experimental_and_sampling_units) is the smallest entity that can independently receive a treatment. Statespace calls its stable identifier type the randomization unit.
-
-Choose the unit in each experiment definition.
+Choose an identifier at the level where treatment can vary independently.
 
 ```yaml
 assignment: user_id
 ```
 
-Pass one value of that type when the application requests a configuration.
+Pass the identifier value when the application assigns the subject.
 
 ```python
-config = run.get_config("user_42")
+run = statespace.init("rank-v2")
+config = run.get_config("u_42", context={"country": "US"})
 ```
 
-Use a unit at the level where treatment can vary independently. See [Repeated observations](/concepts/outcome-measures#repeated-observations) when one unit produces several outcomes.
+## Stable bucket
 
-## Stable hashing
-
-Statespace uses deterministic hashing. The same randomization-unit value receives the same sample and group decisions for one experiment revision.
+Each version has a random assignment salt. All SDKs use the same SHA-256 calculation.
 
 ```text
-hash(experiment salt, assignment value) → group bucket
+bucket = first 53 bits of SHA-256(assignment_salt + ":" + subject_id) / 2^53
 ```
 
-The SDK polls the experiment manifest. The backend resolves and stores each stable assignment.
-
-## Group allocation
-
-Allocation maps stable hash ranges to group weights. A treatment with weight `0.20` owns 20% of the experiment's assignment space.
-
-```yaml
-groups:
-  - name: treatment
-    weight: 0.20
-    config:
-      reranker: rrf
-```
-
-The remaining assignment space belongs to control. See [Group weights](/concepts/treatments-and-control-groups#group-weights) for multi-group definitions.
-
-Inspect the observed allocation after assignments arrive.
-
-```sql
-WITH group_counts AS (
-  SELECT
-    group_name,
-    count(DISTINCT subject_id) AS units
-  FROM statespace.assignments
-  WHERE experiment_name = 'rank-v2'
-    AND forced = false
-  GROUP BY group_name
-)
-SELECT
-  group_name,
-  units,
-  units::DOUBLE / sum(units) OVER () AS observed_share
-FROM group_counts
-ORDER BY group_name;
-```
-
-Investigate a large sample-ratio mismatch before you compare outcomes.
-
-## Stratification and blocking
-
-[Blocking](https://en.wikipedia.org/wiki/Blocking_%28statistics%29) groups similar units before random assignment. Stratification applies this idea to known pre-treatment attributes.
-
-```yaml
-assignment:
-  unit: user_id
-  method: stratified
-  strata:
-    - country
-    - device
-  block_size: 4
-```
-
-Supply one value for each declared stratum when you request a configuration.
-
-```python
-config = run.get_config(
-    "user_42",
-    context={"country": "US", "device": "desktop"},
-)
-```
-
-Permuted blocks improve group balance within each stratum. Stratification does not make a biased sample representative.
-
-Use strata to support a planned comparison or improve precision. Do not add them only to search for [heterogeneous effects](/concepts/statistical-inference#heterogeneous-effects).
-
-## Cluster assignment
-
-Cluster assignment gives one treatment to a group of related observations. Choose a coarser experiment unit when members can affect one another.
+Group weights occupy consecutive parts of the interval from `0` to `1`. The implicit control group occupies the remaining weight.
 
 ```text
-account_7 → treatment
-├── user_1
-└── user_2
+control 0.0 ───────────── 0.8 | treatment 0.8 ── 1.0
 ```
 
-For example, use `account_id` instead of `user_id` when users in one account share the tested feature. Use the same unit for experiments that share an exclusion layer.
+The same subject, version, and salt produce the same assignment in Python, TypeScript, Go, and across service instances.
 
-## Forced assignment
+## New versions
 
-<Warning>
-  **Planned:** Forced assignments will send a known unit to a selected group for development or quality assurance. They will be marked as forced and must be excluded from causal analysis unless the [estimand](/concepts/statistical-inference#estimands) includes them.
-</Warning>
+A new version receives a new salt. It can assign a subject differently. Analyze each version separately.
+
+```text
+rank-v2 v1 → u_42 → control
+rank-v2 v2 → u_42 → treatment
+```

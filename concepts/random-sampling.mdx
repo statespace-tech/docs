@@ -1,108 +1,31 @@
 ---
-title: Random sampling
-description: Select a representative part of an eligible population for an experiment.
+title: Eligibility
+description: Select the subjects who can enter an experiment.
 ---
 
-[Random sampling](https://en.wikipedia.org/wiki/Sampling_%28statistics%29) selects units from a population through a known random mechanism. It determines who can enter an experiment.
+Eligibility defines the population that can enter an experiment. Use only information that exists before treatment assignment.
 
-```text
-target population → sampling frame → eligible population → random sample
+```yaml
+eligibility: 'context.country == "US" && context.plan == "pro"'
 ```
 
-## Target population
-
-The target population contains every unit to which the experiment result should apply. A search experiment might target all signed-in users who can use the ranking system.
-
-State the target population before you configure traffic. A precise population makes the final treatment effect interpretable.
-
-## Sampling frame
-
-The sampling frame is the set of units that the system can identify and sample. It can differ from the target population because of product access, missing identifiers, or incomplete instrumentation.
-
-```text
-target population: all search users
-sampling frame:    signed-in search users with a stable user_id
-```
-
-A result can generalize only to units represented by the sampling frame.
-
-## Eligibility criteria
-
-Eligibility rules select the part of the sampling frame that can enter the experiment. Apply the same pre-treatment rule to every possible group.
+The SDK evaluates the CEL expression against the supplied JSON `context`.
 
 ```python
-if user.is_signed_in and user.search_enabled:
-    config = run.get_config(user.id, context={"country": user.country})
+run = statespace.init("rank-v2")
+config = run.get_config("u_42", context={"country": "US", "plan": "pro"})
 ```
 
-Do not use behavior caused by the treatment as an eligibility condition. This can bias the sample.
-
-## Sampling traffic
-
-Traffic is the sampling fraction. It is the probability that an eligible unit enters the experiment.
-
-```yaml
-traffic: 0.10
-```
-
-This experiment samples approximately 10% of eligible units. Statespace uses stable hashing so repeated requests produce the same inclusion decision.
-
-Traffic and group weight apply in sequence. An experiment with `0.10` traffic and a treatment weight of `0.20` exposes approximately 2% of eligible units to that treatment.
+An eligible subject receives control or a treatment. An ineligible subject receives `{}` and is recorded with `assigned = false` and `reason = 'ineligible'`.
 
 ```text
-0.10 sampling traffic × 0.20 treatment weight = 0.02 of eligible units
+subject → eligibility → control or treatment
+                    ↘ unassigned
 ```
 
-Larger samples usually increase [statistical power](/concepts/statistical-inference#statistical-power).
+Apply the same eligibility rule to every possible group. Do not use a value that the treatment can change.
 
-## Exclusion layers
-
-A layer is a shared sampling space for experiments that must not overlap. Create it once for the account database.
-
-```yaml
-name: search-ranking
-description: Prevent overlapping ranking experiments.
-assignment: user_id
-holdout: 0.0
+```text
+Suitable:   country, plan at assignment time, account type
+Unsuitable: response quality, post-treatment latency, conversion
 ```
-
-Create the layer from `layer.yaml`.
-
-```bash
-ssp experiment layer create --file layer.yaml
-```
-
-Reference the layer from each related experiment.
-
-```yaml
-traffic: 0.10
-layer: search-ranking
-```
-
-One unit can enter only one running experiment in the layer. The same unit can enter experiments in other layers.
-
-<Note>
-  Each experiment defines its randomization unit. A layer prevents selected experiments with the same unit from using overlapping samples.
-</Note>
-
-## Sampling bias
-
-Sampling bias occurs when the sampled units differ systematically from the target population. Random selection does not correct an incomplete sampling frame or a treatment-dependent eligibility rule.
-
-Common causes include missing identifiers, region restrictions, client-version requirements, and missing event delivery.
-
-## Sample representativeness
-
-A representative sample reflects the target population on attributes that matter to the experiment. Compare sampled units with eligible units before you generalize the result.
-
-```sql
-SELECT
-  country,
-  count(DISTINCT assignment) AS sampled_units
-FROM statespace.runs
-WHERE experiment_name = 'rank-v2'
-GROUP BY country
-ORDER BY sampled_units DESC;
-```
-
-Random sampling supports generalization to the target population. [Random assignment](/concepts/random-assignment) supports causal comparisons inside the sample.

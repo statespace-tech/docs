@@ -72,7 +72,7 @@ WITH unit_outcomes AS (
   SELECT
     subject_id,
     group_name,
-    avg(data.relevance::DOUBLE) AS unit_relevance
+    avg((data->>'relevance')::double precision) AS unit_relevance
   FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
   GROUP BY subject_id, group_name
@@ -86,7 +86,7 @@ GROUP BY group_name;
 ```
 
 <Warning>
-  Counting every run as an independent unit can understate uncertainty. Match the analysis unit to the [randomization unit](/concepts/random-assignment#randomization-units), or use a method that accounts for clustering.
+  Counting every run as an independent unit can understate uncertainty. Match the analysis unit to the [stable identity](/concepts/random-assignment#stable-identity), or use a method that accounts for clustering.
 </Warning>
 
 ## Guardrail metrics
