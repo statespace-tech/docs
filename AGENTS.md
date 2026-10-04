@@ -17,7 +17,7 @@ Document current behavior as current. Mark proposed behavior with a visible `Pla
 - Never include a complete token.
 - Put one explanatory sentence immediately before each code block.
 - Prefer concrete examples over placeholders.
-- Keep Python, YAML, CLI, and SQL examples consistent.
+- Keep Python, TypeScript, Go, CLI, and SQL examples consistent. Do not require YAML experiment files.
 - Use `randomization unit` for the identifier type defined by an experiment.
 - Use `assignment` for one randomization-unit value supplied to an experiment.
 - Use `subject` when describing a person, task, session, or other assigned entity.
