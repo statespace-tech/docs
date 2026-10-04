@@ -71,10 +71,18 @@ This example tests reciprocal rank fusion for eligible US users.
   </Step>
 
   <Step title="Query the result">
-    Query the account database through the CLI.
+    Create a read-only credential for your account database, then query it with any
+    PostgreSQL client.
 
     ```shell
-    ssp query 'SELECT experiment_version, group_name, data FROM statespace.logs'
+    ssp database credential create --name analysis
+    ```
+
+    The command prints a connection URL. Use it with `psql`, a notebook, or a BI tool.
+
+    ```shell
+    psql "$STATESPACE_DATABASE_URL" \
+      -c 'SELECT experiment_version, group_name, data FROM statespace.logs'
     ```
   </Step>
 </Steps>

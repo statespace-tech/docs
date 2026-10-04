@@ -5,12 +5,22 @@ description: Query runs and JSON outcomes in PostgreSQL.
 
 Start with allocation and delivery checks. Then estimate the outcome for each group within one experiment version.
 
+Analysis runs against your own PostgreSQL database. Create a read-only credential once and
+point any SQL client at it.
+
+```shell
+ssp database credential create --name analyst
+```
+
 ## Check assignment counts
 
 Count assigned and unassigned runs.
 
-```shell
-ssp query "SELECT assigned, reason, count(*) FROM statespace.runs WHERE experiment_name = 'rank-v2' GROUP BY assigned, reason"
+```sql
+SELECT assigned, reason, count(*)
+FROM statespace.runs
+WHERE experiment_name = 'rank-v2'
+GROUP BY assigned, reason;
 ```
 
 ## Compare groups
@@ -31,10 +41,14 @@ WHERE experiment_name = 'rank-v2'
 GROUP BY group_name;
 ```
 
-Run the query through `ssp` when you want JSON output.
+For JSON output, use `psql` directly.
 
 ```shell
-ssp query "SELECT group_name, count(*) FROM statespace.logs WHERE experiment_name = 'rank-v2' GROUP BY group_name"
+psql "$STATESPACE_DATABASE_URL" -At -c \
+  "SELECT json_agg(t) FROM (
+     SELECT group_name, count(*) FROM statespace.logs
+     WHERE experiment_name = 'rank-v2' GROUP BY group_name
+   ) AS t"
 ```
 
 ## Connect another tool

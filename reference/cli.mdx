@@ -43,13 +43,27 @@ ssp token revoke --id tok_123
 
 ## PostgreSQL
 
-Run one read-only query or create credentials for another SQL client.
+Create credentials for a SQL client. Statespace has no server-side query endpoint: you
+query your own database directly, with a credential that holds `SELECT` on the
+`statespace` schema and nothing else.
 
 ```shell
-ssp query 'SELECT * FROM statespace.logs LIMIT 20'
 ssp database credential create --name analyst
 ssp database credential list
 ssp database credential revoke --id dbc_123
+```
+
+```shell
+psql "$STATESPACE_DATABASE_URL" -c 'SELECT * FROM statespace.logs LIMIT 20'
+```
+
+## Audit trail
+
+Read the account's record of control-plane changes. Requires the `audit:read` scope.
+
+```shell
+ssp audit --limit 50
+ssp audit --limit 50 --before 4821
 ```
 
 Set `STATESPACE_ACCOUNT_TOKEN` for headless CLI and CI use. This value is an account session, not an SDK token.
