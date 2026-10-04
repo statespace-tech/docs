@@ -1,54 +1,46 @@
 ---
 title: Define the experiment
-description: Write one testable treatment and eligibility rule.
+description: Choose a subject key, eligibility rule, and published function.
 ---
 
-Start with one decision. Choose the subject identifier, eligible population, treatment configurations, and outcome before you start.
+Start with one decision. Choose the randomization unit, eligible population, candidate function, and outcome before you start.
 
-## Choose the assignment type
+## Choose the randomization unit
 
-Use an identifier that remains stable for the full experiment.
+Use a stable identifier at the level where treatment can vary independently. Use `user_id` for individual users or `account_id` when users in one account can affect each other. The assignment label does not extract a context field. The application supplies its value to the SDK.
 
-```yaml
-assignment: user_id
+## Publish the candidate
+
+Save the candidate as `rerank.py`.
+
+```python
+def rerank(items: list[int]) -> list[int]:
+    return sorted(items)
 ```
 
-Use `account_id` when people in one account can affect each other. Use `session_id` when each session can receive an independent treatment.
+Build its Wasm component and publish the immutable function `atlas-search@1`.
 
-## Define eligibility
-
-Write a CEL expression that uses only pre-treatment context.
-
-```yaml
-eligibility: 'context.country == "US" && context.plan == "pro"'
+```shell
+ssp function build rerank.py --language python --entry rerank:rerank --output rerank.wasm
+ssp function publish rerank.wasm --name atlas-search
 ```
 
-An ineligible subject receives the application default and is recorded as unassigned.
-
-## Define treatments
-
-Put only changed values in each treatment configuration.
-
-```yaml
-groups:
-  - name: treatment
-    weight: 0.2
-    config:
-      reranker: rrf
-```
-
-Control is implicit. The application uses its existing defaults when the SDK returns `{}`.
+S3 stores the bytes. PostgreSQL stores the SHA-256 hash, object key, and publisher provenance. SDKs execute the component locally.
 
 ## Create the draft
 
-Save the complete definition and create `v1`.
+Use a CEL rule with pre-treatment context and allocate 20% of eligible users to the candidate.
 
 ```shell
-ssp experiment create --file experiment.yaml
+ssp experiment create --name rank-v2   --description 'Test sorted search results.'   --assignment user_id   --eligibility 'context.country == "US" && context.plan == "pro"'   --variant atlas-search@1=0.2
 ```
 
-Review the draft before you start it.
+The remaining 80% uses the application's default callable as control. Ineligible subjects also use the default, but are logged as unassigned. The backend validates CEL before committing the draft.
+
+Review version 1 before starting it.
 
 ```shell
 ssp experiment show --name rank-v2
 ```
+
+The CLI accepts flags directly. Updates supply a full replacement definition and create a new immutable draft. Omitted optional flags reset to defaults.

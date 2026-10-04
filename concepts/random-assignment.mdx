@@ -1,46 +1,50 @@
 ---
 title: Random assignment
-description: Produce stable groups across SDKs and service instances.
+description: Keep subject assignments consistent across SDKs.
 ---
 
-Random assignment gives each eligible subject one group within an immutable experiment version.
+Random assignment gives each eligible subject one group. Each published experiment version records its definition and allocation ranges.
 
 ## Stable identity
 
-Choose an identifier at the level where treatment can vary independently.
+Choose an identifier at the level where treatment can vary independently. Label user-level assignment when creating the experiment.
 
-```yaml
-assignment: user_id
+```shell
+ssp experiment create --name rank-v2 --assignment user_id --variant atlas-search@1=0.2
 ```
 
-Pass the identifier value when the application assigns the subject.
+The label does not read a context field. Supply the identifier value explicitly to the SDK.
 
 ```python
-run = statespace.init("rank-v2")
-config = run.get_config("u_42", context={"country": "US"})
+rank = run.get_function("u_42", default=lambda items: items)
+result = rank([3, 1, 2])
 ```
 
 ## Stable bucket
 
-Each version has a random assignment salt. All SDKs use the same SHA-256 calculation.
+All SDKs calculate the same bucket from the experiment salt and subject ID.
 
 ```text
 bucket = first 53 bits of SHA-256(assignment_salt + ":" + subject_id) / 2^53
 ```
 
-Group weights occupy consecutive parts of the interval from `0` to `1`. The implicit control group occupies the remaining weight.
+The same subject, salt, and allocation ranges produce the same group across Python, TypeScript, Go, and service instances. The SDK keeps the subject's assignment within its session.
+
+## Group allocation
+
+Published candidate functions have explicit bucket ranges. The remaining interval belongs to control. For a new experiment with one 20% candidate, the allocation is shown below.
 
 ```text
-control 0.0 ───────────── 0.8 | treatment 0.8 ── 1.0
+atlas-search@1: [0.0, 0.2)
+control:       [0.2, 1.0)
 ```
-
-The same subject, version, and salt produce the same assignment in Python, TypeScript, Go, and across service instances.
 
 ## New versions
 
-A new version receives a new salt. It can assign a subject differently. Analyze each version separately.
+Function-experiment updates preserve the active version's salt. If no version is running, the update uses the latest version's salt. The backend retains existing candidate ranges where their new weights permit it. New or expanded candidates use available ranges.
 
-```text
-rank-v2 v1 → u_42 → control
-rank-v2 v2 → u_42 → treatment
-```
+Changes to weights or function versions can still move subjects between groups. Analyze each experiment version separately. Starting a draft stops new assignments to the previous running version.
+
+## Forced assignment
+
+Forced assignment is not exposed by the current function CLI. Keep manual overrides out of a randomized comparison. A separate diagnostic path does not provide the same inference as random assignment.

@@ -54,9 +54,11 @@ GROUP BY group_name;
 
 Keep the experiment version, query, result, and decision together in the system that tracks production changes.
 
-```yaml
-experiment: rank-v2
-version: 1
-decision: keep-control
-reason: Treatment did not improve the primary relevance outcome.
+```json
+{
+  "experiment": "rank-v2",
+  "version": 1,
+  "decision": "keep-control",
+  "reason": "Treatment did not improve the primary relevance outcome."
+}
 ```

@@ -14,7 +14,7 @@ outcomes → estimate → uncertainty → decision
 An estimand states exactly which effect the experiment intends to estimate. It identifies the population, treatment, outcome, and summary measure.
 
 ```text
-Among eligible search users, what is the average effect of RRF
+Among eligible search users, what is the average effect of atlas-search@1
 assignment on relevance compared with the current ranking behavior?
 ```
 
@@ -39,10 +39,11 @@ WITH group_means AS (
     avg((data->>'relevance')::double precision) AS mean_value
   FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
+    AND experiment_version = 1 AND assigned AND outcome_name = 'result'
   GROUP BY group_name
 )
 SELECT
-  max(mean_value) FILTER (WHERE group_name = 'treatment')
+  max(mean_value) FILTER (WHERE group_name = 'atlas-search@1')
     - max(mean_value) FILTER (WHERE group_name = 'control') AS treatment_effect
 FROM group_means;
 ```
@@ -73,6 +74,7 @@ WITH group_stats AS (
     stddev_samp((data->>'relevance')::double precision) AS standard_deviation
   FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
+    AND experiment_version = 1 AND assigned AND outcome_name = 'result'
   GROUP BY group_name
 )
 SELECT
@@ -83,7 +85,7 @@ SELECT
   ) AS standard_error
 FROM group_stats AS treatment
 CROSS JOIN group_stats AS control
-WHERE treatment.group_name = 'treatment'
+WHERE treatment.group_name = 'atlas-search@1'
   AND control.group_name = 'control';
 ```
 
@@ -113,6 +115,7 @@ SELECT
   avg((data->>'relevance')::double precision) AS mean_relevance
 FROM statespace.logs
 WHERE experiment_name = 'rank-v2'
+    AND experiment_version = 1 AND assigned AND outcome_name = 'result'
 GROUP BY country, group_name;
 ```
 

@@ -5,16 +5,14 @@ description: Build a function, run an experiment, and inspect its evidence.
 
 This example tests a sorted search result against the application's default.
 The published function is named `atlas-search`. The experiment is `rank-v2`.
-Use the current CLI and SDK checkouts with a running backend. GitHub or Google
-login requires registered provider clients on that backend.
+Use the current CLI and SDK `main` branches with the live HTTPS backend.
 
 <Steps>
   <Step title="Build the CLI and sign in">
-    Install the CLI from its checkout in the parent workspace.
+    Install Rust 1.85 or newer and Cargo, then build the CLI from current `main`.
 
     ```shell
-    cargo install --path cli --locked
-    export STATESPACE_URL=http://localhost:8080
+    curl -fsSL https://statespace.com/install | bash
     ssp login
     ```
 
@@ -42,8 +40,7 @@ login requires registered provider clients on that backend.
     ssp function publish rerank.wasm --name atlas-search
     ```
 
-    The build requires the Python component toolchain. The CLI reports missing
-    tools. S3 stores the artifact; PostgreSQL stores its hash and provenance.
+    The CLI installs pinned build tools on first use. S3 stores the artifact; PostgreSQL stores its hash and provenance.
   </Step>
 
   <Step title="Create and start the experiment">
@@ -72,10 +69,10 @@ login requires registered provider clients on that backend.
   </Step>
 
   <Step title="Run and log an outcome">
-    Install the Python SDK from its adjacent checkout.
+    Install the Python SDK from current `main`.
 
     ```shell
-    pip install -e ./python-sdk
+    pip install "git+https://github.com/statespace-tech/python-sdk.git@main"
     ```
 
     Assign a subject, execute its function, and log JSON evidence.
@@ -103,8 +100,8 @@ login requires registered provider clients on that backend.
     ssp database credential create --name analyst
     ```
 
-    Store the returned connection settings securely. Hosted Lightsail access
-    uses an SSH tunnel. Supply the connection through protected PostgreSQL
+    Store the returned connection settings securely. Hosted access connects directly over TLS to the returned
+    `dbname.statespace.app` hostname with `sslmode=verify-full`. Supply the connection through protected PostgreSQL
     environment settings, then inspect the logs view.
 
     ```shell

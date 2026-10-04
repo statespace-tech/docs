@@ -1,31 +1,35 @@
 ---
 title: Eligibility
-description: Select the subjects who can enter an experiment.
+description: Select subjects with pre-treatment context.
 ---
 
-Eligibility defines the population that can enter an experiment. Use only information that exists before treatment assignment.
+Eligibility defines the population that can enter an experiment. Use information that exists before treatment assignment.
 
-```yaml
-eligibility: 'context.country == "US" && context.plan == "pro"'
+Create a draft with a CEL eligibility rule.
+
+```shell
+ssp experiment create --name rank-v2 --assignment user_id   --eligibility 'context.country == "US" && context.plan == "pro"'   --variant atlas-search@1=0.2
 ```
 
-The SDK evaluates the CEL expression against the supplied JSON `context`.
+The backend validates CEL when it creates the version. The SDK evaluates the rule against supplied JSON context.
+
+Provide every context value required by the rule.
 
 ```python
-run = statespace.init("rank-v2")
-config = run.get_config("u_42", context={"country": "US", "plan": "pro"})
+rank = run.get_function(
+    "u_42", context={"country": "US", "plan": "pro"},
+    default=lambda items: items,
+)
+result = rank([3, 1, 2])
 ```
 
-An eligible subject receives control or a treatment. An ineligible subject receives `{}` and is recorded with `assigned = false` and `reason = 'ineligible'`.
+An eligible subject receives control or a candidate. An ineligible subject uses the application default and is logged with `assigned = false` and `reason = 'ineligible'`. Handle malformed context and evaluation errors in the application.
 
-```text
-subject → eligibility → control or treatment
-                    ↘ unassigned
-```
-
-Apply the same eligibility rule to every possible group. Do not use a value that the treatment can change.
+Apply the same eligibility rule to every possible group. Do not use values that treatment can change.
 
 ```text
 Suitable:   country, plan at assignment time, account type
 Unsuitable: response quality, post-treatment latency, conversion
 ```
+
+Eligibility restricts the study population. It does not make that population a representative sample of all users. State this limit when interpreting the result.

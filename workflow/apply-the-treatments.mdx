@@ -1,53 +1,50 @@
 ---
 title: Apply the treatments
-description: Start an experiment and use its configuration safely.
+description: Execute assigned functions and record JSON outcomes.
 ---
 
-Start the draft only after the application can use every treatment configuration.
+Start the draft only after the application can handle the candidate and its default.
 
 ```shell
-ssp experiment start --name rank-v2
+ssp experiment start --name rank-v2 --version 1
 ```
 
 ## Assign subjects
 
-Pass the stable subject ID and the JSON context used by eligibility.
+Pass a stable subject ID and the pre-treatment context required by eligibility.
 
 ```python
 import statespace
 
-run = statespace.init("rank-v2")
-config = run.get_config("u_42", context={"country": "US", "plan": "pro"})
+with statespace.init("rank-v2") as run:
+    rank = run.get_function(
+        "u_42", context={"country": "US", "plan": "pro"},
+        default=lambda items: items,
+    )
+    result = rank([3, 1, 2])
+    run.log("u_42", {"relevance": 0.7, "result": result})
 ```
 
-Read treatment values with explicit application defaults.
-
-```python
-reranker = config.get("reranker", default_reranker)
-```
+The SDK executes the assigned Wasm locally. Control and ineligible subjects use the application default. Closing the session flushes delivery and reports errors.
 
 ## Record outcomes
 
-Record JSON objects on the run whose configuration could affect the result.
+Use the same subject ID to attribute each JSON outcome to its run.
 
 ```python
-run.log({"relevance": 0.7, "latency_ms": 42})
+run.log("u_42", {"clicked": True}, name="engagement")
+run.log("u_42", {"latency_ms": 42}, name="performance")
 ```
 
-One run can have multiple named outcomes.
-
-```python
-run.log({"clicked": True}, name="engagement")
-run.log({"latency_ms": 42}, name="performance")
-```
+Each complete serialized event must fit in 64 KiB. The backend commits accepted events to an account outbox. SQS and the worker persist event rows asynchronously.
 
 ## Publish a change
 
-Edit the YAML and publish the next immutable draft version.
+Publish `atlas-search@2` first, then supply the complete replacement definition.
 
 ```shell
-ssp experiment publish --file experiment.yaml
+ssp experiment update --name rank-v2   --assignment user_id   --eligibility 'context.country == "US" && context.plan == "pro"'   --description 'Increase candidate traffic.'   --variant atlas-search@2=0.5
 ssp experiment start --name rank-v2 --version 2
 ```
 
-Starting `v2` stops new assignments to `v1`. Existing `v1` data remains unchanged.
+An update does not change the active version until it starts. Starting version 2 stops new assignments to version 1. Existing evidence retains its original version.

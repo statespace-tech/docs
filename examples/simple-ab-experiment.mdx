@@ -1,48 +1,43 @@
 ---
 title: Simple A/B experiment
-description: Test one treatment against implicit control.
+description: Compare a published function with implicit control.
 ---
 
-This example changes the ranking algorithm for 20% of eligible subjects.
+This example assigns 20% of eligible US users to `atlas-search@1`. The candidate sorts results. Control preserves the input order.
 
-```yaml
-name: rank-v2
-description: Test reciprocal rank fusion.
-assignment: user_id
-eligibility: 'context.country == "US"'
-groups:
-  - name: treatment
-    weight: 0.2
-    config:
-      reranker: rrf
-```
-
-Create and start the experiment.
+Publish the candidate before creating the experiment.
 
 ```shell
-ssp experiment create --file experiment.yaml
-ssp experiment start --name rank-v2
+ssp function build rerank.py --language python --entry rerank:rerank --output rerank.wasm
+ssp function publish rerank.wasm --name atlas-search
+ssp experiment create --name rank-v2 --assignment user_id   --description 'Test sorted search results.'   --eligibility 'context.country == "US"' --variant atlas-search@1=0.2
+ssp experiment start --name rank-v2 --version 1
 ```
 
-Use the assigned configuration and record relevance.
+See [Define the experiment](/workflow/define-the-experiment) for the `rerank.py` source. Wasm bytes stay in S3 and execute in the SDK's local runtime.
+
+Execute the assigned function and record the same outcome for both groups.
 
 ```python
+import statespace
+
 with statespace.init("rank-v2") as run:
-    config = run.get_config("u_42", context={"country": "US"})
-    result = search(reranker=config.get("reranker", "current"))
-    run.log({"relevance": result.relevance})
+    rank = run.get_function(
+        "u_42", context={"country": "US"}, default=lambda items: items,
+    )
+    result = rank([3, 1, 2])
+    run.log("u_42", {"relevance": 0.7, "result": result})
 ```
 
-Compare control and treatment within the same version.
+Compare assigned control and candidate within version 1.
 
 ```sql
-SELECT
-  group_name,
-  count(*) AS observations,
-  avg((data->>'relevance')::double precision) AS mean_relevance
+SELECT group_name, count(*) AS observations,
+       avg((data->>'relevance')::double precision) AS mean_relevance
 FROM statespace.logs
-WHERE experiment_name = 'rank-v2'
-  AND experiment_version = 1
-  AND outcome_name = 'result'
+WHERE experiment_name = 'rank-v2' AND experiment_version = 1
+  AND assigned AND outcome_name = 'result'
 GROUP BY group_name;
 ```
+
+Candidate rows use group name `atlas-search@1`; control rows use `control`. Check delivery and missing outcomes before interpreting this comparison.

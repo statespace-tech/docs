@@ -13,15 +13,14 @@ assignment → exposure → raw outcome → metric
 
 An assignment records which group a unit should receive. An exposure records that the application used the assigned configuration.
 
-Calling `get_config()` records the assignment and starts an observation boundary.
+Calling `get_function()` records an assignment. Execute the returned callable at the point where the application applies the behavior.
 
 ```python
-config = run.get_config("user_42")
-reranker = config.get("reranker", None)
-result = search("query goes here", reranker=reranker)
+rank = run.get_function("u_42", default=lambda items: items)
+result = rank([3, 1, 2])
 ```
 
-Assignment is not exposure. Do not record a run when the application does not apply or display the assigned condition.
+Assignment is not proof of exposure. Avoid assigning subjects on code paths that do not use the callable. If exposure can differ from assignment, record that fact as an outcome and state which effect the analysis estimates.
 
 This distinction affects whether the [estimand](/concepts/statistical-inference#estimands) measures assignment or actual exposure.
 
@@ -30,7 +29,7 @@ This distinction affects whether the [estimand](/concepts/statistical-inference#
 An outcome records a JSON response attributed to the current observation.
 
 ```python
-run.log({"relevance": result.relevance})
+run.log("u_42", {"relevance": 0.7, "result": result})
 ```
 
 Use the same name, meaning, and unit for every treatment group.
@@ -46,7 +45,7 @@ A metric is a rule that summarizes raw outcomes. Choose important metrics before
 | Diagnostic | Explains why another metric changed. |
 | Data quality | Detects missing or invalid instrumentation. |
 
-Statespace does not require metric definitions in experiment YAML. This keeps the raw evidence available for new SQL analyses.
+Statespace does not require metric definitions in the experiment definition. This keeps the raw evidence available for new SQL analyses.
 
 ## Outcome attribution
 
@@ -75,6 +74,7 @@ WITH unit_outcomes AS (
     avg((data->>'relevance')::double precision) AS unit_relevance
   FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
+    AND experiment_version = 1 AND assigned AND outcome_name = 'result'
   GROUP BY subject_id, group_name
 )
 SELECT
@@ -96,7 +96,7 @@ A guardrail metric detects unacceptable harm outside the primary objective. Comm
 Record guardrail outcomes for control and every treatment group.
 
 ```python
-run.log({"latency_ms": result.latency_ms, "error": result.failed})
+run.log("u_42", {"latency_ms": 42, "error": False}, name="performance")
 ```
 
 ## Structured outcomes
@@ -104,8 +104,8 @@ run.log({"latency_ms": result.latency_ms, "error": result.failed})
 An outcome can contain any JSON-compatible result. This supports conversations, traces, evaluations, and other semi-structured evidence.
 
 ```python
-run.log({
-    "messages": messages,
+run.log("u_42", {
+    "messages": [{"role": "assistant", "content": "Search results ranked."}],
     "tool_calls": 3,
     "termination": "completed",
 })

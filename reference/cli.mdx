@@ -83,7 +83,7 @@ ssp database credential revoke --id dbc_123
 
 The credential can read `statespace.runs`, `statespace.outcomes`, and
 `statespace.logs`. It cannot write data or connect to another account database.
-Use an SSH tunnel for hosted Lightsail access. The CLI has no SQL query command
+Connect directly over TLS to the returned `dbname.statespace.app` hostname. Use `sslmode=verify-full` to validate the public certificate. The CLI has no SQL query command
 and the API has no SQL query endpoint.
 
 Query the logs view with your own SQL client and protected connection settings.

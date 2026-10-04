@@ -5,10 +5,10 @@ description: Install the CLI and a runtime SDK.
 
 ## CLI
 
-Install the current `ssp` checkout on macOS or Linux. Run from the parent workspace.
+Install Rust 1.85 or newer and Cargo on macOS or Linux. The installer builds current `main`; no new binary release is required.
 
 ```shell
-cargo install --path cli --locked
+curl -fsSL https://statespace.com/install | bash
 ```
 
 Confirm the installation.
@@ -23,15 +23,15 @@ Install the SDK for the application language.
 
 <CodeGroup>
 ```shell Python
-pip install statespace-sdk
+pip install "git+https://github.com/statespace-tech/python-sdk.git@main"
 ```
 
 ```shell TypeScript
-npm install @statespace-tech/sdk
+npm install "github:statespace-tech/typescript-sdk#main"
 ```
 
 ```shell Go
-go get github.com/statespace-tech/go-sdk
+go get github.com/statespace-tech/go-sdk@main
 ```
 </CodeGroup>
 

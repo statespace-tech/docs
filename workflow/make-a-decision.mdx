@@ -62,13 +62,15 @@ Choose one action that follows from the evidence.
 
 Record the inputs that another person or agent needs to reproduce the decision.
 
-```yaml
-experiment: rank-v2
-decision: ship
-primary_outcome: relevance
-effect: 0.018
-reason: Treatment improved relevance without crossing a guardrail.
-decided_at: 2026-08-27
+```json
+{
+  "experiment": "rank-v2",
+  "decision": "ship",
+  "primary_outcome": "relevance",
+  "effect": 0.018,
+  "reason": "Treatment improved relevance without crossing a guardrail.",
+  "decided_at": "2026-08-27"
+}
 ```
 
 Keep the analysis query, result snapshot, decision owner, and known limitations with this record.
@@ -78,7 +80,7 @@ Keep the analysis query, result snapshot, decision owner, and known limitations 
 Stop new assignments after the planned attribution window ends.
 
 ```bash
-ssp experiment stop -n rank-v2
+ssp experiment stop --name rank-v2
 ```
 
 Stopping keeps the definition and evidence queryable. Restart it only when the original design remains valid.

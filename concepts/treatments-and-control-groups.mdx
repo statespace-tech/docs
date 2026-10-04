@@ -1,98 +1,56 @@
 ---
 title: Treatments and control groups
-description: Define the baseline and alternative behaviors being compared.
+description: Compare published functions with an application default.
 ---
 
-[Treatment and control groups](https://en.wikipedia.org/wiki/Treatment_and_control_groups) receive different experimental conditions. The control supplies a baseline, and each treatment supplies an alternative.
+A treatment is the behavior being tested. A group contains subjects assigned to the same behavior. Control supplies the comparison baseline.
 
 ## Interventions, treatments, and groups
 
-An intervention is the action being tested. A treatment is one defined form of the intervention. A group is the collection of units assigned to the same treatment.
+This example changes search ranking with the published function `atlas-search@1`.
 
 ```text
 intervention: change search ranking
-treatment:   use reciprocal rank fusion
-group:       users assigned to reciprocal rank fusion
+candidate:   atlas-search@1 sorts results
+group:       subjects assigned to atlas-search@1
+control:     the application's existing ranking behavior
 ```
 
-Statespace represents the group, its probability, and its treatment configuration together.
-
-```yaml
-groups:
-  - name: treatment       # group
-    weight: 0.20          # assignment probability
-    config:               # treatment
-      reranker: rrf       # intervention parameter
-```
-
-Other platforms can call groups **arms** or **variants**. Statespace uses `group` because the term includes both control and treatment groups.
+The CLI uses `--variant` to select a published function and its traffic weight. Logged candidate group names include the resolved function version, such as `atlas-search@1`.
 
 ## Control group
 
-The control group receives the baseline behavior. The application uses its normal behavior when the assigned configuration does not contain a treatment value.
+The application supplies control with a default callable.
 
 ```python
-config = run.get_config("user_42")
-reranker = config.get("reranker", None)
-result = search("query goes here", reranker=reranker)
+rank = run.get_function("u_42", default=lambda items: items)
+result = rank([3, 1, 2])
 ```
 
-The control estimates what would have happened without the tested change.
+This baseline receives the traffic not allocated to candidate functions. It estimates what would happen without the tested change.
 
 ## Implicit control
 
-Statespace adds control when the YAML does not define it. The control receives an empty configuration and the unallocated group weight.
+Allocate 20% of eligible subjects to the published candidate.
 
-```yaml
-groups:
-  - name: treatment
-    weight: 0.20
-    config:
-      reranker: rrf
+```shell
+ssp experiment create --name rank-v2 --variant atlas-search@1=0.2
 ```
 
-The effective control definition is shown below.
-
-```yaml
-name: control
-weight: 0.80
-config: {}
-```
-
-<Note>
-  Implicit control makes the application default mandatory. Define control explicitly only when its configuration must contain values.
-</Note>
+The remaining 80% belongs to control. A total candidate weight of one leaves no control group. Ineligible subjects also use the default, but their runs are unassigned and must not be counted as randomized control.
 
 ## Group weights
 
-A group weight is the conditional probability that a sampled unit receives that group. Explicit weights must be positive and must sum to no more than `1.0`.
+Weights must be finite, positive, and total at most one. Publish both function versions before using this split.
 
-```yaml
-groups:
-  - name: rrf
-    weight: 0.20
-    config:
-      reranker: rrf
-  - name: weighted
-    weight: 0.20
-    config:
-      reranker: weighted
+```shell
+ssp experiment create --name rank-v2   --variant atlas-search@1=0.2 --variant atlas-search@2=0.2
 ```
 
-Statespace assigns the remaining weight to control. Unequal weights change the sample size and [power](/concepts/statistical-inference#statistical-power) of each comparison.
-
-See [Group allocation](/concepts/random-assignment#group-allocation) for how weights become stable assignments.
+This split leaves 60% for control. Unequal weights change the sample size and statistical power of each comparison. See [Group allocation](/concepts/random-assignment#group-allocation) for stable assignment ranges.
 
 ## Treatment parameters
 
-Parameters are the concrete values that implement a treatment. Store them in the group `config` object.
+Put candidate computation in the published function. Its input and output are JSON-compatible values. The current function CLI does not accept arbitrary group configuration fields.
 
-```yaml
-config:
-  reranker: weighted
-  fusion_weight: 0.70
-```
-
-A factor is a variable intentionally changed by the experiment. Its values are factor levels. Statespace does not require a separate factorial-design schema, so the group configuration records these values directly.
-
-Keep each treatment focused on the factors needed to answer the experiment question.
+Keep each candidate focused on the factors needed to answer the experiment question. Factorial designs require a deliberate analysis plan; Statespace does not automatically infer one.

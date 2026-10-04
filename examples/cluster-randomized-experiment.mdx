@@ -1,39 +1,39 @@
 ---
 title: Account-level experiment
-description: Keep all users in one account in the same group.
+description: Keep users in one account in the same group.
 ---
 
-Use `account_id` when users in one account share data or can affect each other.
+Use account-level randomization when users share data or can affect each other. The randomization unit is the account, not each request.
 
-```yaml
-name: rank-v2
-description: Test reciprocal rank fusion by account.
-assignment: account_id
-groups:
-  - name: treatment
-    weight: 0.2
-    config:
-      reranker: rrf
+Publish `atlas-search@1` first, then create and start an account-level experiment.
+
+```shell
+ssp experiment create --name rank-v2 --assignment account_id   --description 'Test sorted results by account.'   --eligibility 'context.country == "US"' --variant atlas-search@1=0.2
+ssp experiment start --name rank-v2 --version 1
 ```
 
-Pass the account ID as the stable subject ID.
+Pass the account ID as the explicit subject key for every user in that account.
 
 ```python
-run = statespace.init("rank-v2")
-config = run.get_config(account.id, context={"country": account.country})
+import statespace
+
+with statespace.init("rank-v2") as run:
+    rank = run.get_function(
+        "account_42", context={"country": "US"}, default=lambda items: items,
+    )
+    result = rank([3, 1, 2])
+    run.log("account_42", {"relevance": 0.7, "result": result})
 ```
 
-Every service instance uses the same experiment salt and hash algorithm. The same account therefore receives the same group on every instance.
+All SDKs use the same salt and hash calculation. The same account receives the same group for the same running configuration.
 
-```text
-account_42 → rank-v2 v1 → control or one treatment
-```
-
-Analyze the number of independent accounts instead of the number of requests.
+Count independent accounts rather than requests.
 
 ```sql
 SELECT group_name, count(DISTINCT subject_id) AS accounts
 FROM statespace.runs
-WHERE experiment_name = 'rank-v2' AND experiment_version = 1
+WHERE experiment_name = 'rank-v2' AND experiment_version = 1 AND assigned
 GROUP BY group_name;
 ```
+
+Aggregate outcomes at the account level before a simple independent-unit analysis. Request-level standard errors can understate uncertainty when requests in an account are related.
