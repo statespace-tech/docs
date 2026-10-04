@@ -3,16 +3,23 @@ title: PostgreSQL schema
 description: Review account database tables and the logs view.
 ---
 
-Each account has one isolated PostgreSQL database. Statespace writes to it through the API. Direct credentials have read-only access.
+Each account has one isolated PostgreSQL database. The API commits events to an account outbox. The worker writes the final event rows. Direct credentials can read only runs, outcomes, and the logs view.
+
+The account database contains these tables and the stable analysis view.
 
 ```text
 statespace.experiments
 statespace.experiment_versions
 statespace.experiment_groups
+statespace.functions (S3 metadata only)
+statespace.ingestion_outbox
+statespace.audit_events
 statespace.runs
 statespace.outcomes
 statespace.logs
 ```
+
+Wasm bytes stay in S3. PostgreSQL stores their object keys, SHA-256 hashes, and publisher provenance.
 
 ## Runs
 
@@ -47,6 +54,8 @@ A run can have zero or more rows in `statespace.outcomes`.
 ## Logs view
 
 `statespace.logs` left joins runs to outcomes. It keeps runs that do not yet have an outcome.
+
+Compare assigned groups with a SQL client.
 
 ```sql
 SELECT

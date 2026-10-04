@@ -4,10 +4,11 @@ description: Review the public ssp command surface.
 ---
 
 The CLI prints successful results as JSON. It prints diagnostics on standard error.
+Use `STATESPACE_URL` to select a local or hosted API.
 
 ## Authentication
 
-Use account login for management commands.
+Sign in through GitHub or Google, then approve the terminal's device code.
 
 ```shell
 ssp login
@@ -15,13 +16,44 @@ ssp account
 ssp logout
 ```
 
-## Experiments
+The saved session is shared with local SDKs. Use `SSP_API_KEY` for headless CLI
+and deployed SDK access. Keep creation responses out of recorded logs.
 
-Create `v1`, publish later immutable versions, and control which version runs.
+## API keys
+
+Create a runtime key for SDK configuration reads and event writes.
 
 ```shell
-ssp experiment create --file experiment.yaml
-ssp experiment publish --file experiment.yaml
+ssp key create --name production --preset runtime
+ssp key list
+ssp key revoke --id key_123
+```
+
+Secrets appear only in create responses. Store the returned secret in the
+application's secret system as `SSP_API_KEY`. Use the `admin` preset only for
+management tools. Add `--expires-in-days` to set an expiration.
+
+## Functions
+
+Build a computation component locally, then publish its immutable version to S3.
+
+```shell
+ssp function build rerank.py --language python --entry rerank:rerank --output rerank.wasm
+ssp function publish rerank.wasm --name atlas-search
+ssp function list
+ssp function show --name atlas-search --version 1
+```
+
+Use `--source-commit` and `--source-repository` when publishing to record source
+provenance. The backend records the artifact SHA-256 and publishing credential.
+
+## Experiments
+
+Create a traffic split with published function versions, then start it explicitly.
+
+```shell
+ssp experiment create --name rank-v2 --variant atlas-search@1=1
+ssp experiment update --name rank-v2 --variant atlas-search@1=0.5 --variant atlas-search@2=0.5
 ssp experiment list
 ssp experiment show --name rank-v2
 ssp experiment start --name rank-v2 --version 2
@@ -29,23 +61,13 @@ ssp experiment stop --name rank-v2
 ssp experiment delete --name rank-v2
 ```
 
-Starting a new version stops new assignments to the prior running version.
-
-## SDK tokens
-
-Token secrets appear only in create responses.
-
-```shell
-ssp token create --name production
-ssp token list
-ssp token revoke --id tok_123
-```
+Publish `atlas-search@2` before using the update example. Starting a new version
+stops new assignments to the previous running version. Use `@latest` to resolve
+a function at publish time; the resulting experiment keeps the resolved version.
 
 ## PostgreSQL
 
-Create credentials for a SQL client. Statespace has no server-side query endpoint: you
-query your own database directly, with a credential that holds `SELECT` on the
-`statespace` schema and nothing else.
+Create a read-only credential for your account database.
 
 ```shell
 ssp database credential create --name analyst
@@ -53,21 +75,55 @@ ssp database credential list
 ssp database credential revoke --id dbc_123
 ```
 
+The credential can read `statespace.runs`, `statespace.outcomes`, and
+`statespace.logs`. It cannot write data or connect to another account database.
+Use an SSH tunnel for hosted Lightsail access. The CLI has no SQL query command
+and the API has no SQL query endpoint.
+
+Query the logs view with your own SQL client and protected connection settings.
+
 ```shell
-psql "$STATESPACE_DATABASE_URL" -c 'SELECT * FROM statespace.logs LIMIT 20'
+psql -c 'SELECT * FROM statespace.logs LIMIT 20'
 ```
 
-## Audit trail
+## Sessions
 
-Read the account's record of control-plane changes. Requires the `audit:read` scope.
+List or revoke CLI sessions without exposing their secrets.
+
+```shell
+ssp token list
+ssp token revoke --id tok_123
+ssp token revoke-all --yes
+```
+
+`revoke-all` revokes account API keys, CLI sessions, and browser sessions.
+
+## Audit and storage
+
+Read account audit records and the event storage quota.
 
 ```shell
 ssp audit --limit 50
 ssp audit --limit 50 --before 4821
+ssp storage
 ```
 
-Set `STATESPACE_ACCOUNT_TOKEN` for headless CLI and CI use. This value is an account session, not an SDK token.
+Audit reads require `audit:read`. Records include a `source` field identifying
+the control or tenant ledger. IDs support pagination across both ledgers; they
+do not define time order. Use `occurred_at` to order events by time.
+
+Events have a 64 KiB size limit, a 90-day
+retention limit, and a 10 GiB quota per account. Usage warns at 80%; new events
+are rejected when the quota is full.
+
+## Subject erasure
+
+Erase the subject's persisted and pending evidence for one experiment.
 
 ```shell
-export STATESPACE_ACCOUNT_TOKEN=ssp_account_...
+ssp experiment erase-subject --name rank-v2 --subject user-42
 ```
+
+Erased data can remain in encrypted backups until backup retention expires.
+Operators must reapply later erasures after restoring an older snapshot. The
+erasure audit record retains the subject identifier as metadata.

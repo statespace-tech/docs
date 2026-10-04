@@ -1,88 +1,113 @@
 ---
 title: Quickstart
-description: Complete one experiment from YAML to SQL.
+description: Build a function, run an experiment, and inspect its evidence.
 ---
 
-This example tests reciprocal rank fusion for eligible US users.
+This example tests a sorted search result against the application's default.
+The published function is named `atlas-search`. The experiment is `rank-v2`.
+Use the current CLI and SDK checkouts with a running backend. GitHub or Google
+login requires registered provider clients on that backend.
 
 <Steps>
-  <Step title="Install and sign in">
-    Install the CLI, then sign in with GitHub or Google.
+  <Step title="Build the CLI and sign in">
+    Install the CLI from its checkout in the parent workspace.
 
     ```shell
-    curl -fsSL https://statespace.com/install | bash
+    cargo install --path cli --locked
+    export STATESPACE_URL=http://localhost:8080
     ssp login
     ```
+
+    Sign in with a configured provider, then approve the displayed device code.
+    Use the service's HTTPS URL for a hosted installation.
   </Step>
 
-  <Step title="Define the experiment">
-    Save this definition as `experiment.yaml`.
+  <Step title="Define the function">
+    Save the candidate computation as `rerank.py`.
 
-    ```yaml
-    name: rank-v2
-    description: Test reciprocal rank fusion.
-    assignment: user_id
-    eligibility: 'context.country == "US"'
-    groups:
-      - name: treatment
-        weight: 0.2
-        config:
-          reranker: rrf
+    ```python
+    def rerank(items: list[int]) -> list[int]:
+        return sorted(items)
     ```
 
-    Control is implicit. It receives the remaining `0.8` weight and an empty configuration.
+    The function receives and returns JSON-compatible values. It executes in
+    the application's local Wasm runtime.
   </Step>
 
-  <Step title="Create and start version 1">
-    Create the draft, then start it explicitly.
+  <Step title="Build and publish the function">
+    Build the Python computation component and publish version 1.
 
     ```shell
-    ssp experiment create --file experiment.yaml
-    ssp experiment start --name rank-v2
+    ssp function build ./rerank.py --language python --entry rerank:rerank --output rerank.wasm
+    ssp function publish rerank.wasm --name atlas-search
     ```
+
+    The build requires the Python component toolchain. The CLI reports missing
+    tools. S3 stores the artifact; PostgreSQL stores its hash and provenance.
   </Step>
 
-  <Step title="Create an SDK token">
-    Store the returned secret as `STATESPACE_TOKEN` in the application.
+  <Step title="Create and start the experiment">
+    Assign half the traffic to the published function and start the draft.
 
     ```shell
-    ssp token create --name production
-    export STATESPACE_TOKEN=ssp_token_7j...
+    ssp experiment create --name rank-v2 --variant atlas-search@1=0.5
+    ssp experiment start --name rank-v2 --version 1
     ```
+
+    The remaining half uses the application's control default. Later updates
+    create immutable versions. Starting one stops the previous running version.
   </Step>
 
-  <Step title="Run the experiment">
-    Install the Python SDK and reference the remote experiment by name.
+  <Step title="Create a deployed SDK key">
+    Create a runtime key and store its secret as `SSP_API_KEY` in the application.
 
     ```shell
-    pip install statespace-sdk
+    ssp key create --name production --preset runtime
     ```
 
-    Assign a subject and record one JSON outcome.
+    Local SDKs can use the saved CLI login. Keep creation responses out of logs.
+    Configure `STATESPACE_URL` in the application to use the same service.
+  </Step>
+
+  <Step title="Run and log an outcome">
+    Install the Python SDK from its adjacent checkout.
+
+    ```shell
+    pip install -e ./python-sdk
+    ```
+
+    Assign a subject, execute its function, and log JSON evidence.
 
     ```python
     import statespace
 
     with statespace.init("rank-v2") as run:
-        config = run.get_config("u_42", context={"country": "US"})
-        reranker = config.get("reranker")
-        run.log({"relevance": 0.7})
+        rank = run.get_function("u_42", default=lambda items: items)
+        result = rank([3, 1, 2])
+        run.log("u_42", {"relevance": 0.7, "result": result})
     ```
+
+    Closing the session flushes delivery and reports errors. Each event must
+    fit within 64 KiB. The default retention is 90 days with a 10 GiB account
+    event quota. SQS and the worker persist accepted events asynchronously.
   </Step>
 
-  <Step title="Query the result">
-    Create a read-only credential for your account database, then query it with any
-    PostgreSQL client.
+  <Step title="Inspect the evidence">
+    Create a read-only account database credential for an analysis tool.
 
     ```shell
-    ssp database credential create --name analysis
+    ssp database credential create --name analyst
     ```
 
-    The command prints a connection URL. Use it with `psql`, a notebook, or a BI tool.
+    Store the returned connection settings securely. Hosted Lightsail access
+    uses an SSH tunnel. Supply the connection through protected PostgreSQL
+    environment settings, then inspect the logs view.
 
     ```shell
-    psql "$STATESPACE_DATABASE_URL" \
-      -c 'SELECT experiment_version, group_name, data FROM statespace.logs'
+    psql -c "SELECT experiment_version, group_name, data FROM statespace.logs WHERE experiment_name = 'rank-v2'"
     ```
+
+    The CLI has no SQL query command. The account credential can read only its
+    own event tables and logs view.
   </Step>
 </Steps>

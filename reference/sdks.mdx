@@ -1,65 +1,106 @@
 ---
 title: SDKs
-description: Assign subjects and record JSON outcomes at runtime.
+description: Assign functions and record JSON outcomes at runtime.
 ---
 
-SDKs consume remote experiments. They do not create, edit, start, or stop them.
+SDKs consume running experiments. They do not create, edit, start, or stop them.
+Local SDKs can use the saved `ssp login`. Deployed applications use `SSP_API_KEY`.
+Set `STATESPACE_URL` to select the backend.
+
+## Function execution
+
+Assign a subject, execute its published function, and record an outcome.
 
 <CodeGroup>
 ```python Python
 import statespace
 
 with statespace.init("rank-v2") as run:
-    config = run.get_config("u_42", context={"country": "US"})
-    reranker = config.get("reranker")
-    run.log({"relevance": 0.7})
+    rank = run.get_function("u_42", default=lambda items: items)
+    result = rank([3, 1, 2])
+    run.log("u_42", {"relevance": 0.7, "result": result})
 ```
 
 ```typescript TypeScript
 import { init } from "@statespace-tech/sdk";
 
 const run = await init("rank-v2");
-const config = run.getConfig("u_42", { country: "US" });
-const reranker = config.reranker;
-run.log({ relevance: 0.7 });
-run.close();
+try {
+  const rank = run.getFunction("u_42", { default: (items) => items });
+  const result = await rank([3, 1, 2]);
+  run.log("u_42", { relevance: 0.7, result });
+} finally {
+  await run.close();
+}
 ```
 
 ```go Go
-run, err := statespace.Init(context.Background(), "rank-v2")
-defer run.Close()
-config, err := run.GetConfig("u_42", statespace.Object{"country": "US"})
-reranker := config["reranker"]
-_, err = run.Log(statespace.Object{"relevance": 0.7})
+ctx := context.Background()
+run, err := statespace.Init(ctx, "rank-v2")
+if err != nil {
+    log.Fatal(err)
+}
+rank, err := run.GetFunction("u_42", statespace.FunctionOptions{
+    Default: func(input any) (any, error) { return input, nil },
+})
+if err != nil {
+    log.Fatal(err)
+}
+result, err := rank(ctx, []int{3, 1, 2})
+if err != nil {
+    log.Fatal(err)
+}
+if _, err = run.Log("u_42", statespace.Object{"relevance": 0.7, "result": result}); err != nil {
+    log.Fatal(err)
+}
+if err = run.Close(); err != nil {
+    log.Fatal(err)
+}
 ```
 </CodeGroup>
 
-## Assignment
+The callable uses the default for control or a stopped experiment. Without a
+default, Python returns `None`, TypeScript returns `null`, and Go returns `nil`.
+The subject's assignment remains stable within the session. Wasm runs locally;
+the backend does not execute the customer function.
 
-The SDK evaluates CEL against the supplied JSON `context`. Eligible subjects use a stable SHA-256 bucket. Ineligible subjects are unassigned and receive `{}`.
+## Runtime limits
 
-```text
-bucket = first 53 bits of SHA-256(assignment_salt + ":" + subject_id) / 2^53
-```
+Execution defaults to a five-second timeout. Python uses seconds for a custom
+`timeout`, TypeScript uses milliseconds, and Go uses `time.Duration`.
+Guest linear memory defaults to 256 MiB per memory. Set
+`STATESPACE_MAX_MEMORY_BYTES` to change that limit.
 
-## Caching
-
-Each SDK refreshes active configuration every 60 seconds. It uses the last valid configuration for up to 48 hours during an outage. It then stops new assignments and returns `{}`.
+Function failures raise or return a function error and record a
+`function_execution` outcome. A timeout reports a function timeout error.
+Validate the input and handle execution errors in the application.
 
 ## Delivery
 
-Assignment records and JSON outcomes use an in-memory queue. The SDK sends batches in the background. Flush short-lived processes before exit.
+The SDK batches runs and JSON outcomes in memory. Each complete serialized event
+must fit in 64 KiB. Oversized events fail before entering the queue. The backend
+accepts an event after committing its account outbox; SQS and the worker write
+the final event rows asynchronously.
+
+Close short-lived sessions and handle delivery failures.
 
 <CodeGroup>
 ```python Python
-statespace.flush()
+run.close()
 ```
 
 ```typescript TypeScript
-await flush();
+await run.close();
 ```
 
 ```go Go
-err := run.Close()
+if err := run.Close(); err != nil {
+    log.Fatal(err)
+}
 ```
 </CodeGroup>
+
+Permanent HTTP rejections propagate through flush or close. The SDK retries
+transient failures with the same event IDs. An in-memory queue does not survive
+application process loss. The backend retains raw events for 90 days by default
+and rejects writes when the account's 10 GiB event quota is full.

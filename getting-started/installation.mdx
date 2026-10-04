@@ -5,10 +5,10 @@ description: Install the CLI and a runtime SDK.
 
 ## CLI
 
-Install `ssp` on macOS or Linux.
+Install the current `ssp` checkout on macOS or Linux. Run from the parent workspace.
 
 ```shell
-curl -fsSL https://statespace.com/install | bash
+cargo install --path cli --locked
 ```
 
 Confirm the installation.
@@ -35,14 +35,13 @@ go get github.com/statespace-tech/go-sdk
 ```
 </CodeGroup>
 
-Create an application token with the CLI, then store it in a secret manager.
+Create a runtime API key with the CLI, then store the returned secret as `SSP_API_KEY` in a secret manager.
 
 ```shell
-ssp token create --name production
-export STATESPACE_TOKEN=ssp_token_7j...
+ssp key create --name production --preset runtime
 ```
 
-Use `STATESPACE_URL` only when the application connects to a self-hosted or local API.
+Set `STATESPACE_URL` when the CLI or application uses a local API or a hosted domain other than its default.
 
 ```shell
 export STATESPACE_URL=http://127.0.0.1:8080
