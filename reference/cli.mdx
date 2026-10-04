@@ -52,14 +52,20 @@ provenance. The backend records the artifact SHA-256 and publishing credential.
 Create a traffic split with published function versions, then start it explicitly.
 
 ```shell
-ssp experiment create --name rank-v2 --variant atlas-search@1=1
-ssp experiment update --name rank-v2 --variant atlas-search@1=0.5 --variant atlas-search@2=0.5
+ssp experiment create --name rank-v2 --assignment user_id --eligibility 'context.country == "US"' --description 'Test sorted search results.' --variant atlas-search@1=0.5
+ssp experiment update --name rank-v2 --assignment user_id --eligibility 'context.country == "US"' --description 'Compare both search functions.' --variant atlas-search@1=0.5 --variant atlas-search@2=0.5
 ssp experiment list
 ssp experiment show --name rank-v2
 ssp experiment start --name rank-v2 --version 2
 ssp experiment stop --name rank-v2
 ssp experiment delete --name rank-v2
 ```
+
+`--assignment` labels the explicit SDK subject key and defaults to `subject_id`.
+`--description` defaults to an empty string. Omitted `--eligibility` means no
+rule. The backend validates CEL before publishing. The SDK must supply the
+context used by the rule. Updates replace the full definition; omitted optional
+flags reset to defaults.
 
 Publish `atlas-search@2` before using the update example. Starting a new version
 stops new assignments to the previous running version. Use `@latest` to resolve

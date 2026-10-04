@@ -50,11 +50,13 @@ login requires registered provider clients on that backend.
     Assign half the traffic to the published function and start the draft.
 
     ```shell
-    ssp experiment create --name rank-v2 --variant atlas-search@1=0.5
+    ssp experiment create --name rank-v2 --assignment user_id --eligibility 'context.country == "US"' --description 'Test sorted search results.' --variant atlas-search@1=0.5
     ssp experiment start --name rank-v2 --version 1
     ```
 
-    The remaining half uses the application's control default. Later updates
+    Eligible US users receive the published function at weight 0.5. The remaining
+    traffic uses the application's control default. `user_id` labels the explicit
+    subject key; it does not extract an identifier from context. Later updates
     create immutable versions. Starting one stops the previous running version.
   </Step>
 
@@ -82,7 +84,9 @@ login requires registered provider clients on that backend.
     import statespace
 
     with statespace.init("rank-v2") as run:
-        rank = run.get_function("u_42", default=lambda items: items)
+        rank = run.get_function(
+            "u_42", context={"country": "US"}, default=lambda items: items
+        )
         result = rank([3, 1, 2])
         run.log("u_42", {"relevance": 0.7, "result": result})
     ```

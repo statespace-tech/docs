@@ -71,6 +71,13 @@ POST   /v1/experiments/{name}/state
 DELETE /v1/experiments/{name}/subjects/{subject}
 ```
 
+Function experiment requests accept `name`, `description`, `assignment`,
+`eligibility`, and `variants`. Description defaults to an empty string;
+assignment defaults to `subject_id`; eligibility defaults to no rule. The
+assignment label describes the explicit SDK subject key. CEL uses the SDK's
+context, and the backend validates it before publishing. Updates supply the
+complete replacement definition; omitted optional fields reset to defaults.
+
 Function publishing accepts Wasm component bytes. S3 stores the bytes;
 PostgreSQL stores metadata, hashes, and provenance. Creating an experiment
 creates version 1. Updating creates the next immutable draft version. Starting

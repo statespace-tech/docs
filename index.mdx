@@ -6,7 +6,7 @@ description: Run controlled A/B tests and analyze their JSON results with SQL.
 Statespace manages A/B tests for applications and AI systems. The CLI publishes experiment definitions. Language SDKs assign subjects and record JSON results.
 
 ```text
-experiment.yaml → ssp CLI → SDK assignment → JSON outcomes → PostgreSQL
+published Wasm → ssp experiment flags → SDK assignment → JSON outcomes → PostgreSQL
 ```
 
 ## Start here
@@ -21,7 +21,7 @@ experiment.yaml → ssp CLI → SDK assignment → JSON outcomes → PostgreSQL
   <Card title="Review the workflow" icon="route" href="/workflow/define-the-experiment">
     Follow an experiment from definition to analysis.
   </Card>
-  <Card title="Use the reference" icon="book" href="/reference/experiment-yaml">
+  <Card title="Use the reference" icon="book" href="/reference/experiment-definition">
     Review exact fields, commands, APIs, and tables.
   </Card>
 </CardGroup>

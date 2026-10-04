@@ -16,7 +16,9 @@ Assign a subject, execute its published function, and record an outcome.
 import statespace
 
 with statespace.init("rank-v2") as run:
-    rank = run.get_function("u_42", default=lambda items: items)
+    rank = run.get_function(
+        "u_42", context={"country": "US"}, default=lambda items: items
+    )
     result = rank([3, 1, 2])
     run.log("u_42", {"relevance": 0.7, "result": result})
 ```
@@ -26,7 +28,10 @@ import { init } from "@statespace-tech/sdk";
 
 const run = await init("rank-v2");
 try {
-  const rank = run.getFunction("u_42", { default: (items) => items });
+  const rank = run.getFunction("u_42", {
+    context: { country: "US" },
+    default: (items) => items,
+  });
   const result = await rank([3, 1, 2]);
   run.log("u_42", { relevance: 0.7, result });
 } finally {
@@ -41,6 +46,7 @@ if err != nil {
     log.Fatal(err)
 }
 rank, err := run.GetFunction("u_42", statespace.FunctionOptions{
+    Context: statespace.Object{"country": "US"},
     Default: func(input any) (any, error) { return input, nil },
 })
 if err != nil {

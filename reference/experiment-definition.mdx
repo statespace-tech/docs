@@ -1,0 +1,82 @@
+---
+title: Experiment definition
+description: Define immutable function experiments with CLI flags.
+---
+
+The CLI creates experiments through flags. There is no YAML experiment file or
+`--file` argument. Publish the referenced functions before creating an
+experiment. SDKs consume running configurations and do not modify definitions.
+
+Create a draft for eligible US users and label its randomization unit.
+
+```shell
+ssp experiment create --name rank-v2 \
+  --description 'Test sorted search results.' \
+  --assignment user_id \
+  --eligibility 'context.country == "US"' \
+  --variant atlas-search@1=0.5
+```
+
+## Flags
+
+| Flag | Required | Meaning |
+| --- | --- | --- |
+| `--name` | Yes | Stable experiment name |
+| `--variant` | Yes; repeatable | Published function selector and traffic weight |
+| `--description` | No | Description; defaults to an empty string |
+| `--assignment` | No | Randomization-unit label; defaults to `subject_id` |
+| `--eligibility` | No | CEL over SDK `context`; defaults to no rule |
+
+## Function variants
+
+Each variant uses `function@version=weight` or `function@latest=weight`.
+Publishing resolves `latest` to an existing immutable function version. Weights
+must be positive, finite, and total at most one. The remaining traffic uses the
+application's control default. A total of one assigns all eligible subjects to
+the listed functions.
+
+Use an explicit version to make the definition reproducible.
+
+```shell
+ssp experiment create --name rank-v2 --variant atlas-search@1=0.5
+```
+
+## Randomization unit and eligibility
+
+The assignment label describes the explicit SDK subject key. It does not read
+an identifier from `context`. With `--assignment user_id`, the application still
+supplies the user ID as the first argument to `get_function`.
+
+The backend validates CEL before committing a version. Ineligible subjects use
+the application's default callable and are logged as unassigned. The CLI
+rejects blank CEL. SDKs evaluate the rule against the supplied context.
+
+Supply the context required by the rule when assigning a subject.
+
+```python
+rank = run.get_function(
+    "u_42",
+    context={"country": "US"},
+    default=lambda items: items,
+)
+```
+
+## Immutable updates
+
+An update supplies the complete replacement definition. Omitted optional flags
+reset to their defaults. The update creates a draft and does not start it.
+Both referenced function versions must exist before this example runs.
+
+Update and explicitly start version 2.
+
+```shell
+ssp experiment update --name rank-v2 \
+  --description 'Compare both search functions.' \
+  --assignment user_id \
+  --eligibility 'context.country == "US"' \
+  --variant atlas-search@1=0.5 --variant atlas-search@2=0.5
+ssp experiment start --name rank-v2 --version 2
+```
+
+Starting version 2 stops new assignments to the previous running version.
+Existing runs and outcomes retain their original experiment version.

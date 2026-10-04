@@ -71,7 +71,7 @@
       {
         "group": "Reference",
         "pages": [
-          "reference/experiment-yaml",
+          "reference/experiment-definition",
           "reference/cli",
           "reference/sdks",
           "reference/http-api",
