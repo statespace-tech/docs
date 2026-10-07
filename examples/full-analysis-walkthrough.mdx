@@ -7,14 +7,14 @@ Analyze one immutable version at a time.
 
 ## Check delivery
 
-Confirm that the SDK recorded assigned and unassigned runs.
+Count runs by assignment reason.
 
 ```sql
-SELECT assigned, reason, count(*)
+SELECT reason, count(*)
 FROM statespace.runs
 WHERE experiment_name = 'rank-v2'
   AND experiment_version = 1
-GROUP BY assigned, reason;
+GROUP BY reason;
 ```
 
 ## Check allocation
@@ -29,7 +29,7 @@ SELECT
 FROM statespace.runs
 WHERE experiment_name = 'rank-v2'
   AND experiment_version = 1
-  AND assigned
+  AND reason = 'assigned'
 GROUP BY group_name;
 ```
 
@@ -41,12 +41,12 @@ Read the planned field from each JSON outcome.
 SELECT
   group_name,
   count(*) AS observations,
-  avg((data->>'relevance')::double precision) AS mean_relevance,
-  stddev_samp((data->>'relevance')::double precision) AS sd_relevance
+  avg((data->>'score')::double precision) AS mean_relevance,
+  stddev_samp((data->>'score')::double precision) AS sd_relevance
 FROM statespace.logs
 WHERE experiment_name = 'rank-v2'
   AND experiment_version = 1
-  AND outcome_name = 'result'
+  AND outcome_name = 'relevance'
 GROUP BY group_name;
 ```
 

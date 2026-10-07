@@ -13,23 +13,23 @@ assignment → exposure → raw outcome → metric
 
 An assignment records which group a unit should receive. An exposure records that the application used the assigned configuration.
 
-Calling `get_function()` records an assignment. Execute the returned callable at the point where the application applies the behavior.
+Calling `assign()` records an assignment. Call it at the point where the application applies the behavior.
 
 ```python
-rank = run.get_function("u_42", default=lambda items: items)
-result = rank([3, 1, 2])
+group = experiment.assign("u_42")
+result = group.function("ranker", rerank)([3, 1, 2])
 ```
 
-Assignment is not proof of exposure. Avoid assigning subjects on code paths that do not use the callable. If exposure can differ from assignment, record that fact as an outcome and state which effect the analysis estimates.
+Assignment is not proof of exposure. Avoid assigning subjects on code paths that do not use the group's parameters. If exposure can differ from assignment, record that fact as an outcome and state which effect the analysis estimates.
 
 This distinction affects whether the [estimand](/concepts/statistical-inference#estimands) measures assignment or actual exposure.
 
 ## Raw outcomes
 
-An outcome records a JSON response attributed to the current observation.
+An outcome records a named JSON response for a subject. Any process can log it.
 
 ```python
-run.log("u_42", {"relevance": 0.7, "result": result})
+experiment.log("u_42", "relevance", {"score": 0.7})
 ```
 
 Use the same name, meaning, and unit for every treatment group.
@@ -51,7 +51,7 @@ Statespace does not require metric definitions in the experiment definition. Thi
 
 Attribution connects an outcome to the run whose treatment could have caused it. It is an experiment join rule, not marketing attribution.
 
-Define an attribution window when the response can occur after exposure. Do not attribute an outcome to a later or unrelated run from the same unit.
+`statespace.logs` joins each outcome to the latest run of the same subject that started at or before it. Results count an outcome for the group of the subject's first run in the analyzed version, and ignore outcomes that came before it. Define a narrower attribution window in SQL when a response can occur long after exposure.
 
 ## Repeated observations
 
@@ -71,10 +71,10 @@ WITH unit_outcomes AS (
   SELECT
     subject_id,
     group_name,
-    avg((data->>'relevance')::double precision) AS unit_relevance
+    avg((data->>'score')::double precision) AS unit_relevance
   FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
-    AND experiment_version = 1 AND assigned AND outcome_name = 'result'
+    AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'relevance'
   GROUP BY subject_id, group_name
 )
 SELECT
@@ -96,7 +96,7 @@ A guardrail metric detects unacceptable harm outside the primary objective. Comm
 Record guardrail outcomes for control and every treatment group.
 
 ```python
-run.log("u_42", {"latency_ms": 42, "error": False}, name="performance")
+experiment.log("u_42", "performance", {"latency_ms": 42, "error": False})
 ```
 
 ## Structured outcomes
@@ -104,7 +104,7 @@ run.log("u_42", {"latency_ms": 42, "error": False}, name="performance")
 An outcome can contain any JSON-compatible result. This supports conversations, traces, evaluations, and other semi-structured evidence.
 
 ```python
-run.log("u_42", {
+experiment.log("u_42", "conversation", {
     "messages": [{"role": "assistant", "content": "Search results ranked."}],
     "tool_calls": 3,
     "termination": "completed",

@@ -1,56 +1,60 @@
 ---
 title: Treatments and control groups
-description: Compare published functions with an application default.
+description: Compare named groups of parameters with the application's defaults.
 ---
 
-A treatment is the behavior being tested. A group contains subjects assigned to the same behavior. Control supplies the comparison baseline.
+A treatment is the behavior being tested. A group is a named set of parameters that defines one treatment. Control supplies the comparison baseline.
 
 ## Interventions, treatments, and groups
 
-This example changes search ranking with the published function `atlas-search@1`.
+This example changes search ranking with the group `atlas-search`.
 
 ```text
 intervention: change search ranking
-candidate:   atlas-search@1 sorts results
-group:       subjects assigned to atlas-search@1
-control:     the application's existing ranking behavior
+treatment:    the atlas-search group, which sets the ranker function and top_k
+control:      the application's existing ranking code and values
 ```
 
-The CLI uses `--variant` to select a published function and its traffic weight. Logged candidate group names include the resolved function version, such as `atlas-search@1`.
+A parameter is a function or a JSON value. Groups are versioned, and an experiment records which group version each of its versions used.
 
 ## Control group
 
-The application supplies control with a default callable.
+The application supplies control with its current code and values.
 
 ```python
-rank = run.get_function("u_42", default=lambda items: items)
-result = rank([3, 1, 2])
+group = experiment.assign("u_42")
+rank = group.function("ranker", rerank)
+top_k = group.value("top_k", 20)
 ```
 
-This baseline receives the traffic not allocated to candidate functions. It estimates what would happen without the tested change.
+Control receives the weight not allocated to groups. It estimates what would happen without the tested change.
 
 ## Implicit control
 
-Allocate 20% of eligible subjects to the published candidate.
+Allocate 20% of eligible subjects to `atlas-search`.
 
 ```shell
-ssp experiment create --name rank-v2 --variant atlas-search@1=0.2
+ssp experiment create rank-v2 --group atlas-search=0.2
 ```
 
-The remaining 80% belongs to control. A total candidate weight of one leaves no control group. Ineligible subjects also use the default, but their runs are unassigned and must not be counted as randomized control.
+The remaining 80% belongs to control. Weights that total one leave no control group. Ineligible subjects also use the defaults, but their runs are not randomized control and must not be counted as control.
 
 ## Group weights
 
-Weights must be finite, positive, and total at most one. Publish both function versions before using this split.
+Weights must be greater than zero and total at most one.
 
 ```shell
-ssp experiment create --name rank-v2   --variant atlas-search@1=0.2 --variant atlas-search@2=0.2
+ssp experiment update rank-v2 --group atlas-search=0.2 --group atlas-search-bm25=0.2
 ```
 
 This split leaves 60% for control. Unequal weights change the sample size and statistical power of each comparison. See [Group allocation](/concepts/random-assignment#group-allocation) for stable assignment ranges.
 
 ## Treatment parameters
 
-Put candidate computation in the published function. Its input and output are JSON-compatible values. The current function CLI does not accept arbitrary group configuration fields.
+Set every parameter a treatment changes in its group.
 
-Keep each candidate focused on the factors needed to answer the experiment question. Factorial designs require a deliberate analysis plan; Statespace does not automatically infer one.
+```shell
+ssp group create atlas-search ranker=rerank.py:score top_k=10
+```
+
+A group that leaves out a parameter uses the application's default for it. A parameter must have one type across the groups of an experiment. To test two changes and their interaction, give each combination its own group and analyze the full grid.

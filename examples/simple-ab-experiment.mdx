@@ -1,43 +1,47 @@
 ---
 title: Simple A/B experiment
-description: Compare a published function with implicit control.
+description: Compare one group with implicit control.
 ---
 
-This example assigns 20% of eligible US users to `atlas-search@1`. The candidate sorts results. Control preserves the input order.
+This example assigns 20% of eligible US users to the group `atlas-search`. Its ranker sorts results. Control preserves the input order.
 
-Publish the candidate before creating the experiment.
+Create the group and the experiment, then start it.
 
 ```shell
-ssp function build rerank.py --language python --entry rerank:rerank --output rerank.wasm
-ssp function publish rerank.wasm --name atlas-search
-ssp experiment create --name rank-v2 --assignment user_id   --description 'Test sorted search results.'   --eligibility 'context.country == "US"' --variant atlas-search@1=0.2
-ssp experiment start --name rank-v2 --version 1
+ssp group create atlas-search ranker=rerank.py:score
+ssp experiment create rank-v2 --assignment user_id --group atlas-search=0.2 \
+  --description 'Test sorted search results.' --eligibility 'context.country == "US"'
+ssp experiment start rank-v2
 ```
 
-See [Define the experiment](/workflow/define-the-experiment) for the `rerank.py` source. Wasm bytes stay in S3 and execute in the SDK's local runtime.
+See [Define the experiment](/workflow/define-the-experiment) for the `rerank.py` source. The function runs in the SDK's local sandbox.
 
-Execute the assigned function and record the same outcome for both groups.
+Read the ranker and record the same outcome for every group.
 
 ```python
 import statespace
 
-with statespace.init("rank-v2") as run:
-    rank = run.get_function(
-        "u_42", context={"country": "US"}, default=lambda items: items,
-    )
-    result = rank([3, 1, 2])
-    run.log("u_42", {"relevance": 0.7, "result": result})
+experiment = statespace.experiment("rank-v2")
+group = experiment.assign("u_42", context={"country": "US"})
+result = group.function("ranker", lambda items: items)([3, 1, 2])
+experiment.log("u_42", "relevance", {"score": 0.7})
 ```
 
-Compare assigned control and candidate within version 1.
+Compare the groups.
+
+```shell
+ssp experiment results rank-v2 --outcome relevance --metric score
+```
+
+Or compare them in SQL within version 1.
 
 ```sql
-SELECT group_name, count(*) AS observations,
-       avg((data->>'relevance')::double precision) AS mean_relevance
+SELECT group_name, count(DISTINCT subject_id) AS subjects,
+       avg((data->>'score')::double precision) AS mean_relevance
 FROM statespace.logs
 WHERE experiment_name = 'rank-v2' AND experiment_version = 1
-  AND assigned AND outcome_name = 'result'
+  AND reason = 'assigned' AND outcome_name = 'relevance'
 GROUP BY group_name;
 ```
 
-Candidate rows use group name `atlas-search@1`; control rows use `control`. Check delivery and missing outcomes before interpreting this comparison.
+Group rows use the name `atlas-search`; control rows use `control`. Check delivery and missing outcomes before interpreting this comparison.

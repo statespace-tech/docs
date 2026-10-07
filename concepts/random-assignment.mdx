@@ -3,21 +3,20 @@ title: Random assignment
 description: Keep subject assignments consistent across SDKs.
 ---
 
-Random assignment gives each eligible subject one group. Each published experiment version records its definition and allocation ranges.
+Random assignment gives each eligible subject one group. Each published experiment version records its groups and allocation ranges.
 
 ## Stable identity
 
 Choose an identifier at the level where treatment can vary independently. Label user-level assignment when creating the experiment.
 
 ```shell
-ssp experiment create --name rank-v2 --assignment user_id --variant atlas-search@1=0.2
+ssp experiment create rank-v2 --assignment user_id --group atlas-search=0.2
 ```
 
 The label does not read a context field. Supply the identifier value explicitly to the SDK.
 
 ```python
-rank = run.get_function("u_42", default=lambda items: items)
-result = rank([3, 1, 2])
+group = experiment.assign("u_42")
 ```
 
 ## Stable bucket
@@ -25,26 +24,26 @@ result = rank([3, 1, 2])
 All SDKs calculate the same bucket from the experiment salt and subject ID.
 
 ```text
-bucket = first 53 bits of SHA-256(assignment_salt + ":" + subject_id) / 2^53
+bucket = first 53 bits of SHA-256(salt + ":" + subject_id) / 2^53
 ```
 
-The same subject, salt, and allocation ranges produce the same group across Python, TypeScript, Go, and service instances. The SDK keeps the subject's assignment within its session.
+The same subject, salt, and allocation ranges produce the same group in Python, TypeScript, Go, and every service instance.
 
 ## Group allocation
 
-Published candidate functions have explicit bucket ranges. The remaining interval belongs to control. For a new experiment with one 20% candidate, the allocation is shown below.
+Each group has explicit bucket ranges. The remaining interval belongs to control. For an experiment with one 20% group, the allocation is shown below.
 
 ```text
-atlas-search@1: [0.0, 0.2)
-control:       [0.2, 1.0)
+atlas-search: [0.0, 0.2)
+control:      [0.2, 1.0)
 ```
 
 ## New versions
 
-Function-experiment updates preserve the active version's salt. If no version is running, the update uses the latest version's salt. The backend retains existing candidate ranges where their new weights permit it. New or expanded candidates use available ranges.
+An experiment keeps one salt for its lifetime. Starting a changed draft keeps each group's existing ranges where its new weight permits. New or expanded groups use free ranges. Updating a group's parameters keeps its ranges, so its subjects stay in the group.
 
-Changes to weights or function versions can still move subjects between groups. Analyze each experiment version separately. Starting a draft stops new assignments to the previous running version.
+Weight changes can still move subjects between groups. Analyze each experiment version separately. Starting a new version stops assignments to the previous one.
 
 ## Forced assignment
 
-Forced assignment is not exposed by the current function CLI. Keep manual overrides out of a randomized comparison. A separate diagnostic path does not provide the same inference as random assignment.
+Statespace does not force a subject into a group. Keep manual overrides out of a randomized comparison. A separate diagnostic path does not provide the same inference as random assignment.

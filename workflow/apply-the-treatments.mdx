@@ -1,50 +1,49 @@
 ---
 title: Apply the treatments
-description: Execute assigned functions and record JSON outcomes.
+description: Assign subjects, read their group's parameters, and record outcomes.
 ---
 
-Start the draft only after the application can handle the candidate and its default.
+Start the draft only after the application handles the group's parameters and its defaults.
 
 ```shell
-ssp experiment start --name rank-v2 --version 1
+ssp experiment start rank-v2
 ```
+
+Starting publishes the draft as version 1 and pins the newest version of each group.
 
 ## Assign subjects
 
-Pass a stable subject ID and the pre-treatment context required by eligibility.
+Pass a stable subject ID and the pre-treatment context the eligibility rule reads.
 
 ```python
 import statespace
 
-with statespace.init("rank-v2") as run:
-    rank = run.get_function(
-        "u_42", context={"country": "US", "plan": "pro"},
-        default=lambda items: items,
-    )
-    result = rank([3, 1, 2])
-    run.log("u_42", {"relevance": 0.7, "result": result})
+experiment = statespace.experiment("rank-v2")
+group = experiment.assign("u_42", context={"country": "US", "plan": "pro"})
+rank = group.function("ranker", rerank)
+result = rank([3, 1, 2])[: group.value("top_k", 20)]
 ```
 
-The SDK executes the assigned Wasm locally. Control and ineligible subjects use the application default. Closing the session flushes delivery and reports errors.
+The SDK runs the group's function locally. Control and ineligible subjects receive the defaults. A failing function falls back to the default and records a `statespace.error` outcome.
 
 ## Record outcomes
 
-Use the same subject ID to attribute each JSON outcome to its run.
+Use the same subject ID for each JSON outcome, from this process or any other.
 
 ```python
-run.log("u_42", {"clicked": True}, name="engagement")
-run.log("u_42", {"latency_ms": 42}, name="performance")
+experiment.log("u_42", "relevance", {"score": 0.7})
+experiment.log("u_42", "click", {"position": 3})
 ```
 
-Each complete serialized event must fit in 64 KiB. The backend commits accepted events to an account outbox. SQS and the worker persist event rows asynchronously.
+Each serialized event must fit in 64 KiB. The backend commits accepted events to an account outbox. SQS and the worker persist them asynchronously.
 
 ## Publish a change
 
-Publish `atlas-search@2` first, then supply the complete replacement definition.
+Change the group, then start the experiment again.
 
 ```shell
-ssp experiment update --name rank-v2   --assignment user_id   --eligibility 'context.country == "US" && context.plan == "pro"'   --description 'Increase candidate traffic.'   --variant atlas-search@2=0.5
-ssp experiment start --name rank-v2 --version 2
+ssp group update atlas-search ranker=rerank.py:score top_k=20
+ssp experiment start rank-v2
 ```
 
-An update does not change the active version until it starts. Starting version 2 stops new assignments to version 1. Existing evidence retains its original version.
+A group update does not change the running version until the experiment starts again. Starting version 2 stops assignments to version 1. Existing evidence keeps its original version.

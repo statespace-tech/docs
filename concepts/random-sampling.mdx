@@ -8,24 +8,21 @@ Eligibility defines the population that can enter an experiment. Use information
 Create a draft with a CEL eligibility rule.
 
 ```shell
-ssp experiment create --name rank-v2 --assignment user_id   --eligibility 'context.country == "US" && context.plan == "pro"'   --variant atlas-search@1=0.2
+ssp experiment create rank-v2 --assignment user_id --group atlas-search=0.2 \
+  --eligibility 'context.country == "US" && context.plan == "pro"'
 ```
 
-The backend validates CEL when it creates the version. The SDK evaluates the rule against supplied JSON context.
+The backend validates CEL when the draft changes. The SDK evaluates the rule against the supplied JSON context.
 
-Provide every context value required by the rule.
+Provide every context value the rule reads.
 
 ```python
-rank = run.get_function(
-    "u_42", context={"country": "US", "plan": "pro"},
-    default=lambda items: items,
-)
-result = rank([3, 1, 2])
+group = experiment.assign("u_42", context={"country": "US", "plan": "pro"})
 ```
 
-An eligible subject receives control or a candidate. An ineligible subject uses the application default and is logged with `assigned = false` and `reason = 'ineligible'`. Handle malformed context and evaluation errors in the application.
+An eligible subject receives control or a group. An ineligible subject receives the application's defaults and is logged with `reason = 'ineligible'`. A rule that fails to evaluate, for example on missing context, is logged with `reason = 'eligibility-error'`.
 
-Apply the same eligibility rule to every possible group. Do not use values that treatment can change.
+Apply the same eligibility rule to every group. Do not use values that treatment can change.
 
 ```text
 Suitable:   country, plan at assignment time, account type

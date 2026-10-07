@@ -14,13 +14,13 @@ ssp database credential create --name analyst
 
 ## Check assignment counts
 
-Count assigned and unassigned runs.
+Count runs by assignment reason.
 
 ```sql
-SELECT assigned, reason, count(*)
+SELECT reason, count(*)
 FROM statespace.runs
 WHERE experiment_name = 'rank-v2'
-GROUP BY assigned, reason;
+GROUP BY reason;
 ```
 
 ## Compare groups
@@ -31,13 +31,13 @@ Extract numeric values from the JSONB `data` column.
 SELECT
   group_name,
   count(*) AS observations,
-  avg((data->>'relevance')::double precision) AS mean_relevance,
-  stddev_samp((data->>'relevance')::double precision) AS sd_relevance
+  avg((data->>'score')::double precision) AS mean_relevance,
+  stddev_samp((data->>'score')::double precision) AS sd_relevance
 FROM statespace.logs
 WHERE experiment_name = 'rank-v2'
   AND experiment_version = 1
-  AND assigned
-  AND outcome_name = 'result'
+  AND reason = 'assigned'
+  AND outcome_name = 'relevance'
 GROUP BY group_name;
 ```
 
@@ -62,5 +62,5 @@ ssp database credential create --name analyst
 Revoke the credential when the integration no longer needs access.
 
 ```shell
-ssp database credential revoke --id dbc_123
+ssp database credential revoke dbc_123
 ```

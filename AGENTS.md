@@ -13,7 +13,7 @@ Document current behavior as current. Mark proposed behavior with a visible `Pla
 - Use short, direct sentences.
 - Put one main idea in each sentence.
 - Use the same `atlas-search` and `rank-v2` example throughout the site.
-- Use `ssp_token_7j...` for SDK token examples.
+- Use `ssp_key_...` for API key examples.
 - Never include a complete token.
 - Put one explanatory sentence immediately before each code block.
 - Prefer concrete examples over placeholders.
@@ -23,7 +23,8 @@ Document current behavior as current. Mark proposed behavior with a visible `Pla
 - Use `subject` when describing a person, task, session, or other assigned entity.
 - Use `group` for control and treatment groups.
 - Each account has one isolated PostgreSQL database.
-- The CLI creates and versions experiments. SDKs only consume running configurations.
+- The CLI defines groups and experiments. SDKs only consume running configurations.
+- Use `atlas-search` as the example group and `rank-v2` as the example experiment.
 
 ## Structure
 

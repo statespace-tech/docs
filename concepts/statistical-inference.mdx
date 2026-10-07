@@ -14,7 +14,7 @@ outcomes → estimate → uncertainty → decision
 An estimand states exactly which effect the experiment intends to estimate. It identifies the population, treatment, outcome, and summary measure.
 
 ```text
-Among eligible search users, what is the average effect of atlas-search@1
+Among eligible search users, what is the average effect of atlas-search
 assignment on relevance compared with the current ranking behavior?
 ```
 
@@ -36,14 +36,14 @@ Calculate the observed difference in PostgreSQL.
 WITH group_means AS (
   SELECT
     group_name,
-    avg((data->>'relevance')::double precision) AS mean_value
+    avg((data->>'score')::double precision) AS mean_value
   FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
-    AND experiment_version = 1 AND assigned AND outcome_name = 'result'
+    AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'relevance'
   GROUP BY group_name
 )
 SELECT
-  max(mean_value) FILTER (WHERE group_name = 'atlas-search@1')
+  max(mean_value) FILTER (WHERE group_name = 'atlas-search')
     - max(mean_value) FILTER (WHERE group_name = 'control') AS treatment_effect
 FROM group_means;
 ```
@@ -70,11 +70,11 @@ WITH group_stats AS (
   SELECT
     group_name,
     count(*) AS n,
-    avg((data->>'relevance')::double precision) AS mean_value,
-    stddev_samp((data->>'relevance')::double precision) AS standard_deviation
+    avg((data->>'score')::double precision) AS mean_value,
+    stddev_samp((data->>'score')::double precision) AS standard_deviation
   FROM statespace.logs
   WHERE experiment_name = 'rank-v2'
-    AND experiment_version = 1 AND assigned AND outcome_name = 'result'
+    AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'relevance'
   GROUP BY group_name
 )
 SELECT
@@ -85,7 +85,7 @@ SELECT
   ) AS standard_error
 FROM group_stats AS treatment
 CROSS JOIN group_stats AS control
-WHERE treatment.group_name = 'atlas-search@1'
+WHERE treatment.group_name = 'atlas-search'
   AND control.group_name = 'control';
 ```
 
@@ -112,10 +112,10 @@ SELECT
   context->>'country' AS country,
   group_name,
   count(*) AS observations,
-  avg((data->>'relevance')::double precision) AS mean_relevance
+  avg((data->>'score')::double precision) AS mean_relevance
 FROM statespace.logs
 WHERE experiment_name = 'rank-v2'
-    AND experiment_version = 1 AND assigned AND outcome_name = 'result'
+    AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'relevance'
 GROUP BY country, group_name;
 ```
 
