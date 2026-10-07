@@ -126,7 +126,7 @@ The batch endpoint accepts up to 100 runs and outcomes in one request. An outcom
 `202 Accepted` means the account outbox has committed the events. The worker
 retries SQS delivery and writes the final rows. Duplicate queue delivery is
 idempotent. Each serialized event is limited to 64 KiB. Raw events expire after
-90 days. The default event quota is 10 GiB per account, including pending events.
+90 days. The event quota is 1 GiB on the free plan and 10 GiB on other plans, including pending events.
 
 ## Errors
 

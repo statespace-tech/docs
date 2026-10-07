@@ -120,7 +120,7 @@ ssp database credential revoke dbc_123
 
 The credential can read `statespace.runs`, `statespace.outcomes`, and
 `statespace.logs`. It cannot write data or connect to another account database.
-Connect directly over TLS to the returned `dbname.statespace.app` hostname. Use `sslmode=verify-full` to validate the public certificate. The CLI has no SQL query command
+Connect directly over TLS to your workspace hostname, such as `acme.statespace.app`. Use `sslmode=verify-full` to validate the public certificate. The CLI has no SQL query command
 and the API has no SQL query endpoint.
 
 Use a PostgreSQL 16 or newer client for the returned URL's `sslrootcert=system`. Older clients must replace that parameter with the path to a trusted public CA bundle. Keep `sslmode=verify-full`.
@@ -158,7 +158,7 @@ the control or tenant ledger. IDs support pagination across both ledgers; they
 do not define time order. Use `occurred_at` to order events by time.
 
 Events have a 64 KiB size limit, a 90-day
-retention limit, and a 10 GiB quota per account. Usage warns at 80%; new events
+retention limit, and a quota of 1 GiB on the free plan and 10 GiB on other plans. Usage warns at 80%; new events
 are rejected when the quota is full.
 
 ## Subject erasure

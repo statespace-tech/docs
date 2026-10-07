@@ -1,16 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* Match statespace.com: DM Sans text, JetBrains Mono code, purple accents. */
+h1,
+h2,
+h3 {
+  letter-spacing: -0.03em;
+}
+
+code,
+pre,
+kbd {
+  font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+}
+
 .nav-logo {
-  height: 34px !important;
-  max-width: 210px !important;
+  height: 24px !important;
+  max-width: 220px !important;
 }
 
 .sidebar-group-header,
 .breadcrumb-item {
-  color: #3f6500 !important;
+  color: #6b56c8 !important;
 }
 
 .dark .sidebar-group-header,
 .dark .breadcrumb-item {
-  color: #d8ff3e !important;
+  color: #9c8ce6 !important;
 }
 
 #footer a[href*="utm_campaign=poweredBy"],
@@ -21,7 +36,7 @@
 
 @media (max-width: 767px) {
   .nav-logo {
-    height: 30px !important;
+    height: 20px !important;
     max-width: 185px !important;
   }
 }

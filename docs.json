@@ -4,14 +4,14 @@
   "name": "Statespace",
   "description": "Headless A/B testing for coding agents.",
   "colors": {
-    "primary": "#3F6500",
-    "light": "#D8FF3E",
-    "dark": "#6F881F"
+    "primary": "#6B56C8",
+    "light": "#9C8CE6",
+    "dark": "#5843B0"
   },
   "background": {
     "color": {
-      "light": "#F2F0E9",
-      "dark": "#11120F"
+      "light": "#FCFCFA",
+      "dark": "#151614"
     }
   },
   "logo": {
@@ -81,7 +81,14 @@
     ]
   },
   "contextual": {
-    "options": ["copy", "view", "chatgpt", "claude", "cursor", "vscode"]
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "cursor",
+      "vscode"
+    ]
   },
   "navbar": {
     "links": [
@@ -96,7 +103,7 @@
     ],
     "primary": {
       "type": "button",
-      "label": "Sign up",
+      "label": "Get started",
       "href": "https://statespace.com/signup"
     }
   },
@@ -133,5 +140,8 @@
         ]
       }
     ]
+  },
+  "fonts": {
+    "family": "DM Sans"
   }
 }
