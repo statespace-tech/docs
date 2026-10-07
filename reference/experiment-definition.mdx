@@ -1,82 +1,76 @@
 ---
-title: Experiment definition
-description: Define immutable function experiments with CLI flags.
+title: Groups and experiments
+description: Define groups of parameters and experiments with CLI flags.
 ---
 
-The CLI creates experiments through flags. There is no YAML experiment file or
-`--file` argument. Publish the referenced functions before creating an
-experiment. SDKs consume running configurations and do not modify definitions.
+The CLI defines groups and experiments with arguments. There is no YAML file. SDKs consume running configurations and never modify them.
 
-Create a draft for eligible US users and label its randomization unit.
+## Groups
 
-```shell
-ssp experiment create --name rank-v2 \
-  --description 'Test sorted search results.' \
-  --assignment user_id \
-  --eligibility 'context.country == "US"' \
-  --variant atlas-search@1=0.5
-```
-
-## Flags
-
-| Flag | Required | Meaning |
-| --- | --- | --- |
-| `--name` | Yes | Stable experiment name |
-| `--variant` | Yes; repeatable | Published function selector and traffic weight |
-| `--description` | No | Description; defaults to an empty string |
-| `--assignment` | No | Randomization-unit label; defaults to `subject_id` |
-| `--eligibility` | No | CEL over SDK `context`; defaults to no rule |
-
-## Function variants
-
-Each variant uses `function@version=weight` or `function@latest=weight`.
-Publishing resolves `latest` to an existing immutable function version. Weights
-must be positive, finite, and total at most one. The remaining traffic uses the
-application's control default. A total of one assigns all eligible subjects to
-the listed functions.
-
-Use an explicit version to make the definition reproducible.
+A group is a named set of parameters.
 
 ```shell
-ssp experiment create --name rank-v2 --variant atlas-search@1=0.5
+ssp group create atlas-search ranker=rerank.py:score top_k=10 prompt=prompts/concise.md
 ```
+
+Each parameter is a function or a JSON value. Each `NAME=VALUE` resolves in this order.
+
+| Value | Result |
+| --- | --- |
+| `file.py:entry`, `file.js:entry`, `file.ts:entry`, `file.c:entry`, `file.cpp:entry` | A function built from a source file |
+| `./module:Entry`, `./crate:entry` | A function built from a Go module or a Rust crate |
+| `file.json` | The file's JSON value |
+| Any other file | The file's text |
+| `20`, `true`, `'"text"'`, `'{"t": 0.2}'` | A JSON literal |
+
+Anything else is an error, so a mistyped file name never becomes a string. Groups are versioned. A new version is created only when a value or a function's source changes.
+
+## Experiments
+
+An experiment assigns eligible subjects to groups by weight. Control receives the remaining weight and the application's defaults.
+
+```shell
+ssp experiment create rank-v2 --group atlas-search=0.2 --group atlas-search-bm25=0.2 \
+  --assignment user_id --eligibility 'context.country == "US"' \
+  --description 'Test sorted search results.'
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--group NAME=WEIGHT` | A group and its share of eligible subjects, greater than 0. Weights total at most 1 |
+| `--eligibility` | A CEL expression over the SDK `context` |
+| `--assignment` | A label for the subject identifier, `subject_id` by default |
+| `--description` | Up to 500 bytes |
+
+Every parameter must have one type across the groups of an experiment. A function in one group and a number in another is rejected.
 
 ## Randomization unit and eligibility
 
-The assignment label describes the explicit SDK subject key. It does not read
-an identifier from `context`. With `--assignment user_id`, the application still
-supplies the user ID as the first argument to `get_function`.
-
-The backend validates CEL before committing a version. Ineligible subjects use
-the application's default callable and are logged as unassigned. The CLI
-rejects blank CEL. SDKs evaluate the rule against the supplied context.
-
-Supply the context required by the rule when assigning a subject.
+`--assignment` labels the subject identifier. It does not extract a value from context. The application passes the subject ID to `assign`.
 
 ```python
-rank = run.get_function(
-    "u_42",
-    context={"country": "US"},
-    default=lambda items: items,
-)
+group = experiment.assign("u_42", context={"country": "US"})
 ```
 
-## Immutable updates
+The backend validates CEL when the draft changes. The SDK evaluates the rule with the supplied context. Ineligible subjects receive the defaults and are recorded with `reason = 'ineligible'`.
 
-An update supplies the complete replacement definition. Omitted optional flags
-reset to their defaults. The update creates a draft and does not start it.
-Both referenced function versions must exist before this example runs.
+## Drafts and versions
 
-Update and explicitly start version 2.
+`create` and `update` change an experiment's draft. The running version does not change.
 
 ```shell
-ssp experiment update --name rank-v2 \
-  --description 'Compare both search functions.' \
-  --assignment user_id \
-  --eligibility 'context.country == "US"' \
-  --variant atlas-search@1=0.5 --variant atlas-search@2=0.5
-ssp experiment start --name rank-v2 --version 2
+ssp experiment update rank-v2 --group atlas-search=0.5
 ```
 
-Starting version 2 stops new assignments to the previous running version.
-Existing runs and outcomes retain their original experiment version.
+`start` publishes the draft as the next immutable version. It pins the newest version of each group and stops the previously running version. An unchanged draft restarts the newest version.
+
+```shell
+ssp experiment start rank-v2
+ssp experiment show rank-v2
+```
+
+Subjects keep their group across versions wherever its weight still covers their bucket. Restart an earlier version to roll back.
+
+```shell
+ssp experiment start rank-v2 --version 1
+```

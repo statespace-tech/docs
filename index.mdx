@@ -3,10 +3,10 @@ title: Statespace
 description: Run controlled A/B tests and analyze their JSON results with SQL.
 ---
 
-Statespace manages A/B tests for applications and AI systems. The CLI publishes experiment definitions. Language SDKs assign subjects and record JSON results.
+Statespace runs A/B tests on the functions and values of live software. Groups hold candidate functions, prompts, and settings. Experiments send a share of real traffic to each group, and SDKs record what happened.
 
 ```text
-published Wasm → ssp experiment flags → SDK assignment → JSON outcomes → PostgreSQL
+ssp group → ssp experiment → SDK assignment → JSON outcomes → results and SQL
 ```
 
 ## Start here
@@ -32,8 +32,8 @@ Each interface has one responsibility.
 
 | Interface | Responsibility |
 | --- | --- |
-| `ssp` CLI | Creates versions, starts experiments, and manages credentials. |
-| SDK | Caches configurations, assigns subjects, and records JSON events. |
+| `ssp` CLI | Defines groups, builds functions, runs experiments, and reads results. |
+| SDK | Caches configurations, assigns subjects, reads parameters, and records outcomes. |
 | PostgreSQL | Stores one isolated account database and exposes `statespace.logs`. |
 
 The Python, TypeScript, and Go SDKs use the same stable assignment algorithm.

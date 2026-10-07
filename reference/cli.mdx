@@ -3,7 +3,7 @@ title: CLI
 description: Review the public ssp command surface.
 ---
 
-The CLI prints successful results as JSON. It prints diagnostics on standard error.
+Every command prints one JSON document. Errors print `{"error": "..."}` on standard error and exit with status 1.
 Use `STATESPACE_URL` to select a local or hosted API.
 
 ## Authentication
@@ -26,7 +26,7 @@ Create a runtime key for SDK configuration reads and event writes.
 ```shell
 ssp key create --name production --preset runtime
 ssp key list
-ssp key revoke --id key_123
+ssp key revoke key_123
 ```
 
 Secrets appear only in create responses. Store the returned secret in the
@@ -35,41 +35,78 @@ management tools. Add `--expires-in-days` to set an expiration.
 
 ## Functions
 
-Build a computation component locally, then publish its immutable version to S3.
+Build a function from source and run it locally in the SDK sandbox.
 
 ```shell
-ssp function build rerank.py --language python --entry rerank:rerank --output rerank.wasm
-ssp function publish rerank.wasm --name atlas-search
-ssp function list
-ssp function show --name atlas-search --version 1
+ssp run rerank.py:score --input '[3, 1, 2]'
+ssp run bm25.ts:rank --input '[3, 1, 2]'
+ssp run ./ranker:Score --input '[3, 1, 2]'
 ```
 
-Use `--source-commit` and `--source-repository` when publishing to record source
-provenance. The backend records the artifact SHA-256 and publishing credential.
+A function reference is `path:entry`. Without `:entry`, the function named after the file is used. Python, JavaScript, TypeScript, C, and C++ use a source file. Go uses a module directory and Rust a library crate. The function takes one JSON value and returns one; in C and C++ it takes and returns a NUL-terminated JSON string allocated with `malloc`. `ssp` builds every function into a WebAssembly component itself and rejects prebuilt `.wasm` files.
+
+## Groups
+
+Create a group of named parameters.
+
+```shell
+ssp group create atlas-search ranker=rerank.py:score top_k=10 prompt=prompt.md
+```
+
+Each `NAME=VALUE` resolves in this order: a function, a `.json` file, any other file as text, then a JSON literal. Anything else is an error. Quote string literals as JSON, such as `model='"claude-sonnet-5-5"'`.
+
+Update a group. Parameters merge, and `NAME=` removes one.
+
+```shell
+ssp group update atlas-search top_k=20 prompt=
+ssp group list
+ssp group show atlas-search
+ssp group delete atlas-search
+```
+
+An update creates the next group version only when a value changes. Functions are compared by source, so rebuilding unchanged code is not a change. A group in a draft or a running experiment cannot be deleted.
 
 ## Experiments
 
-Create a traffic split with published function versions, then start it explicitly.
+Create a draft that compares groups with control.
 
 ```shell
-ssp experiment create --name rank-v2 --assignment user_id --eligibility 'context.country == "US"' --description 'Test sorted search results.' --variant atlas-search@1=0.5
-ssp experiment update --name rank-v2 --assignment user_id --eligibility 'context.country == "US"' --description 'Compare both search functions.' --variant atlas-search@1=0.5 --variant atlas-search@2=0.5
-ssp experiment list
-ssp experiment show --name rank-v2
-ssp experiment start --name rank-v2 --version 2
-ssp experiment stop --name rank-v2
-ssp experiment delete --name rank-v2
+ssp experiment create rank-v2 --group atlas-search=0.2 \
+  --assignment user_id --eligibility 'context.country == "US"' \
+  --description 'Test sorted search results.'
 ```
 
-`--assignment` labels the explicit SDK subject key and defaults to `subject_id`.
-`--description` defaults to an empty string. Omitted `--eligibility` means no
-rule. The backend validates CEL before publishing. The SDK must supply the
-context used by the rule. Updates replace the full definition; omitted optional
-flags reset to defaults.
+Change the draft. Omitted flags keep their values, and `--group` replaces the groups.
 
-Publish `atlas-search@2` before using the update example. Starting a new version
-stops new assignments to the previous running version. Use `@latest` to resolve
-a function at publish time; the resulting experiment keeps the resolved version.
+```shell
+ssp experiment update rank-v2 --group atlas-search=0.5
+ssp experiment update rank-v2 --no-eligibility
+```
+
+Publish the draft and run it, stop it, or restart a published version.
+
+```shell
+ssp experiment start rank-v2
+ssp experiment stop rank-v2
+ssp experiment start rank-v2 --version 1
+```
+
+Starting pins the newest version of each group and stops the previously running version. An unchanged draft restarts the newest version.
+
+Read experiments and summarize an outcome by group.
+
+```shell
+ssp experiment list
+ssp experiment show rank-v2
+ssp experiment results rank-v2 --outcome click
+ssp experiment results rank-v2 --outcome purchase --metric value --version 2
+```
+
+Delete an experiment and all of its runs and outcomes.
+
+```shell
+ssp experiment delete rank-v2 --yes
+```
 
 ## PostgreSQL
 
@@ -78,7 +115,7 @@ Create a read-only credential for your account database.
 ```shell
 ssp database credential create --name analyst
 ssp database credential list
-ssp database credential revoke --id dbc_123
+ssp database credential revoke dbc_123
 ```
 
 The credential can read `statespace.runs`, `statespace.outcomes`, and
@@ -100,7 +137,7 @@ List or revoke CLI sessions without exposing their secrets.
 
 ```shell
 ssp token list
-ssp token revoke --id tok_123
+ssp token revoke tok_123
 ssp token revoke-all --yes
 ```
 
@@ -129,7 +166,7 @@ are rejected when the quota is full.
 Erase the subject's persisted and pending evidence for one experiment.
 
 ```shell
-ssp experiment erase-subject --name rank-v2 --subject user-42
+ssp experiment erase-subject rank-v2 user-42
 ```
 
 Erased data can remain in encrypted backups until backup retention expires.

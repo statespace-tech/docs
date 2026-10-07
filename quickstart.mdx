@@ -1,114 +1,100 @@
 ---
 title: Quickstart
-description: Build a function, run an experiment, and inspect its evidence.
+description: Test a new ranking function on live traffic and read the result.
 ---
 
-This example tests a sorted search result against the application's default.
-The published function is named `atlas-search`. The experiment is `rank-v2`.
-Use the current CLI and SDK `main` branches with the live HTTPS backend.
+This example tests a new search ranker against the application's current one. The group is named `atlas-search`. The experiment is `rank-v2`.
 
 <Steps>
   <Step title="Install the CLI and sign in">
-    Install the tested CLI binary from current `main`. The installer verifies its checksum. Rust and Cargo are not required.
+    Install `ssp`, then sign in with GitHub or Google and approve the displayed code.
 
     ```shell
     curl -fsSL https://statespace.com/install | bash
     ssp login
     ```
-
-    Sign in with a configured provider, then approve the displayed device code.
-    Use the service's HTTPS URL for a hosted installation.
   </Step>
 
-  <Step title="Define the function">
-    Save the candidate computation as `rerank.py`.
+  <Step title="Write the candidate">
+    Save the candidate function as `rerank.py`. It takes and returns JSON values.
 
     ```python
-    def rerank(items: list[int]) -> list[int]:
-        return sorted(items)
+    def score(items: list[int]) -> list[int]:
+        return sorted(items, reverse=True)
     ```
 
-    The function receives and returns JSON-compatible values. It executes in
-    the application's local Wasm runtime.
-  </Step>
-
-  <Step title="Build and publish the function">
-    Build the Python computation component and publish version 1.
+    Run it locally in the same sandbox the SDKs use.
 
     ```shell
-    ssp function build ./rerank.py --language python --entry rerank:rerank --output rerank.wasm
-    ssp function publish rerank.wasm --name atlas-search
+    ssp run rerank.py:score --input '[3, 1, 2]'
+    ```
+  </Step>
+
+  <Step title="Create a group">
+    Put the function in a group, with any value you want to test together with it.
+
+    ```shell
+    ssp group create atlas-search ranker=rerank.py:score top_k=10
     ```
 
-    The CLI installs pinned build tools on first use. S3 stores the artifact; PostgreSQL stores its hash and provenance.
+    The CLI builds the function into a WebAssembly component and uploads it.
   </Step>
 
   <Step title="Create and start the experiment">
-    Assign half the traffic to the published function and start the draft.
+    Send 20% of eligible US users to the group, and start the experiment.
 
     ```shell
-    ssp experiment create --name rank-v2 --assignment user_id --eligibility 'context.country == "US"' --description 'Test sorted search results.' --variant atlas-search@1=0.5
-    ssp experiment start --name rank-v2 --version 1
+    ssp experiment create rank-v2 --group atlas-search=0.2 --eligibility 'context.country == "US"'
+    ssp experiment start rank-v2
     ```
 
-    Eligible US users receive the published function at weight 0.5. The remaining
-    traffic uses the application's control default. `user_id` labels the explicit
-    subject key; it does not extract an identifier from context. Later updates
-    create immutable versions. Starting one stops the previous running version.
+    The other 80% are control and receive the application's current code.
   </Step>
 
-  <Step title="Create a deployed SDK key">
-    Create a runtime key and store its secret as `SSP_API_KEY` in the application.
+  <Step title="Create an application key">
+    Create a runtime key and store its secret as `SSP_API_KEY` where the application runs.
 
     ```shell
     ssp key create --name production --preset runtime
     ```
 
-    Local SDKs can use the saved CLI login. Keep creation responses out of logs.
-    Configure `STATESPACE_URL` in the application to use the same service.
+    Locally, the SDKs use your `ssp login` session instead.
   </Step>
 
-  <Step title="Run and log an outcome">
-    Install the Python SDK from current `main`.
+  <Step title="Read the group in the application">
+    Install the Python SDK.
 
     ```shell
-    pip install "git+https://github.com/statespace-tech/python-sdk.git@main"
+    pip install "git+https://github.com/statespace-tech/python-sdk.git@v0.1.1"
     ```
 
-    Assign a subject, execute its function, and log JSON evidence.
+    Assign each subject, read the group's parameters with your current code as the default, and log outcomes.
 
     ```python
     import statespace
 
-    with statespace.init("rank-v2") as run:
-        rank = run.get_function(
-            "u_42", context={"country": "US"}, default=lambda items: items
-        )
-        result = rank([3, 1, 2])
-        run.log("u_42", {"relevance": 0.7, "result": result})
+    experiment = statespace.experiment("rank-v2")
+    group = experiment.assign("u_42", context={"country": "US"})
+    rank = group.function("ranker", current_rerank)
+    results = rank(items)[: group.value("top_k", 20)]
+    experiment.log("u_42", "click", {"position": 1})
     ```
 
-    Closing the session flushes delivery and reports errors. Each event must
-    fit within 64 KiB. The default retention is 90 days with a 10 GiB account
-    event quota. SQS and the worker persist accepted events asynchronously.
+    The function runs locally. If it fails, the SDK uses your function and records the failure.
   </Step>
 
-  <Step title="Inspect the evidence">
-    Create a read-only account database credential for an analysis tool.
+  <Step title="Read the results">
+    Compare the share of subjects who clicked in each group.
+
+    ```shell
+    ssp experiment results rank-v2 --outcome click
+    ```
+
+    Create a read-only credential to analyze every run and outcome with SQL.
 
     ```shell
     ssp database credential create --name analyst
+    psql "$DATABASE_URL" -c "SELECT group_name, outcome_name, data FROM statespace.logs WHERE experiment_name = 'rank-v2'"
     ```
-
-    Store the returned connection settings securely. Hosted access connects directly over TLS to the returned
-    `dbname.statespace.app` hostname with `sslmode=verify-full`. Supply the connection through protected PostgreSQL
-    environment settings, then inspect the logs view.
-
-    ```shell
-    psql -c "SELECT experiment_version, group_name, data FROM statespace.logs WHERE experiment_name = 'rank-v2'"
-    ```
-
-    The CLI has no SQL query command. The account credential can read only its
-    own event tables and logs view.
   </Step>
 </Steps>

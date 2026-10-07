@@ -5,11 +5,13 @@ description: Install the CLI and a runtime SDK.
 
 ## CLI
 
-Install the tested CLI from current `main` on macOS or Linux. The installer downloads a prebuilt binary and verifies its SHA-256 checksum. Rust and Cargo are not required.
+Install the CLI on macOS or Linux. The installer downloads a prebuilt binary and verifies its SHA-256 checksum. Rust and Cargo are not required.
 
 ```shell
 curl -fsSL https://statespace.com/install | bash
 ```
+
+Building functions from source downloads each language's pinned tools on first use. Go, Rust, and JavaScript builds also need the Go toolchain, Rust with `rustup`, or Node.js.
 
 Confirm the installation.
 
@@ -23,15 +25,15 @@ Install the SDK for the application language.
 
 <CodeGroup>
 ```shell Python
-pip install "git+https://github.com/statespace-tech/python-sdk.git@main"
+pip install "git+https://github.com/statespace-tech/python-sdk.git@v0.1.1"
 ```
 
 ```shell TypeScript
-npm install "github:statespace-tech/typescript-sdk#main"
+npm install "github:statespace-tech/typescript-sdk#v0.1.1"
 ```
 
 ```shell Go
-go get github.com/statespace-tech/go-sdk@main
+go get github.com/statespace-tech/go-sdk@v0.1.1
 ```
 </CodeGroup>
 

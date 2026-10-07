@@ -8,10 +8,11 @@ Each account has one isolated PostgreSQL database. The API commits events to an 
 The account database contains these tables and the stable analysis view.
 
 ```text
-statespace.experiments
-statespace.experiment_versions
-statespace.experiment_groups
-statespace.functions (S3 metadata only)
+statespace.artifacts            uploaded components, addressed by SHA-256
+statespace.groups               immutable versions of each group's parameters
+statespace.experiments          each experiment's draft
+statespace.experiment_versions  published versions
+statespace.experiment_groups    the group versions and ranges each version pins
 statespace.ingestion_outbox
 statespace.audit_events
 statespace.runs
@@ -19,7 +20,7 @@ statespace.outcomes
 statespace.logs
 ```
 
-Wasm bytes stay in S3. PostgreSQL stores their object keys, SHA-256 hashes, and publisher provenance.
+Component bytes stay in S3. PostgreSQL stores their object keys, SHA-256 hashes, and publisher provenance.
 
 ## Runs
 
@@ -31,41 +32,48 @@ Each SDK assignment creates one row in `statespace.runs`.
 | `timestamp` | `TIMESTAMPTZ` |
 | `experiment_name` | `TEXT` |
 | `experiment_version` | `INTEGER` |
-| `assignment_type` | `TEXT` |
 | `subject_id` | `TEXT` |
-| `group_name` | `TEXT` or `NULL` |
-| `assigned` | `BOOLEAN` |
-| `reason` | `TEXT` |
-| `config` | `JSONB` |
+| `group_name` | `TEXT`, or `NULL` when the subject is not assigned |
+| `reason` | `assigned`, `ineligible`, or `eligibility-error` |
 | `context` | `JSONB` |
 
 ## Outcomes
 
-A run can have zero or more rows in `statespace.outcomes`.
+Each logged outcome creates one row in `statespace.outcomes`. Outcomes belong to a subject in an experiment, so any process can log them.
 
 | Column | Type |
 | --- | --- |
 | `id` | `TEXT` |
-| `run_id` | `TEXT` |
+| `timestamp` | `TIMESTAMPTZ` |
+| `experiment_name` | `TEXT` |
+| `subject_id` | `TEXT` |
 | `name` | `TEXT` |
 | `data` | `JSONB` |
-| `timestamp` | `TIMESTAMPTZ` |
+
+The SDKs record a `statespace.error` outcome when a parameter falls back to the application's default.
 
 ## Logs view
 
-`statespace.logs` left joins runs to outcomes. It keeps runs that do not yet have an outcome.
+`statespace.logs` has one row for each run and outcome it led to. Each outcome joins the latest run of the same subject that started at or before it. Runs without outcomes have `NULL` outcome columns.
 
-Compare assigned groups with a SQL client.
+| Column | Source |
+| --- | --- |
+| `run_id`, `run_timestamp`, `experiment_name`, `experiment_version`, `subject_id`, `group_name`, `reason`, `context` | The run |
+| `group_version`, `parameters` | The group version the run's experiment version pinned |
+| `outcome_id`, `outcome_timestamp`, `outcome_name`, `data` | The outcome |
+
+Compare groups with a SQL client.
 
 ```sql
 SELECT
   experiment_version,
   group_name,
-  count(*) AS observations,
-  avg((data->>'relevance')::double precision) AS mean_relevance
+  count(DISTINCT subject_id) AS subjects,
+  avg((data->>'position')::double precision) AS mean_position
 FROM statespace.logs
 WHERE experiment_name = 'rank-v2'
-  AND assigned
+  AND reason = 'assigned'
+  AND outcome_name = 'click'
 GROUP BY experiment_version, group_name;
 ```
 

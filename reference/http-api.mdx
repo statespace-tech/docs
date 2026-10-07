@@ -53,54 +53,73 @@ Provider clients must be registered with the exact callback URLs. Device
 approval requires a signed-in user. Callback state and device redemption are
 single use.
 
-## Experiment and function routes
+## Group and experiment routes
 
-Publish immutable function versions and create experiments from traffic splits.
+Upload components, define groups, and manage experiments with an `experiments:write` key or a session.
 
 ```text
-GET    /v1/functions
-POST   /v1/functions/{name}
-GET    /v1/functions/{name}/{version}
-DELETE /v1/functions/{name}/{version}
-POST   /v1/function-experiments
-PUT    /v1/function-experiments/{name}
+GET    /v1/artifacts
+GET    /v1/artifacts/{sha256}
+PUT    /v1/artifacts/{sha256}
+GET    /v1/groups
+POST   /v1/groups
+GET    /v1/groups/{name}
+PATCH  /v1/groups/{name}
+DELETE /v1/groups/{name}
 GET    /v1/experiments
+POST   /v1/experiments
 GET    /v1/experiments/{name}
+PATCH  /v1/experiments/{name}
 DELETE /v1/experiments/{name}
-POST   /v1/experiments/{name}/state
-DELETE /v1/experiments/{name}/subjects/{subject}
+POST   /v1/experiments/{name}/start
+POST   /v1/experiments/{name}/stop
+GET    /v1/experiments/{name}/results?outcome={name}&metric={field}&version={n}
+DELETE /v1/experiments/{name}/subjects
 ```
 
-Function experiment requests accept `name`, `description`, `assignment`,
-`eligibility`, and `variants`. Description defaults to an empty string;
-assignment defaults to `subject_id`; eligibility defaults to no rule. The
-assignment label describes the explicit SDK subject key. CEL uses the SDK's
-context, and the backend validates it before publishing. Updates supply the
-complete replacement definition; omitted optional fields reset to defaults.
-
-Function publishing accepts Wasm component bytes. S3 stores the bytes;
-PostgreSQL stores metadata, hashes, and provenance. Creating an experiment
-creates version 1. Updating creates the next immutable draft version. Starting
-a version stops the previous running version.
-
-## SDK routes
-
-Read running configurations and artifacts, then submit runs and outcomes.
-
-```text
-GET  /v1/runtime/experiments/{name}
-GET  /v1/runtime/functions/{name}/{version}
-POST /v1/events
-POST /v1/runs
-POST /v1/outcomes
-```
-
-The batch endpoint accepts runs and outcomes in one request.
+`PUT /v1/artifacts/{sha256}` takes the component bytes. The service validates the component and checks that its SHA-256 matches the path. A group parameter is a value or a reference to an uploaded component.
 
 ```json
 {
-  "runs": [],
-  "outcomes": []
+  "name": "atlas-search",
+  "parameters": {
+    "ranker": { "kind": "function", "sha256": "3fa9…", "source": { "path": "rerank.py", "entry": "score", "sha256": "9b1c…" } },
+    "top_k": { "kind": "value", "value": 10 }
+  }
+}
+```
+
+`PATCH /v1/groups/{name}` merges parameters, and `null` removes one. An experiment's groups map names to weights.
+
+```json
+{
+  "name": "rank-v2",
+  "assignment": "user_id",
+  "eligibility": "context.country == \"US\"",
+  "groups": { "atlas-search": 0.2 }
+}
+```
+
+`PATCH /v1/experiments/{name}` changes the draft. `POST /start` publishes it and accepts an optional `{"version": 1}` to restart a published version instead.
+
+## SDK routes
+
+Read running configurations and components, then submit runs and outcomes. These routes need a `runtime:read` and `events:write` key.
+
+```text
+GET  /v1/runtime/experiments/{name}
+GET  /v1/runtime/artifacts/{sha256}
+POST /v1/events
+```
+
+The batch endpoint accepts up to 100 runs and outcomes in one request. An outcome names its experiment and subject, not a run.
+
+```json
+{
+  "runs": [{ "id": "run_1", "experiment": "rank-v2", "version": 1, "subject_id": "u_42",
+             "group": "atlas-search", "reason": "assigned", "context": { "country": "US" } }],
+  "outcomes": [{ "id": "out_1", "experiment": "rank-v2", "subject_id": "u_42",
+                 "name": "click", "data": { "position": 1 } }]
 }
 ```
 

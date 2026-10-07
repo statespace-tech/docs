@@ -1,112 +1,94 @@
 ---
 title: SDKs
-description: Assign functions and record JSON outcomes at runtime.
+description: Assign subjects, read parameters, and record outcomes at runtime.
 ---
 
-SDKs consume running experiments. They do not create, edit, start, or stop them.
+SDKs consume running experiments. They do not create, change, start, or stop them.
 Local SDKs can use the saved `ssp login`. Deployed applications use `SSP_API_KEY`.
 Set `STATESPACE_URL` to select the backend.
 
-## Function execution
+## Groups
 
-Assign a subject, execute its published function, and record an outcome.
+Get an experiment once, assign each subject, and read the group's parameters. Every read takes the application's current code or value as the default.
 
 <CodeGroup>
 ```python Python
 import statespace
 
-with statespace.init("rank-v2") as run:
-    rank = run.get_function(
-        "u_42", context={"country": "US"}, default=lambda items: items
-    )
-    result = rank([3, 1, 2])
-    run.log("u_42", {"relevance": 0.7, "result": result})
+experiment = statespace.experiment("rank-v2")
+group = experiment.assign("u_42", context={"country": "US"})
+rank = group.function("ranker", current_rerank)
+results = rank([3, 1, 2])[: group.value("top_k", 20)]
+experiment.log("u_42", "click", {"position": 1})
 ```
 
 ```typescript TypeScript
-import { init } from "@statespace-tech/sdk";
+import { experiment } from '@statespace-tech/sdk';
 
-const run = await init("rank-v2");
-try {
-  const rank = run.getFunction("u_42", {
-    context: { country: "US" },
-    default: (items) => items,
-  });
-  const result = await rank([3, 1, 2]);
-  run.log("u_42", { relevance: 0.7, result });
-} finally {
-  await run.close();
-}
+const ranking = await experiment('rank-v2');
+const group = ranking.assign('u_42', { context: { country: 'US' } });
+const rank = group.function('ranker', currentRerank);
+const results = (await rank([3, 1, 2])).slice(0, group.value('top_k', 20));
+ranking.log('u_42', 'click', { position: 1 });
 ```
 
 ```go Go
-ctx := context.Background()
-run, err := statespace.Init(ctx, "rank-v2")
-if err != nil {
-    log.Fatal(err)
-}
-rank, err := run.GetFunction("u_42", statespace.FunctionOptions{
-    Context: statespace.Object{"country": "US"},
-    Default: func(input any) (any, error) { return input, nil },
-})
-if err != nil {
-    log.Fatal(err)
-}
-result, err := rank(ctx, []int{3, 1, 2})
-if err != nil {
-    log.Fatal(err)
-}
-if _, err = run.Log("u_42", statespace.Object{"relevance": 0.7, "result": result}); err != nil {
-    log.Fatal(err)
-}
-if err = run.Close(); err != nil {
-    log.Fatal(err)
-}
+ranking, err := statespace.Load(ctx, "rank-v2")
+group := ranking.Assign("u_42", map[string]any{"country": "US"})
+rank := statespace.Function(group, "ranker", currentRerank)
+results, err := rank(ctx, []int{3, 1, 2})
+results = results[:min(len(results), statespace.Value(group, "top_k", 20))]
+ranking.Log("u_42", "click", map[string]any{"position": 1})
 ```
 </CodeGroup>
 
-The callable uses the default for control or a stopped experiment. Without a
-default, Python returns `None`, TypeScript returns `null`, and Go returns `nil`.
-The subject's assignment remains stable within the session. Wasm runs locally;
-the backend does not execute the customer function.
+`assign` records one run. The group's name is the group, `control`, or empty when the subject is not in the experiment. A subject is outside the experiment while it is not running, when the configuration is stale, and when the eligibility rule excludes it.
+
+## Defaults and failures
+
+A read returns the default for control, for parameters the group does not set, and when the group's value cannot be used. The SDK then records a `statespace.error` outcome with the parameter and the reason.
+
+| Reason | Cause |
+| --- | --- |
+| `type` | The value's JSON type differs from the default's, or a function was read as a value |
+| `failed` | The function trapped or its component could not be loaded |
+| `timeout` | The function exceeded its time limit, five seconds by default |
+| `invalid-json`, `invalid-output` | The input or output was not valid JSON for the function |
+
+Reads never raise because of Statespace. Only loading an experiment fails, for an unknown experiment or an invalid key.
 
 ## Runtime limits
 
-Execution defaults to a five-second timeout. Python uses seconds for a custom
-`timeout`, TypeScript uses milliseconds, and Go uses `time.Duration`.
-Guest linear memory defaults to 256 MiB per memory. Set
-`STATESPACE_MAX_MEMORY_BYTES` to change that limit.
-
-Function failures raise or return a function error and record a
-`function_execution` outcome. A timeout reports a function timeout error.
-Validate the input and handle execution errors in the application.
-
-## Delivery
-
-The SDK batches runs and JSON outcomes in memory. Each complete serialized event
-must fit in 64 KiB. Oversized events fail before entering the queue. The backend
-accepts an event after committing its account outbox; SQS and the worker write
-the final event rows asynchronously.
-
-Close short-lived sessions and handle delivery failures.
+Functions run locally without filesystem, network, or environment access. Each call gets a fresh instance. Guest linear memory is limited to 256 MiB unless `STATESPACE_MAX_MEMORY_BYTES` sets another limit.
 
 <CodeGroup>
 ```python Python
-run.close()
+score = group.function("scorer", default_score, timeout=0.05)
 ```
 
 ```typescript TypeScript
-await run.close();
+const score = group.function('scorer', defaultScore, { timeoutMs: 50 });
 ```
 
 ```go Go
-if err := run.Close(); err != nil {
-    log.Fatal(err)
-}
+score := statespace.Function(group, "scorer", defaultScore, statespace.WithTimeout(50*time.Millisecond))
 ```
 </CodeGroup>
 
-Permanent HTTP rejections propagate through flush or close. The SDK retries
-transient failures with the same event IDs. An in-memory queue does not survive
-application process loss. The backend retains raw events for 90 days by default
-and rejects writes when the account's 10 GiB event quota is full.
+## Delivery
+
+SDKs queue runs and outcomes and send them in batches of up to 100. Transient failures are retried. Each serialized event must fit in 64 KiB. Flush before a short-lived process exits.
+
+<CodeGroup>
+```python Python
+statespace.flush()
+```
+
+```typescript TypeScript
+await flush();
+```
+
+```go Go
+err := statespace.Flush(ctx)
+```
+</CodeGroup>
