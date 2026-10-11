@@ -3,7 +3,7 @@ title: CLI
 description: Review the public ssp command surface.
 ---
 
-Every command prints one JSON document. Errors print `{"error": "..."}` on standard error and exit with status 1.
+Every command except `ssp host` prints one JSON document. Errors print `{"error": "..."}` on standard error and exit with status 1.
 Use `STATESPACE_URL` to select a local or hosted API.
 
 ## Authentication
@@ -16,12 +16,11 @@ ssp account
 ssp logout
 ```
 
-The saved session is shared with local SDKs. Use `SSP_API_KEY` for headless CLI
-and deployed SDK access. Keep creation responses out of recorded logs.
+Use `SSP_API_KEY` for CI and `ssp host`. Keep creation responses out of recorded logs.
 
 ## API keys
 
-Create a runtime key for SDK configuration reads and event writes.
+Create a runtime key for `ssp host`. It reads configurations and writes events.
 
 ```shell
 ssp key create --name production --preset runtime
@@ -29,106 +28,134 @@ ssp key list
 ssp key revoke key_123
 ```
 
-Secrets appear only in create responses. Store the returned secret in the
-application's secret system as `SSP_API_KEY`. Use the `admin` preset only for
-management tools. Add `--expires-in-days` to set an expiration.
+Secrets appear only in create responses. Use the `admin` preset only for management tools, such as CI that publishes variants. Add `--expires-in-days` to set an expiration.
 
-## Functions
+## Apps
 
-Build a function from source and run it locally in the SDK sandbox.
+Create an app. Its name is also the name of its PostgreSQL schema.
 
 ```shell
-ssp run rerank.py:score --input '[3, 1, 2]'
-ssp run bm25.ts:rank --input '[3, 1, 2]'
-ssp run ./ranker:Score --input '[3, 1, 2]'
+ssp app create atlas
+ssp app create atlas --output-retention 14
+ssp app update atlas --output-retention 30
+ssp app list
+ssp app show atlas
+ssp app hosts atlas
+ssp app erase-subject atlas u_42
+ssp app delete atlas --yes
 ```
 
-A function reference is `path:entry`. Without `:entry`, the function named after the file is used. Python, JavaScript, TypeScript, C, and C++ use a source file. Go uses a module directory and Rust a library crate. The function takes one JSON value and returns one; in C and C++ it takes and returns a NUL-terminated JSON string allocated with `malloc`. `ssp` builds every function into a WebAssembly component itself and rejects prebuilt `.wasm` files.
+An app name has 1 to 40 lowercase letters, digits, and underscores, and starts with a letter. `--output-retention` sets how many days captured output is kept. `ssp app list` shows how much traffic running experiments hold. `ssp app hosts` lists hosts that reported in the last day. Deleting an app needs every experiment stopped.
 
-## Groups
+## Variants
 
-Create a group of named parameters.
+Create a signing key pair once. Keep the private key in CI as `SSP_SIGNING_KEY`.
 
 ```shell
-ssp group create atlas-search ranker=rerank.py:score top_k=10 prompt=prompt.md
+ssp variant keygen
 ```
 
-Each `NAME=VALUE` resolves in this order: a function, a `.json` file, any other file as text, then a JSON literal. Anything else is an error. Quote string literals as JSON, such as `model='"claude-sonnet-5-5"'`.
-
-Update a group. Parameters merge, and `NAME=` removes one.
+Package, sign, and upload a ready-to-run directory as the variant's next version.
 
 ```shell
-ssp group update atlas-search top_k=20 prompt=
-ssp group list
-ssp group show atlas-search
-ssp group delete atlas-search
+ssp variant create atlas-search ./build --app atlas
+ssp variant create atlas-search ./build --app atlas --command "uvicorn atlas.server:app --port {port}"
+ssp variant create atlas-search ./build --app atlas --commit 4f2a9c1 --sign-key "$KEY"
 ```
 
-An update creates the next group version only when a value changes. Functions are compared by source, so rebuilding unchanged code is not a change. A group in a draft or a running experiment cannot be deleted.
+| Flag | Meaning |
+| --- | --- |
+| `--app` | The app, or `STATESPACE_APP` |
+| `--command` | How to start this variant, with `{port}`. Defaults to the host's command |
+| `--commit` | The commit the build came from. Defaults to the directory's Git `HEAD` |
+| `--sign-key` | The base64 private key, or `SSP_SIGNING_KEY` |
+
+The bundle leaves out the directory's `.git`. Identical files, command, and commit reuse the newest version.
+
+Read and delete variants.
+
+```shell
+ssp variant list --app atlas
+ssp variant show atlas-search --app atlas
+ssp variant logs atlas-search --app atlas --limit 200
+ssp variant delete atlas-search --app atlas --yes
+```
+
+`show` lists every version. `logs` merges lifecycle events and captured output, newest first. A variant that a draft or running experiment uses cannot be deleted.
 
 ## Experiments
 
-Create a draft that compares groups with control.
+Create a draft.
 
 ```shell
-ssp experiment create rank-v2 --group atlas-search=0.2 \
-  --assignment user_id --eligibility 'context.country == "US"' \
-  --description 'Test sorted search results.'
+ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 --traffic 0.2 \
+  --subject 'request.headers["x-user-id"]' \
+  --eligibility 'request.headers["cf-ipcountry"] == "US"' \
+  --description 'Test sorted search results.' --note 'Sorted results should get more clicks.'
 ```
 
-Change the draft. Omitted flags keep their values, and `--group` replaces the groups.
+Change the draft. `--variant` replaces the draft's variants, and `--no-eligibility` removes the rule.
 
 ```shell
-ssp experiment update rank-v2 --group atlas-search=0.5
+ssp experiment update rank-v2 --variant atlas-search=0.25 --variant atlas-search-bm25=0.25
+ssp experiment update rank-v2 --traffic 0.5 --note 'No regressions at 20%.'
 ssp experiment update rank-v2 --no-eligibility
 ```
 
-Publish the draft and run it, stop it, or restart a published version.
+Publish and run the draft, stop it, or restart a published version.
 
 ```shell
-ssp experiment start rank-v2
-ssp experiment stop rank-v2
+ssp experiment start rank-v2 --note 'First run.'
+ssp experiment stop rank-v2 --note 'Ship atlas-search.'
 ssp experiment start rank-v2 --version 1
 ```
 
-Starting pins the newest version of each group and stops the previously running version. An unchanged draft restarts the newest version.
-
-Read experiments and summarize an outcome by group.
+Read experiments and results.
 
 ```shell
-ssp experiment list
+ssp experiment list --app atlas
 ssp experiment show rank-v2
 ssp experiment results rank-v2 --outcome click
-ssp experiment results rank-v2 --outcome purchase --metric value --version 2
+ssp experiment results rank-v2 --outcome purchase --metric amount --version 2
 ```
 
-Delete an experiment and all of its runs and outcomes.
+Delete a stopped experiment with all of its versions, runs, and notes.
 
 ```shell
 ssp experiment delete rank-v2 --yes
 ```
 
-## PostgreSQL
+See [Experiment definition](/reference/experiment-definition) for every field.
 
-Create a read-only credential for your account database.
+## Host
+
+Run an app and its variants behind the proxy. See [Host](/reference/host) for every flag.
 
 ```shell
-ssp database credential create --name analyst
+ssp host --app atlas --command "gunicorn -b 127.0.0.1:{port} atlas:app" --trust-key "$SSP_PUBLIC_KEY"
+```
+
+## Database credentials
+
+Create a read-only PostgreSQL credential. Its connection URL appears only once.
+
+```shell
+ssp database credential create --name analyst --app atlas
+ssp database credential create --name notebook
 ssp database credential list
 ssp database credential revoke dbc_123
 ```
 
-The credential can read `statespace.runs`, `statespace.outcomes`, and
-`statespace.logs`. It cannot write data or connect to another account database.
+A credential with `--app` reads only that app's schema of views. Without it, a credential reads every app, including apps created later. It cannot write data or connect to another account database.
 Connect directly over TLS to your workspace hostname, such as `acme.statespace.app`. Use `sslmode=verify-full` to validate the public certificate. The CLI has no SQL query command
 and the API has no SQL query endpoint.
 
 Use a PostgreSQL 16 or newer client for the returned URL's `sslrootcert=system`. Older clients must replace that parameter with the path to a trusted public CA bundle. Keep `sslmode=verify-full`.
 
-Query the logs view with your own SQL client and protected connection settings.
+Query an app's views with your own SQL client and protected connection settings.
 
 ```shell
-psql -c 'SELECT * FROM statespace.logs LIMIT 20'
+psql -c 'SELECT * FROM atlas.logs LIMIT 20'
 ```
 
 ## Sessions
@@ -157,16 +184,15 @@ Audit reads require `audit:read`. Records include a `source` field identifying
 the control or tenant ledger. IDs support pagination across both ledgers; they
 do not define time order. Use `occurred_at` to order events by time.
 
-Events have a 64 KiB size limit, a 90-day
-retention limit, and a quota of 1 GiB on the free plan and 10 GiB on other plans. Usage warns at 80%; new events
+Events have a 64 KiB size limit and a 90-day retention limit. Captured output follows its app's shorter `--output-retention`. The quota is 1 GiB on the free plan and 10 GiB on other plans. Usage warns at 80%; new events
 are rejected when the quota is full.
 
 ## Subject erasure
 
-Erase the subject's persisted and pending evidence for one experiment.
+Erase a subject's persisted and pending runs, outcomes, and requests in one app.
 
 ```shell
-ssp experiment erase-subject rank-v2 user-42
+ssp app erase-subject atlas u_42
 ```
 
 Erased data can remain in encrypted backups until backup retention expires.

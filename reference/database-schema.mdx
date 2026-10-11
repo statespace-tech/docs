@@ -1,84 +1,96 @@
 ---
 title: PostgreSQL schema
-description: Review account database tables and the logs view.
+description: Review each app's analysis views and the account database tables behind them.
 ---
 
-Each account has one isolated PostgreSQL database. The API commits events to an account outbox. The worker writes the final event rows. Direct credentials can read only runs, outcomes, and the logs view.
-
-The account database contains these tables and the stable analysis view.
+Each account has one isolated PostgreSQL database. Each app has a schema of the same name, with views that show only that app's rows. Direct credentials can read these views and nothing else.
 
 ```text
-statespace.artifacts            uploaded components, addressed by SHA-256
-statespace.groups               immutable versions of each group's parameters
-statespace.experiments          each experiment's draft
-statespace.experiment_versions  published versions
-statespace.experiment_groups    the group versions and ranges each version pins
-statespace.ingestion_outbox
-statespace.audit_events
-statespace.runs
-statespace.outcomes
-statespace.logs
+atlas.logs        one row per run, with the outcomes that followed it
+atlas.runs        each subject's routing by a host
+atlas.outcomes    outcomes that processes printed
+atlas.requests    one row per request, with --capture http
+atlas.output      captured standard output and standard error lines
+atlas.metrics     per-minute HTTP summaries and resource use
+atlas.lifecycle   process events: started, ready, exited, stopped, failed
+atlas.notes       notes on experiment changes
 ```
 
-Component bytes stay in S3. PostgreSQL stores their object keys, SHA-256 hashes, and publisher provenance.
+The API commits events to an account outbox. The worker writes the final rows into tables in the `statespace` schema, which credentials cannot read.
 
 ## Runs
 
-Each SDK assignment creates one row in `statespace.runs`.
+A host records a run the first time it routes a subject in an experiment version, and again at most every 30 minutes.
 
 | Column | Type |
 | --- | --- |
 | `id` | `TEXT` |
 | `timestamp` | `TIMESTAMPTZ` |
-| `experiment_name` | `TEXT` |
+| `experiment` | `TEXT` |
 | `experiment_version` | `INTEGER` |
 | `subject_id` | `TEXT` |
-| `group_name` | `TEXT`, or `NULL` when the subject is not assigned |
-| `reason` | `assigned`, `ineligible`, or `eligibility-error` |
-| `context` | `JSONB` |
+| `variant` | `control` or a variant; `NULL` when ineligible |
+| `variant_version` | `INTEGER`, or `NULL` for control |
+| `reason` | `assigned`, `ineligible`, `eligibility-error`, or `variant-unavailable` |
+| `context` | `JSONB`: the request's `method` and `path` |
+| `host` | `TEXT` |
+
+A `variant-unavailable` run names the variant the subject was assigned. Control served it.
 
 ## Outcomes
 
-Each logged outcome creates one row in `statespace.outcomes`. Outcomes belong to a subject in an experiment, so any process can log them.
+Each outcome line a process printed becomes one row. Outcomes belong to a subject in an app, so any process can report them.
 
 | Column | Type |
 | --- | --- |
 | `id` | `TEXT` |
 | `timestamp` | `TIMESTAMPTZ` |
-| `experiment_name` | `TEXT` |
 | `subject_id` | `TEXT` |
 | `name` | `TEXT` |
-| `data` | `JSONB` |
-
-The SDKs record a `statespace.error` outcome when a parameter falls back to the application's default.
+| `data` | `JSONB`: every field of the line except `statespace` and `subject` |
+| `variant`, `variant_version` | The process that printed it |
+| `host` | `TEXT` |
 
 ## Logs view
 
-`statespace.logs` has one row for each run and outcome it led to. Each outcome joins the latest run of the same subject that started at or before it. Runs without outcomes have `NULL` outcome columns.
+`logs` has one row for each run and outcome it led to. Each outcome joins the latest run of the same subject in the app that started at or before it. Runs without outcomes have `NULL` outcome columns.
 
 | Column | Source |
 | --- | --- |
-| `run_id`, `run_timestamp`, `experiment_name`, `experiment_version`, `subject_id`, `group_name`, `reason`, `context` | The run |
-| `group_version`, `parameters` | The group version the run's experiment version pinned |
+| `run_id`, `run_timestamp`, `experiment`, `experiment_version`, `subject_id`, `variant`, `variant_version`, `reason`, `context` | The run |
 | `outcome_id`, `outcome_timestamp`, `outcome_name`, `data` | The outcome |
 
-Compare groups with a SQL client.
+Compare variants with a SQL client.
 
 ```sql
 SELECT
   experiment_version,
-  group_name,
+  variant,
   count(DISTINCT subject_id) AS subjects,
   avg((data->>'position')::double precision) AS mean_position
-FROM statespace.logs
-WHERE experiment_name = 'rank-v2'
+FROM atlas.logs
+WHERE experiment = 'rank-v2'
   AND reason = 'assigned'
   AND outcome_name = 'click'
-GROUP BY experiment_version, group_name;
+GROUP BY experiment_version, variant;
 ```
+
+## Host measurements
+
+`requests` has one row per proxied request when a host runs with `--capture http`: `subject_id`, `experiment`, `experiment_version`, `variant`, `variant_version`, `method`, `path`, `status`, `duration_ms`, `first_byte_ms`, `request_bytes`, and `response_bytes`. `duration_ms` runs to the response's last byte.
+
+`output` has captured lines: `variant`, `variant_version`, `stream`, `line`, and `host`. It is kept for the app's output retention.
+
+`metrics` has one row per process and minute. `kind = 'http'` rows hold `requests`, `errors`, `statuses`, `p50_ms`, `p90_ms`, `p99_ms`, and `max_ms`. `kind = 'resources'` rows hold `cpu_percent`, `memory_bytes`, and `processes`.
+
+`lifecycle` has process events with their `data`, such as an exit's `code` and `signal`.
+
+## Notes
+
+`notes` has one row for each `--note`: `timestamp`, `experiment`, `experiment_version`, `action`, `note`, `actor`, and `variants`, the variant versions and commits that the experiment version pinned.
 
 Create a revocable connection URL for a SQL client.
 
 ```shell
-ssp database credential create --name analyst
+ssp database credential create --name analyst --app atlas
 ```

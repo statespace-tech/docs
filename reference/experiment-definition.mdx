@@ -1,75 +1,103 @@
 ---
-title: Groups and experiments
-description: Define groups of parameters and experiments with CLI flags.
+title: Apps, variants, and experiments
+description: Define apps, variants, and experiments with CLI flags.
 ---
 
-The CLI defines groups and experiments with arguments. There is no YAML file. SDKs consume running configurations and never modify them.
+The CLI defines apps, variants, and experiments with arguments. There is no YAML file. `ssp host` consumes running configurations and never modifies them.
 
-## Groups
+## Apps
 
-A group is a named set of parameters.
+An app is one codebase and deployment. Its variants, experiments, and analysis views belong to it.
 
 ```shell
-ssp group create atlas-search ranker=rerank.py:score top_k=10 prompt=prompts/concise.md
+ssp app create atlas
 ```
 
-Each parameter is a function or a JSON value. Each `NAME=VALUE` resolves in this order.
-
-| Value | Result |
+| Field | Meaning |
 | --- | --- |
-| `file.py:entry`, `file.js:entry`, `file.ts:entry`, `file.c:entry`, `file.cpp:entry` | A function built from a source file |
-| `./module:Entry`, `./crate:entry` | A function built from a Go module or a Rust crate |
-| `file.json` | The file's JSON value |
-| Any other file | The file's text |
-| `20`, `true`, `'"text"'`, `'{"t": 0.2}'` | A JSON literal |
+| `name` | 1 to 40 lowercase letters, digits, and underscores, starting with a letter. Also the name of the app's PostgreSQL schema |
+| `output_retention_days` | Days captured output is kept, 1 to 365. Defaults to 7 |
 
-Anything else is an error, so a mistyped file name never becomes a string. Groups are versioned. A new version is created only when a value or a function's source changes.
+## Variants
+
+A variant is a signed, ready-to-run build of an app. Each `ssp variant create` with different files, command, or commit creates the next version.
+
+```shell
+ssp variant create atlas-search ./build --app atlas --command "uvicorn atlas.server:app --port {port}"
+```
+
+| Field | Meaning |
+| --- | --- |
+| `name` | 1 to 100 letters, numbers, dots, dashes, or underscores. `control` is reserved |
+| `sha256` | The bundle's SHA-256: a gzipped tar of the directory, without its `.git`. At most 2 GiB |
+| `command` | How to start the variant, with `{port}`. Without it, the host's `--command` is used |
+| `commit` | The commit the build came from |
+| `signature`, `public_key` | The Ed25519 signature and the key that made it |
+
+The signature covers this message, with an empty line for a missing command or commit.
+
+```text
+statespace-variant-v1
+<app>
+<name>
+<sha256>
+<command>
+<commit>
+```
 
 ## Experiments
 
-An experiment assigns eligible subjects to groups by weight. Control receives the remaining weight and the application's defaults.
+An experiment splits its subjects between control and its variants.
 
 ```shell
-ssp experiment create rank-v2 --group atlas-search=0.2 --group atlas-search-bm25=0.2 \
-  --assignment user_id --eligibility 'context.country == "US"' \
-  --description 'Test sorted search results.'
+ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 --variant atlas-search-bm25=0.25 \
+  --traffic 0.2 --subject 'request.headers["x-user-id"]' \
+  --eligibility 'request.headers["cf-ipcountry"] == "US"' \
+  --description 'Test sorted search results.' --note 'Sorted results should get more clicks.'
 ```
 
 | Flag | Meaning |
 | --- | --- |
-| `--group NAME=WEIGHT` | A group and its share of eligible subjects, greater than 0. Weights total at most 1 |
-| `--eligibility` | A CEL expression over the SDK `context` |
-| `--assignment` | A label for the subject identifier, `subject_id` by default |
+| `--app` | The app the experiment belongs to. It cannot change |
+| `--variant NAME=WEIGHT` | A variant and its share of the experiment's subjects, greater than 0. Weights total at most 1; control receives the rest |
+| `--traffic` | The share of the app's subjects the experiment holds while it runs, greater than 0 and at most 1. Defaults to 1 |
+| `--subject` | A CEL expression over `request` that yields the subject ID. Defaults to `request.cookies.ssp_sid`. Cannot change after the first start |
+| `--eligibility` | A CEL expression over `request` that decides who may enter |
 | `--description` | Up to 500 bytes |
+| `--note` | A note kept with this change, up to 10,000 bytes. Also on `update`, `start`, and `stop` |
 
-Every parameter must have one type across the groups of an experiment. A function in one group and a number in another is rejected.
+Experiment names are unique within an account.
 
-## Randomization unit and eligibility
+## Request rules
 
-`--assignment` labels the subject identifier. It does not extract a value from context. The application passes the subject ID to `assign`.
+`--subject` and `--eligibility` read the request as `request`.
 
-```python
-group = experiment.assign("u_42", context={"country": "US"})
-```
+| Field | Value |
+| --- | --- |
+| `request.method` | `"GET"` |
+| `request.path` | `"/search"` |
+| `request.query` | `{"q": "maps"}` |
+| `request.headers` | Lowercase names, such as `request.headers["user-agent"]` |
+| `request.cookies` | `{"ssp_sid": "sid_…"}` |
 
-The backend validates CEL when the draft changes. The SDK evaluates the rule with the supplied context. Ineligible subjects receive the defaults and are recorded with `reason = 'ineligible'`.
+A missing header, cookie, or query parameter is `null`. A subject rule must yield a string or an integer of 1 to 128 characters; otherwise the request gets control. The backend validates both rules when the draft changes.
 
 ## Drafts and versions
 
 `create` and `update` change an experiment's draft. The running version does not change.
 
 ```shell
-ssp experiment update rank-v2 --group atlas-search=0.5
+ssp experiment update rank-v2 --variant atlas-search=0.5
 ```
 
-`start` publishes the draft as the next immutable version. It pins the newest version of each group and stops the previously running version. An unchanged draft restarts the newest version.
+`start` publishes the draft as the next immutable version. It pins the newest version of each variant, takes a slice of the app's traffic, and stops the previously running version. An unchanged draft restarts the newest version.
 
 ```shell
 ssp experiment start rank-v2
 ssp experiment show rank-v2
 ```
 
-Subjects keep their group across versions wherever its weight still covers their bucket. Restart an earlier version to roll back.
+`start` fails when the app's free traffic is smaller than `--traffic`, or when the app's hosts cannot run the variants that running experiments would need. Subjects keep their variant across versions wherever its weight still covers their bucket. Restart an earlier version to roll back.
 
 ```shell
 ssp experiment start rank-v2 --version 1
