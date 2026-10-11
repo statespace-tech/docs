@@ -1,9 +1,9 @@
 ---
 title: Quickstart
-description: Test a new ranking function on live traffic and read the result.
+description: Test a new search ranking on live traffic and read the result.
 ---
 
-This example tests a new search ranker against the application's current one. The group is named `atlas-search`. The experiment is `rank-v2`.
+This example tests a branch of the search app `atlas` that ranks results differently. The variant is `atlas-search`. The experiment is `rank-v2`.
 
 <Steps>
   <Step title="Install the CLI and sign in">
@@ -15,76 +15,66 @@ This example tests a new search ranker against the application's current one. Th
     ```
   </Step>
 
-  <Step title="Write the candidate">
-    Save the candidate function as `rerank.py`. It takes and returns JSON values.
-
-    ```python
-    def score(items: list[int]) -> list[int]:
-        return sorted(items, reverse=True)
-    ```
-
-    Run it locally in the same sandbox the SDKs use.
+  <Step title="Create the app and a signing key">
+    Create the app, then create a key pair for signing variants.
 
     ```shell
-    ssp run rerank.py:score --input '[3, 1, 2]'
+    ssp app create atlas
+    ssp variant keygen
     ```
+
+    Store the private key as `SSP_SIGNING_KEY` in CI. Hosts trust the public key.
   </Step>
 
-  <Step title="Create a group">
-    Put the function in a group, with any value you want to test together with it.
+  <Step title="Report an outcome">
+    Print one JSON line wherever something happens that you want to measure. The subject is the `x-statespace-subject` request header.
 
-    ```shell
-    ssp group create atlas-search ranker=rerank.py:score top_k=10
+    ```python
+    subject = request.headers["x-statespace-subject"]
+    print(json.dumps({"statespace": "click", "subject": subject, "position": 1}))
     ```
 
-    The CLI builds the function into a WebAssembly component and uploads it.
+    Deploy this change to production as usual. It is the same in control and every variant.
+  </Step>
+
+  <Step title="Publish the variant">
+    Build the branch the way you build production, then package, sign, and upload it.
+
+    ```shell
+    git checkout new-ranking && uv sync --frozen
+    ssp variant create atlas-search . --app atlas
+    ```
   </Step>
 
   <Step title="Create and start the experiment">
-    Send 20% of eligible US users to the group, and start the experiment.
+    Give the variant half of the subjects, and start the experiment.
 
     ```shell
-    ssp experiment create rank-v2 --group atlas-search=0.2 --eligibility 'context.country == "US"'
+    ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 \
+      --subject 'request.headers["x-user-id"]' --note 'Sorted results should get more clicks.'
     ssp experiment start rank-v2
     ```
 
-    The other 80% are control and receive the application's current code.
+    The other half are control and get the code you deployed.
   </Step>
 
-  <Step title="Create an application key">
-    Create a runtime key and store its secret as `SSP_API_KEY` where the application runs.
+  <Step title="Run the host">
+    Create a runtime key and store it as `SSP_API_KEY` where the app runs.
 
     ```shell
     ssp key create --name production --preset runtime
     ```
 
-    Locally, the SDKs use your `ssp login` session instead.
-  </Step>
-
-  <Step title="Read the group in the application">
-    Install the Python SDK.
+    Replace the app's start command with `ssp host`. It runs your app, downloads and verifies the variant, and routes each user.
 
     ```shell
-    pip install statespace-sdk
+    ssp host --app atlas --command "gunicorn -b 127.0.0.1:{port} atlas:app" \
+      --trust-key "$SSP_PUBLIC_KEY"
     ```
-
-    Assign each subject, read the group's parameters with your current code as the default, and log outcomes.
-
-    ```python
-    import statespace
-
-    experiment = statespace.experiment("rank-v2")
-    group = experiment.assign("u_42", context={"country": "US"})
-    rank = group.function("ranker", current_rerank)
-    results = rank(items)[: group.value("top_k", 20)]
-    experiment.log("u_42", "click", {"position": 1})
-    ```
-
-    The function runs locally. If it fails, the SDK uses your function and records the failure.
   </Step>
 
   <Step title="Read the results">
-    Compare the share of subjects who clicked in each group.
+    Compare the share of subjects who clicked in each variant.
 
     ```shell
     ssp experiment results rank-v2 --outcome click
@@ -93,8 +83,8 @@ This example tests a new search ranker against the application's current one. Th
     Create a read-only credential to analyze every run and outcome with SQL.
 
     ```shell
-    ssp database credential create --name analyst
-    psql "$DATABASE_URL" -c "SELECT group_name, outcome_name, data FROM statespace.logs WHERE experiment_name = 'rank-v2'"
+    ssp database credential create --name analyst --app atlas
+    psql "$DATABASE_URL" -c "SELECT variant, outcome_name, data FROM atlas.logs WHERE experiment = 'rank-v2'"
     ```
   </Step>
 </Steps>

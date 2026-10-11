@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install the CLI and a runtime SDK.
+description: Install the CLI and create the keys a deployment needs.
 ---
 
 ## CLI
@@ -11,39 +11,37 @@ Install the CLI on macOS or Linux. The installer downloads a prebuilt binary and
 curl -fsSL https://statespace.com/install | bash
 ```
 
-Building functions from source downloads each language's pinned tools on first use. Go, Rust, and JavaScript builds also need the Go toolchain, Rust with `rustup`, or Node.js.
-
 Confirm the installation.
 
 ```shell
 ssp --version
 ```
 
-## SDKs
+The same binary runs `ssp host` on your servers. Install it in the image or machine that runs your app.
 
-Install the SDK for the application language.
+## Keys
 
-<CodeGroup>
-```shell Python
-pip install statespace-sdk
-```
+Each place that uses Statespace needs its own key.
 
-```shell TypeScript
-npm install @statespace-tech/sdk
-```
+| Where | Key | Purpose |
+| --- | --- | --- |
+| Your terminal | `ssp login` | Manage apps, variants, and experiments |
+| CI | `ssp key create --preset admin` and `SSP_SIGNING_KEY` | Publish signed variants |
+| Your servers | `ssp key create --preset runtime` | Run `ssp host` |
 
-```shell Go
-go get github.com/statespace-tech/go-sdk
-```
-</CodeGroup>
-
-Create a runtime API key with the CLI, then store the returned secret as `SSP_API_KEY` in a secret manager.
+Create a runtime key for `ssp host`, then store the returned secret as `SSP_API_KEY` in a secret manager.
 
 ```shell
 ssp key create --name production --preset runtime
 ```
 
-Set `STATESPACE_URL` when the CLI or application uses a local API or a hosted domain other than its default.
+Create a signing key pair once. Keep the private key in CI. Give the public key to `ssp host --trust-key`.
+
+```shell
+ssp variant keygen
+```
+
+Set `STATESPACE_URL` when the CLI or host uses a local API or a hosted domain other than its default.
 
 ```shell
 export STATESPACE_URL=http://127.0.0.1:8080

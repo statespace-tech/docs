@@ -1,22 +1,22 @@
 ---
 title: Statespace
-description: Run controlled A/B tests and analyze their JSON results with SQL.
+description: A/B test whole versions of your app on live traffic, and analyze the results with SQL.
 ---
 
-Statespace runs A/B tests on the functions and values of live software. Groups hold candidate functions, prompts, and settings. Experiments send a share of real traffic to each group, and SDKs record what happened.
+Statespace A/B tests whole versions of an app in production. A variant is a signed build of your app, usually a branch. `ssp host` runs it beside the version you deployed, sends a share of real subjects to it, and records what they do.
 
 ```text
-ssp group → ssp experiment → SDK assignment → JSON outcomes → results and SQL
+ssp variant create → ssp experiment start → ssp host routes subjects → outcomes → results and SQL
 ```
 
 ## Start here
 
 <CardGroup cols={2}>
   <Card title="Complete the quickstart" icon="rocket" href="/quickstart">
-    Create, start, run, and query one experiment.
+    Publish a variant, run an experiment, and read the result.
   </Card>
   <Card title="Install the tools" icon="download" href="/getting-started/installation">
-    Install the CLI and one runtime SDK.
+    Install the CLI and create the keys you need.
   </Card>
   <Card title="Review the workflow" icon="route" href="/workflow/define-the-experiment">
     Follow an experiment from definition to analysis.
@@ -32,14 +32,12 @@ Each interface has one responsibility.
 
 | Interface | Responsibility |
 | --- | --- |
-| `ssp` CLI | Defines groups, builds functions, runs experiments, and reads results. |
-| SDK | Caches configurations, assigns subjects, reads parameters, and records outcomes. |
-| PostgreSQL | Stores one isolated account database and exposes `statespace.logs`. |
+| `ssp` CLI | Defines apps, publishes variants, runs experiments, and reads results. |
+| `ssp host` | Runs your app and its variants, assigns each request's subject, and records events. |
+| PostgreSQL | Stores one isolated account database, with one schema of views per app. |
 
-The Python, TypeScript, and Go SDKs use the same stable assignment algorithm.
+Your app needs no SDK. It reports outcomes by printing a JSON line.
 
-```text
-Python:     statespace-sdk
-TypeScript: @statespace-tech/sdk
-Go:         github.com/statespace-tech/go-sdk
+```python
+print(json.dumps({"statespace": "click", "subject": subject, "position": 1}))
 ```
