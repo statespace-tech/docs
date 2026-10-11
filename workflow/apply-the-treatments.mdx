@@ -1,49 +1,72 @@
 ---
 title: Apply the treatments
-description: Assign subjects, read their group's parameters, and record outcomes.
+description: Run the app and its variants behind ssp host, and record outcomes.
 ---
 
-Start the draft only after the application handles the group's parameters and its defaults.
+Start the draft once the outcome is deployed and the variant is published.
 
 ```shell
-ssp experiment start rank-v2
+ssp experiment start rank-v2 --note 'First run at 20% of US traffic.'
 ```
 
-Starting publishes the draft as version 1 and pins the newest version of each group.
+Starting publishes the draft as version 1, pins the newest version of each variant, and takes a slice of the app's traffic.
 
-## Assign subjects
+## Run the host
 
-Pass a stable subject ID and the pre-treatment context the eligibility rule reads.
+Replace the app's start command with `ssp host`. Give it a runtime key as `SSP_API_KEY` and the public signing key.
 
-```python
-import statespace
-
-experiment = statespace.experiment("rank-v2")
-group = experiment.assign("u_42", context={"country": "US", "plan": "pro"})
-rank = group.function("ranker", rerank)
-result = rank([3, 1, 2])[: group.value("top_k", 20)]
+```shell
+ssp host --app atlas --command "gunicorn -b 127.0.0.1:{port} atlas:app" \
+  --health /health --trust-key "$SSP_PUBLIC_KEY"
 ```
 
-The SDK runs the group's function locally. Control and ineligible subjects receive the defaults. A failing function falls back to the default and records a `statespace.error` outcome.
+The host runs control from its working directory. It downloads each running variant, checks its signature, unpacks it, and runs it with the same command on its own port. A process gets traffic once `--health` answers 200.
+
+## Keep variants apart from shared state
+
+Variants share the database, cache, and queues with control. Give variants their own environment with `--variant-env`.
+
+```shell
+ssp host --app atlas --command "gunicorn -b 127.0.0.1:{port} atlas:app" --trust-key "$SSP_PUBLIC_KEY" \
+  --variant-env DATABASE_URL="$VARIANT_DATABASE_URL" \
+  --variant-env SCHEDULER_ENABLED=false \
+  --variant-env CACHE_PREFIX=variant
+```
+
+Use a database user without schema permissions for variants. Land migrations in the deployed code first.
 
 ## Record outcomes
 
-Use the same subject ID for each JSON outcome, from this process or any other.
+Every process can print outcomes. The host reads them from standard output, adds the variant, and sends them.
 
 ```python
-experiment.log("u_42", "relevance", {"score": 0.7})
-experiment.log("u_42", "click", {"position": 3})
+print(json.dumps({"statespace": "click", "subject": subject, "position": 3}))
 ```
 
-Each serialized event must fit in 64 KiB. The backend commits accepted events to an account outbox. SQS and the worker persist them asynchronously.
+The host passes every line through to its own output, so existing log collection keeps working. Outcome lines need no `--capture`.
+
+## Check the variants
+
+Check that each host runs the variant before you wait for outcomes.
+
+```shell
+ssp app hosts atlas
+ssp variant logs atlas-search --app atlas
+```
+
+Hosts send lifecycle events, CPU and memory, and per-minute HTTP summaries for every process. Send standard output, standard error, or one row per request too with `--capture`. `--redact` removes matches before lines leave the machine.
+
+```shell
+ssp host ... --capture stderr --capture http --redact 'sk_live_\w+'
+```
 
 ## Publish a change
 
-Change the group, then start the experiment again.
+Publish a new version of the variant, then start the experiment again.
 
 ```shell
-ssp group update atlas-search ranker=rerank.py:score top_k=20
-ssp experiment start rank-v2
+ssp variant create atlas-search . --app atlas
+ssp experiment start rank-v2 --note 'Fix the empty-query crash.'
 ```
 
-A group update does not change the running version until the experiment starts again. Starting version 2 stops assignments to version 1. Existing evidence keeps its original version.
+A new variant version does not change the running version until the experiment starts again. Starting version 2 stops assignments to version 1. Existing evidence keeps its original version.

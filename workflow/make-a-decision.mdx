@@ -15,8 +15,8 @@ Start with the estimand and primary outcome defined before the experiment. Repor
 
 | Result | Example |
 | --- | ---: |
-| Control mean relevance | 0.710 |
-| Treatment mean relevance | 0.728 |
+| Control click rate | 0.710 |
+| Treatment click rate | 0.728 |
 | Absolute effect | +0.018 |
 | Relative effect | +2.5% |
 | 95% confidence interval | +0.006 to +0.030 |
@@ -60,30 +60,23 @@ Choose one action that follows from the evidence.
 
 ## Record the decision
 
-Record the inputs that another person or agent needs to reproduce the decision.
+Record the decision where the next person or agent will look: as a note when you stop the experiment.
 
-```json
-{
-  "experiment": "rank-v2",
-  "decision": "ship",
-  "primary_outcome": "relevance",
-  "effect": 0.018,
-  "reason": "Treatment improved relevance without crossing a guardrail.",
-  "decided_at": "2026-08-27"
-}
+```shell
+ssp experiment stop rank-v2 --note 'Ship: +1.8 points of click rate (+0.6 to +3.0), no latency change.'
 ```
 
-Keep the analysis query, result snapshot, decision owner, and known limitations with this record.
+Notes are kept with the experiment version and each variant's version and commit.
 
-## Stop the experiment
-
-Stop new assignments after the planned attribution window ends.
-
-```bash
-ssp experiment stop rank-v2
+```sql
+SELECT timestamp, action, note, variants FROM atlas.notes WHERE experiment = 'rank-v2';
 ```
 
-Stopping keeps the definition and evidence queryable. Restart it only when the original design remains valid.
+Stopping sends every subject back to control. It keeps the definition and evidence queryable. Restart it only when the original design remains valid.
+
+## Ship the winner
+
+Statespace does not deploy control. Merge the variant's branch and deploy it as usual. The variant's commit is in its notes and results.
 
 ## Define the follow-up
 

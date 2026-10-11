@@ -1,15 +1,14 @@
 ---
 title: Analyze the outcomes
-description: Query runs and JSON outcomes in PostgreSQL.
+description: Query runs, outcomes, and host measurements in PostgreSQL.
 ---
 
-Start with allocation and delivery checks. Then estimate the outcome for each group within one experiment version.
+Start with allocation and delivery checks. Then estimate the outcome for each variant within one experiment version.
 
-Analysis runs against your own PostgreSQL database. Create a read-only credential once and
-point any SQL client at it.
+Analysis runs against your own PostgreSQL database. Create a read-only credential for the app once and point any SQL client at it.
 
 ```shell
-ssp database credential create --name analyst
+ssp database credential create --name analyst --app atlas
 ```
 
 ## Check assignment counts
@@ -18,45 +17,55 @@ Count runs by assignment reason.
 
 ```sql
 SELECT reason, count(*)
-FROM statespace.runs
-WHERE experiment_name = 'rank-v2'
+FROM atlas.runs
+WHERE experiment = 'rank-v2'
 GROUP BY reason;
 ```
 
-## Compare groups
+## Check the variants' health
+
+Compare errors and latency across processes before you trust outcomes.
+
+```sql
+SELECT variant,
+       sum((data->>'requests')::int) AS requests,
+       sum((data->>'errors')::int) AS errors,
+       max((data->>'p90_ms')::double precision) AS worst_p90_ms
+FROM atlas.metrics
+WHERE kind = 'http' AND timestamp > now() - interval '1 day'
+GROUP BY variant;
+```
+
+## Compare variants
 
 Extract numeric values from the JSONB `data` column.
 
 ```sql
 SELECT
-  group_name,
+  variant,
   count(*) AS observations,
-  avg((data->>'score')::double precision) AS mean_relevance,
-  stddev_samp((data->>'score')::double precision) AS sd_relevance
-FROM statespace.logs
-WHERE experiment_name = 'rank-v2'
+  avg((data->>'position')::double precision) AS mean_position,
+  stddev_samp((data->>'position')::double precision) AS sd_position
+FROM atlas.logs
+WHERE experiment = 'rank-v2'
   AND experiment_version = 1
   AND reason = 'assigned'
-  AND outcome_name = 'relevance'
-GROUP BY group_name;
+  AND outcome_name = 'click'
+GROUP BY variant;
 ```
 
-For JSON output, use `psql` directly.
+Or summarize one outcome with the CLI.
 
 ```shell
-psql "$STATESPACE_DATABASE_URL" -At -c \
-  "SELECT json_agg(t) FROM (
-     SELECT group_name, count(*) FROM statespace.logs
-     WHERE experiment_name = 'rank-v2' GROUP BY group_name
-   ) AS t"
+ssp experiment results rank-v2 --outcome click --metric position
 ```
 
 ## Connect another tool
 
-Create a read-only PostgreSQL credential for a BI tool, notebook, or coding agent.
+Create a read-only PostgreSQL credential for a BI tool, notebook, or coding agent. Omit `--app` to read every app.
 
 ```shell
-ssp database credential create --name analyst
+ssp database credential create --name notebook
 ```
 
 Revoke the credential when the integration no longer needs access.

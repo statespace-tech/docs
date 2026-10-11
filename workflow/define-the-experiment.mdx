@@ -1,50 +1,67 @@
 ---
 title: Define the experiment
-description: Choose a subject key, eligibility rule, and the groups to compare.
+description: Build the variant, then choose its subjects, eligibility, and share of traffic.
 ---
 
-Start with one decision. Choose the randomization unit, eligible population, groups, and outcome before you start.
+Start with one decision. Choose the randomization unit, eligible population, variants, and outcome before you start.
 
 ## Choose the randomization unit
 
-Use a stable identifier at the level where treatment can vary independently. Use `user_id` for individual users or `account_id` when users in one account can affect each other. The assignment label does not extract a context field. The application supplies its value to the SDK.
+Use a stable identifier at the level where treatment can vary independently. Read it from the request with a CEL subject rule, such as `request.headers["x-user-id"]` for users or `request.headers["x-account-id"]` for accounts. Without a rule, each browser is a subject.
 
-## Write the candidate
+## Report the outcome
 
-Save the candidate ranking function as `rerank.py`.
+Print the outcome wherever it happens. Deploy this to production first, so control and every variant report it the same way.
 
 ```python
-def score(items: list[int]) -> list[int]:
-    return sorted(items)
+subject = request.headers["x-statespace-subject"]
+print(json.dumps({"statespace": "click", "subject": subject, "position": position}))
 ```
 
-Run it locally in the sandbox the SDKs use.
+## Build the variant
+
+Make one change on a branch. Build it the way you build production, with its dependencies installed, on the same operating system and CPU.
 
 ```shell
-ssp run rerank.py:score --input '[3, 1, 2]'
+git checkout new-ranking
+uv sync --frozen
 ```
 
-## Create the group
-
-Put the function and any values it is tested with in a group.
+Try it against the deployed code before you publish it. `--local` runs directories unsigned and chooses a variant per request with a header.
 
 ```shell
-ssp group create atlas-search ranker=rerank.py:score top_k=10
+ssp host --local --command "gunicorn -b 127.0.0.1:{port} atlas:app" --variant atlas-search=../new-ranking
+curl -H 'x-statespace-variant: atlas-search' localhost:8080/search?q=maps
 ```
 
-The CLI builds the function into a WebAssembly component and uploads it. S3 stores the bytes, addressed by their SHA-256 hash. The group records the source path and source hash.
+## Publish the variant
+
+Package, sign, and upload the build. In CI, the signing key comes from `SSP_SIGNING_KEY`.
+
+```shell
+ssp variant create atlas-search . --app atlas
+```
+
+The CLI uploads a gzipped tar of the directory through a short-lived S3 URL. S3 stores the bytes, addressed by their SHA-256 hash. The variant records the hash, the start command, the Git commit, and the signature.
+
+A variant starts with the host's `--command` unless it brings its own. The signature covers the command.
+
+```shell
+ssp variant create atlas-search . --app atlas --command "uvicorn atlas.server:app --port {port}"
+```
 
 ## Create the draft
 
-Use a CEL rule with pre-treatment context and allocate 20% of eligible users to the group.
+Give half of the experiment's subjects to the variant, and hold 20% of the app's traffic. State the hypothesis in a note.
 
 ```shell
-ssp experiment create rank-v2 --assignment user_id --group atlas-search=0.2 \
-  --description 'Test sorted search results.' \
-  --eligibility 'context.country == "US" && context.plan == "pro"'
+ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 --traffic 0.2 \
+  --subject 'request.headers["x-user-id"]' \
+  --eligibility 'request.headers["cf-ipcountry"] == "US"' \
+  --note 'Sorted results should get more clicks.'
 ```
 
-The remaining 80% receives the application's defaults as control. The backend validates CEL and parameter types before it saves the draft.
+The other half receives control. The backend validates both CEL rules and checks that each variant exists before it saves the draft.
 
 Review the draft before starting it.
 
@@ -52,4 +69,4 @@ Review the draft before starting it.
 ssp experiment show rank-v2
 ```
 
-`ssp experiment update` changes the draft. Omitted flags keep their values, and `--group` replaces the draft's groups.
+`ssp experiment update` changes the draft. Omitted flags keep their values, and `--variant` replaces the draft's variants.
