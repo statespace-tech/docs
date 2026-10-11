@@ -1,6 +1,6 @@
 ---
 title: Analysis walkthrough
-description: Check delivery and compare one JSON outcome.
+description: Check delivery and health, then compare one JSON outcome.
 ---
 
 Analyze one immutable version at a time.
@@ -11,26 +11,47 @@ Count runs by assignment reason.
 
 ```sql
 SELECT reason, count(*)
-FROM statespace.runs
-WHERE experiment_name = 'rank-v2'
+FROM atlas.runs
+WHERE experiment = 'rank-v2'
   AND experiment_version = 1
 GROUP BY reason;
 ```
 
+A large share of `variant-unavailable` means the variant often could not serve its subjects. Read its lifecycle events before you go on.
+
+```shell
+ssp variant logs atlas-search --app atlas
+```
+
 ## Check allocation
 
-Compare observed group shares with configured weights.
+Compare observed variant shares with configured weights.
 
 ```sql
 SELECT
-  group_name,
+  variant,
   count(*) AS runs,
   count(*)::double precision / sum(count(*)) OVER () AS observed_share
-FROM statespace.runs
-WHERE experiment_name = 'rank-v2'
+FROM atlas.runs
+WHERE experiment = 'rank-v2'
   AND experiment_version = 1
   AND reason = 'assigned'
-GROUP BY group_name;
+GROUP BY variant;
+```
+
+## Check health
+
+Compare error rates and latency of each process.
+
+```sql
+SELECT
+  variant,
+  sum((data->>'errors')::int)::double precision
+    / nullif(sum((data->>'requests')::int), 0) AS error_rate,
+  avg((data->>'p90_ms')::double precision) AS mean_p90_ms
+FROM atlas.metrics
+WHERE kind = 'http'
+GROUP BY variant;
 ```
 
 ## Compare the outcome
@@ -39,26 +60,21 @@ Read the planned field from each JSON outcome.
 
 ```sql
 SELECT
-  group_name,
+  variant,
   count(*) AS observations,
-  avg((data->>'score')::double precision) AS mean_relevance,
-  stddev_samp((data->>'score')::double precision) AS sd_relevance
-FROM statespace.logs
-WHERE experiment_name = 'rank-v2'
+  avg((data->>'position')::double precision) AS mean_position,
+  stddev_samp((data->>'position')::double precision) AS sd_position
+FROM atlas.logs
+WHERE experiment = 'rank-v2'
   AND experiment_version = 1
-  AND outcome_name = 'relevance'
-GROUP BY group_name;
+  AND outcome_name = 'click'
+GROUP BY variant;
 ```
 
-## Preserve the decision
+## Record the decision
 
-Keep the experiment version, query, result, and decision together in the system that tracks production changes.
+Stop the experiment with a note that states the decision and its evidence.
 
-```json
-{
-  "experiment": "rank-v2",
-  "version": 1,
-  "decision": "keep-control",
-  "reason": "Treatment did not improve the primary relevance outcome."
-}
+```shell
+ssp experiment stop rank-v2 --note 'Keep control: no change in click position, p90 latency +40 ms.'
 ```

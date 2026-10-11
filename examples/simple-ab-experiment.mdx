@@ -1,47 +1,48 @@
 ---
 title: Simple A/B experiment
-description: Compare one group with implicit control.
+description: Compare one variant with control.
 ---
 
-This example assigns 20% of eligible US users to the group `atlas-search`. Its ranker sorts results. Control preserves the input order.
+This example gives half of the eligible US users of `atlas` the variant `atlas-search`. Its search ranks results differently. Control keeps the deployed ranking.
 
-Create the group and the experiment, then start it.
+Publish the variant from a build of its branch.
 
 ```shell
-ssp group create atlas-search ranker=rerank.py:score
-ssp experiment create rank-v2 --assignment user_id --group atlas-search=0.2 \
-  --description 'Test sorted search results.' --eligibility 'context.country == "US"'
+ssp variant create atlas-search . --app atlas
+```
+
+Create the experiment and start it.
+
+```shell
+ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 \
+  --subject 'request.headers["x-user-id"]' \
+  --eligibility 'request.headers["cf-ipcountry"] == "US"' \
+  --note 'Sorted results should get more clicks.'
 ssp experiment start rank-v2
 ```
 
-See [Define the experiment](/workflow/define-the-experiment) for the `rerank.py` source. The function runs in the SDK's local sandbox.
-
-Read the ranker and record the same outcome for every group.
+Print the same outcome in control and the variant.
 
 ```python
-import statespace
-
-experiment = statespace.experiment("rank-v2")
-group = experiment.assign("u_42", context={"country": "US"})
-result = group.function("ranker", lambda items: items)([3, 1, 2])
-experiment.log("u_42", "relevance", {"score": 0.7})
+subject = request.headers["x-statespace-subject"]
+print(json.dumps({"statespace": "click", "subject": subject, "position": 1}))
 ```
 
-Compare the groups.
+Compare the variants.
 
 ```shell
-ssp experiment results rank-v2 --outcome relevance --metric score
+ssp experiment results rank-v2 --outcome click --metric position
 ```
 
 Or compare them in SQL within version 1.
 
 ```sql
-SELECT group_name, count(DISTINCT subject_id) AS subjects,
-       avg((data->>'score')::double precision) AS mean_relevance
-FROM statespace.logs
-WHERE experiment_name = 'rank-v2' AND experiment_version = 1
-  AND reason = 'assigned' AND outcome_name = 'relevance'
-GROUP BY group_name;
+SELECT variant, count(DISTINCT subject_id) AS subjects,
+       avg((data->>'position')::double precision) AS mean_position
+FROM atlas.logs
+WHERE experiment = 'rank-v2' AND experiment_version = 1
+  AND reason = 'assigned' AND outcome_name = 'click'
+GROUP BY variant;
 ```
 
-Group rows use the name `atlas-search`; control rows use `control`. Check delivery and missing outcomes before interpreting this comparison.
+Variant rows use the name `atlas-search`; control rows use `control`. Check delivery and missing outcomes before interpreting this comparison.

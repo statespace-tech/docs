@@ -1,38 +1,35 @@
 ---
 title: Account-level experiment
-description: Keep users in one account in the same group.
+description: Keep users in one account in the same variant.
 ---
 
-Use account-level randomization when users share data or can affect each other. The randomization unit is the account, not each request.
+Use account-level randomization when users share data or can affect each other. The randomization unit is the account, not each user or request.
 
-Create and start an account-level experiment.
+Read the account from the request in the subject rule. Here a gateway in front of the app sets `x-account-id`.
 
 ```shell
-ssp experiment create rank-v2 --assignment account_id --group atlas-search=0.2 \
-  --description 'Test sorted results by account.' --eligibility 'context.country == "US"'
+ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 \
+  --subject 'request.headers["x-account-id"]' \
+  --note 'Test sorted results by account.'
 ssp experiment start rank-v2
 ```
 
-Pass the account ID as the subject for every user in that account.
+Every user in an account gets the same variant on every host. The app receives the account ID as `x-statespace-subject`.
+
+Print outcomes with the account ID as the subject.
 
 ```python
-import statespace
-
-experiment = statespace.experiment("rank-v2")
-group = experiment.assign("account_42", context={"country": "US"})
-result = group.function("ranker", lambda items: items)([3, 1, 2])
-experiment.log("account_42", "relevance", {"score": 0.7})
+subject = request.headers["x-statespace-subject"]
+print(json.dumps({"statespace": "click", "subject": subject, "user": user_id}))
 ```
-
-All SDKs use the same salt and hash calculation. The same account receives the same group for the same running configuration.
 
 Count independent accounts rather than requests.
 
 ```sql
-SELECT group_name, count(DISTINCT subject_id) AS accounts
-FROM statespace.runs
-WHERE experiment_name = 'rank-v2' AND experiment_version = 1 AND reason = 'assigned'
-GROUP BY group_name;
+SELECT variant, count(DISTINCT subject_id) AS accounts
+FROM atlas.runs
+WHERE experiment = 'rank-v2' AND experiment_version = 1 AND reason = 'assigned'
+GROUP BY variant;
 ```
 
 Aggregate outcomes at the account level before a simple independent-unit analysis. Request-level standard errors can understate uncertainty when requests in an account are related.
