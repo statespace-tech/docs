@@ -1,60 +1,58 @@
 ---
 title: Treatments and control groups
-description: Compare named groups of parameters with the application's defaults.
+description: Compare variants of an app with the version you deployed.
 ---
 
-A treatment is the behavior being tested. A group is a named set of parameters that defines one treatment. Control supplies the comparison baseline.
+A treatment is the behavior being tested. A variant is a signed build of your app that defines one treatment. Control supplies the comparison baseline.
 
-## Interventions, treatments, and groups
+## Interventions, treatments, and variants
 
-This example changes search ranking with the group `atlas-search`.
+This example changes search ranking with the variant `atlas-search`.
 
 ```text
 intervention: change search ranking
-treatment:    the atlas-search group, which sets the ranker function and top_k
-control:      the application's existing ranking code and values
+treatment:    atlas-search, a build of the new-ranking branch of atlas
+control:      the version of atlas you deployed
 ```
 
-A parameter is a function or a JSON value. Groups are versioned, and an experiment records which group version each of its versions used.
+A variant can change anything in your app: code, dependencies, or how it starts. Variants are versioned, and an experiment records which variant version each of its versions used.
 
 ## Control group
 
-The application supplies control with its current code and values.
+Control is the code you deployed. `ssp host` runs it from the directory it starts in, with the same command as every variant.
 
-```python
-group = experiment.assign("u_42")
-rank = group.function("ranker", rerank)
-top_k = group.value("top_k", 20)
+```shell
+ssp host --app atlas --command "gunicorn -b 127.0.0.1:{port} atlas:app" --trust-key "$SSP_PUBLIC_KEY"
 ```
 
-Control receives the weight not allocated to groups. It estimates what would happen without the tested change.
+Control receives the weight not allocated to variants. It estimates what would happen without the tested change.
 
 ## Implicit control
 
-Allocate 20% of eligible subjects to `atlas-search`.
+Give half of the experiment's subjects to `atlas-search`.
 
 ```shell
-ssp experiment create rank-v2 --group atlas-search=0.2
+ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5
 ```
 
-The remaining 80% belongs to control. Weights that total one leave no control group. Ineligible subjects also use the defaults, but their runs are not randomized control and must not be counted as control.
+The other half belongs to control. Weights that total one leave no control group. Ineligible subjects also get control, but their runs are not randomized control and must not be counted as control.
 
-## Group weights
+## Variant weights
 
 Weights must be greater than zero and total at most one.
 
 ```shell
-ssp experiment update rank-v2 --group atlas-search=0.2 --group atlas-search-bm25=0.2
+ssp experiment update rank-v2 --variant atlas-search=0.25 --variant atlas-search-bm25=0.25
 ```
 
-This split leaves 60% for control. Unequal weights change the sample size and statistical power of each comparison. See [Group allocation](/concepts/random-assignment#group-allocation) for stable assignment ranges.
+This split leaves 50% for control. Unequal weights change the sample size and statistical power of each comparison. See [Variant allocation](/concepts/random-assignment#variant-allocation) for stable assignment ranges.
 
-## Treatment parameters
+## Shared state
 
-Set every parameter a treatment changes in its group.
+A variant shares your database, cache, and queues with control. Keep a variant's changes inside the code that handles requests.
 
-```shell
-ssp group create atlas-search ranker=rerank.py:score top_k=10
-```
+- Land schema changes in the deployed code first. Give variants a database user without schema permissions with `--variant-env`.
+- Turn off schedulers and workers that run inside your web process in variants, so nothing runs twice.
+- Prefix cache keys in variants, so control never serves a response a variant cached.
 
-A group that leaves out a parameter uses the application's default for it. A parameter must have one type across the groups of an experiment. To test two changes and their interaction, give each combination its own group and analyze the full grid.
+To test two changes and their interaction, build each combination as its own variant and analyze the full grid.

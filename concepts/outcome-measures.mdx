@@ -11,32 +11,25 @@ assignment → exposure → raw outcome → metric
 
 ## Treatment exposure
 
-An assignment records which group a unit should receive. An exposure records that the application used the assigned configuration.
+An assignment records which variant a unit should receive. An exposure records that the unit received it.
 
-Calling `assign()` records an assignment. Call it at the point where the application applies the behavior.
-
-```python
-group = experiment.assign("u_42")
-result = group.function("ranker", rerank)([3, 1, 2])
-```
-
-Assignment is not proof of exposure. Avoid assigning subjects on code paths that do not use the group's parameters. If exposure can differ from assignment, record that fact as an outcome and state which effect the analysis estimates.
+`ssp host` records a run the first time it routes a subject, when it serves the request. A run with `reason = 'assigned'` is an exposure. A run with `reason = 'variant-unavailable'` was assigned a variant but served by control.
 
 This distinction affects whether the [estimand](/concepts/statistical-inference#estimands) measures assignment or actual exposure.
 
 ## Raw outcomes
 
-An outcome records a named JSON response for a subject. Any process can log it.
+An outcome records a named JSON response for a subject. Any process of the app can print it, in control or in a variant.
 
 ```python
-experiment.log("u_42", "relevance", {"score": 0.7})
+print(json.dumps({"statespace": "click", "subject": subject, "position": 3}))
 ```
 
-Use the same name, meaning, and unit for every treatment group.
+`statespace` names the outcome and `subject` identifies the subject. Every other field becomes the outcome's `data`. The subject of the current request is the `x-statespace-subject` header. Use the same name, meaning, and unit in every variant.
 
 ## Outcome metrics
 
-A metric is a rule that summarizes raw outcomes. Choose important metrics before you inspect the group comparison.
+A metric is a rule that summarizes raw outcomes. Choose important metrics before you inspect the variant comparison.
 
 | Metric | Purpose |
 | --- | --- |
@@ -51,7 +44,7 @@ Statespace does not require metric definitions in the experiment definition. Thi
 
 Attribution connects an outcome to the run whose treatment could have caused it. It is an experiment join rule, not marketing attribution.
 
-`statespace.logs` joins each outcome to the latest run of the same subject that started at or before it. Results count an outcome for the group of the subject's first run in the analyzed version, and ignore outcomes that came before it. Define a narrower attribution window in SQL when a response can occur long after exposure.
+An app's `logs` view joins each outcome to the latest run of the same subject in the app that started at or before it. A subject is in at most one experiment of an app at a time, so an outcome needs no experiment name. Results count an outcome for the variant of the subject's first run in the analyzed version, until the subject's next run in another experiment, and ignore outcomes that came before it. Define a narrower attribution window in SQL when a response can occur long after exposure.
 
 ## Repeated observations
 
@@ -59,9 +52,9 @@ One randomization unit can produce many runs and outcomes. These observations ar
 
 ```text
 user_42
-├── run_1 → relevance: 0.81
-├── run_2 → relevance: 0.76
-└── run_3 → relevance: 0.88
+├── click → position: 1
+├── click → position: 4
+└── click → position: 2
 ```
 
 Aggregate repeated observations at the randomization-unit level before a simple independent-unit analysis.
@@ -70,19 +63,19 @@ Aggregate repeated observations at the randomization-unit level before a simple 
 WITH unit_outcomes AS (
   SELECT
     subject_id,
-    group_name,
-    avg((data->>'score')::double precision) AS unit_relevance
-  FROM statespace.logs
-  WHERE experiment_name = 'rank-v2'
-    AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'relevance'
-  GROUP BY subject_id, group_name
+    variant,
+    avg((data->>'position')::double precision) AS unit_position
+  FROM atlas.logs
+  WHERE experiment = 'rank-v2'
+    AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'click'
+  GROUP BY subject_id, variant
 )
 SELECT
-  group_name,
+  variant,
   count(*) AS units,
-  avg(unit_relevance) AS mean_relevance
+  avg(unit_position) AS mean_position
 FROM unit_outcomes
-GROUP BY group_name;
+GROUP BY variant;
 ```
 
 <Warning>
@@ -93,10 +86,19 @@ GROUP BY group_name;
 
 A guardrail metric detects unacceptable harm outside the primary objective. Common guardrails include latency, error rate, safety violations, and user abandonment.
 
-Record guardrail outcomes for control and every treatment group.
+`ssp host` records some guardrails for every process without code: per-minute request counts, error rates, and latency percentiles, and CPU and memory use.
+
+```sql
+SELECT variant, timestamp, data->>'p90_ms' AS p90_ms, data->>'errors' AS errors
+FROM atlas.metrics
+WHERE kind = 'http'
+ORDER BY timestamp DESC;
+```
+
+Print other guardrails as outcomes in control and every variant.
 
 ```python
-experiment.log("u_42", "performance", {"latency_ms": 42, "error": False})
+print(json.dumps({"statespace": "performance", "subject": subject, "latency_ms": 42}))
 ```
 
 ## Structured outcomes
@@ -104,11 +106,12 @@ experiment.log("u_42", "performance", {"latency_ms": 42, "error": False})
 An outcome can contain any JSON-compatible result. This supports conversations, traces, evaluations, and other semi-structured evidence.
 
 ```python
-experiment.log("u_42", "conversation", {
-    "messages": [{"role": "assistant", "content": "Search results ranked."}],
+print(json.dumps({
+    "statespace": "conversation",
+    "subject": subject,
     "tool_calls": 3,
     "termination": "completed",
-})
+}))
 ```
 
-Store scalar and structured evidence in the same dictionary when needed. Store large binary artifacts elsewhere and record a durable reference.
+Each outcome line must be smaller than 60 KiB. Store large artifacts elsewhere and record a durable reference.

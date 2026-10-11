@@ -15,7 +15,7 @@ An estimand states exactly which effect the experiment intends to estimate. It i
 
 ```text
 Among eligible search users, what is the average effect of atlas-search
-assignment on relevance compared with the current ranking behavior?
+assignment on clicks compared with the deployed ranking behavior?
 ```
 
 An intention-to-treat estimand compares units by their random assignment. An exposure-based estimand compares units that received the condition. The second can lose the protection of random assignment when exposure is selective.
@@ -33,19 +33,19 @@ ATE = mean outcome under treatment − mean outcome under control
 Calculate the observed difference in PostgreSQL.
 
 ```sql
-WITH group_means AS (
+WITH variant_means AS (
   SELECT
-    group_name,
-    avg((data->>'score')::double precision) AS mean_value
-  FROM statespace.logs
-  WHERE experiment_name = 'rank-v2'
-    AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'relevance'
-  GROUP BY group_name
+    variant,
+    avg((data->>'position')::double precision) AS mean_value
+  FROM atlas.logs
+  WHERE experiment = 'rank-v2'
+    AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'click'
+  GROUP BY variant
 )
 SELECT
-  max(mean_value) FILTER (WHERE group_name = 'atlas-search')
-    - max(mean_value) FILTER (WHERE group_name = 'control') AS treatment_effect
-FROM group_means;
+  max(mean_value) FILTER (WHERE variant = 'atlas-search')
+    - max(mean_value) FILTER (WHERE variant = 'control') AS treatment_effect
+FROM variant_means;
 ```
 
 ## Effect sizes
@@ -66,16 +66,16 @@ Every estimate contains sampling variation. Report a confidence interval or anot
 Estimate the standard error of a difference in means.
 
 ```sql
-WITH group_stats AS (
+WITH variant_stats AS (
   SELECT
-    group_name,
+    variant,
     count(*) AS n,
-    avg((data->>'score')::double precision) AS mean_value,
-    stddev_samp((data->>'score')::double precision) AS standard_deviation
-  FROM statespace.logs
-  WHERE experiment_name = 'rank-v2'
-    AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'relevance'
-  GROUP BY group_name
+    avg((data->>'position')::double precision) AS mean_value,
+    stddev_samp((data->>'position')::double precision) AS standard_deviation
+  FROM atlas.logs
+  WHERE experiment = 'rank-v2'
+    AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'click'
+  GROUP BY variant
 )
 SELECT
   treatment.mean_value - control.mean_value AS treatment_effect,
@@ -83,10 +83,10 @@ SELECT
     pow(treatment.standard_deviation, 2) / treatment.n
     + pow(control.standard_deviation, 2) / control.n
   ) AS standard_error
-FROM group_stats AS treatment
-CROSS JOIN group_stats AS control
-WHERE treatment.group_name = 'atlas-search'
-  AND control.group_name = 'control';
+FROM variant_stats AS treatment
+CROSS JOIN variant_stats AS control
+WHERE treatment.variant = 'atlas-search'
+  AND control.variant = 'control';
 ```
 
 ## Statistical power
@@ -96,7 +96,8 @@ WHERE treatment.group_name = 'atlas-search'
 Power depends on these inputs:
 
 - [Eligibility](/concepts/random-sampling)
-- [Group weights](/concepts/treatments-and-control-groups#group-weights)
+- [Variant weights](/concepts/treatments-and-control-groups#variant-weights)
+- The experiment's share of the app's traffic
 - Outcome variance
 - Minimum effect of interest
 - Decision threshold
@@ -105,18 +106,18 @@ Do not stop an experiment only because an intermediate result looks favorable. R
 
 ## Heterogeneous effects
 
-An average effect can hide differences across populations. Estimate subgroup effects with pre-treatment attributes only when the sample supports them.
+An average effect can hide differences across populations. Estimate subgroup effects with pre-treatment attributes only when the sample supports them. Print the attribute in each outcome to analyze it.
 
 ```sql
 SELECT
-  context->>'country' AS country,
-  group_name,
+  data->>'country' AS country,
+  variant,
   count(*) AS observations,
-  avg((data->>'score')::double precision) AS mean_relevance
-FROM statespace.logs
-WHERE experiment_name = 'rank-v2'
-    AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'relevance'
-GROUP BY country, group_name;
+  avg((data->>'position')::double precision) AS mean_position
+FROM atlas.logs
+WHERE experiment = 'rank-v2'
+  AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'click'
+GROUP BY country, variant;
 ```
 
 Treat an unplanned subgroup result as exploratory. Confirm it with a new experiment.

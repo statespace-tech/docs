@@ -1,31 +1,25 @@
 ---
 title: Eligibility
-description: Select subjects with pre-treatment context.
+description: Select subjects with information in the request.
 ---
 
 Eligibility defines the population that can enter an experiment. Use information that exists before treatment assignment.
 
-Create a draft with a CEL eligibility rule.
+Create a draft with a CEL eligibility rule over the request.
 
 ```shell
-ssp experiment create rank-v2 --assignment user_id --group atlas-search=0.2 \
-  --eligibility 'context.country == "US" && context.plan == "pro"'
+ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 \
+  --eligibility 'request.headers["cf-ipcountry"] == "US" && request.path.startsWith("/search")'
 ```
 
-The backend validates CEL when the draft changes. The SDK evaluates the rule against the supplied JSON context.
+The backend validates CEL when the draft changes. `ssp host` evaluates the rule against each request's `method`, `path`, `query`, `headers`, and `cookies`. A header or cookie that is missing is `null`.
 
-Provide every context value the rule reads.
+An eligible subject receives control or a variant. An ineligible subject receives control and is recorded with `reason = 'ineligible'`. A rule that fails to evaluate is recorded with `reason = 'eligibility-error'`.
 
-```python
-group = experiment.assign("u_42", context={"country": "US", "plan": "pro"})
-```
-
-An eligible subject receives control or a group. An ineligible subject receives the application's defaults and is logged with `reason = 'ineligible'`. A rule that fails to evaluate, for example on missing context, is logged with `reason = 'eligibility-error'`.
-
-Apply the same eligibility rule to every group. Do not use values that treatment can change.
+Apply the same eligibility rule to every variant. Do not use values that treatment can change.
 
 ```text
-Suitable:   country, plan at assignment time, account type
+Suitable:   country, path, plan in a header set by your gateway
 Unsuitable: response quality, post-treatment latency, conversion
 ```
 

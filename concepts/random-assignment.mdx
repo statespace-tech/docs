@@ -1,49 +1,62 @@
 ---
 title: Random assignment
-description: Keep subject assignments consistent across SDKs.
+description: Keep each subject in one variant, and each experiment's subjects apart.
 ---
 
-Random assignment gives each eligible subject one group. Each published experiment version records its groups and allocation ranges.
+Random assignment gives each eligible subject one variant. Each published experiment version records its variants, their allocation ranges, and its share of the app's traffic.
 
 ## Stable identity
 
-Choose an identifier at the level where treatment can vary independently. Label user-level assignment when creating the experiment.
+Choose an identifier at the level where treatment can vary independently. The experiment's subject rule is a CEL expression that reads it from the request.
 
 ```shell
-ssp experiment create rank-v2 --assignment user_id --group atlas-search=0.2
+ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 \
+  --subject 'request.headers["x-user-id"]'
 ```
 
-The label does not read a context field. Supply the identifier value explicitly to the SDK.
+Without `--subject`, the subject is `request.cookies.ssp_sid`. `ssp host` sets that cookie for every new visitor, so a browser keeps its variant. A request whose rule yields no subject gets control and is not recorded.
 
-```python
-group = experiment.assign("u_42")
-```
+The subject rule cannot change after the experiment starts. Changing it would mix two populations.
 
 ## Stable bucket
 
-All SDKs calculate the same bucket from the experiment salt and subject ID.
+`ssp host` calculates a bucket from a salt and the subject ID.
 
 ```text
 bucket = first 53 bits of SHA-256(salt + ":" + subject_id) / 2^53
 ```
 
-The same subject, salt, and allocation ranges produce the same group in Python, TypeScript, Go, and every service instance.
+The same subject, salt, and allocation ranges produce the same variant on every host and every request.
 
-## Group allocation
+## Traffic slices
 
-Each group has explicit bucket ranges. The remaining interval belongs to control. For an experiment with one 20% group, the allocation is shown below.
+Running experiments of an app never share a subject. Each running experiment holds a slice of the app's buckets, calculated with the app's salt. `--traffic` sets the slice's size.
+
+```shell
+ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 --traffic 0.2
+```
+
+A subject outside every slice gets control and belongs to no experiment. `ssp experiment start` fails when the app's free traffic is smaller than the slice. A restarted experiment keeps its previous slice when it is still free.
+
+## Variant allocation
+
+Within its slice, an experiment calculates a second bucket with its own salt. Each variant has explicit ranges of it. The remaining interval belongs to control. For an experiment with one 50% variant, the allocation is shown below.
 
 ```text
-atlas-search: [0.0, 0.2)
-control:      [0.2, 1.0)
+atlas-search: [0.0, 0.5)
+control:      [0.5, 1.0)
 ```
 
 ## New versions
 
-An experiment keeps one salt for its lifetime. Starting a changed draft keeps each group's existing ranges where its new weight permits. New or expanded groups use free ranges. Updating a group's parameters keeps its ranges, so its subjects stay in the group.
+An experiment keeps one salt for its lifetime. Starting a changed draft keeps each variant's existing ranges where its new weight permits. New or expanded variants use free ranges. Publishing a new version of a variant keeps its ranges, so its subjects stay in the variant.
 
-Weight changes can still move subjects between groups. Analyze each experiment version separately. Starting a new version stops assignments to the previous one.
+Weight changes can still move subjects between variants. Analyze each experiment version separately. Starting a new version stops assignments to the previous one.
+
+## Unavailable variants
+
+A variant that is starting, failing, or over a host's `--max-variants` cannot serve its subjects. They get control, and their runs record `reason = 'variant-unavailable'` with the variant they were assigned. Exclude these subjects, or analyze them by assignment, as your estimand requires.
 
 ## Forced assignment
 
-Statespace does not force a subject into a group. Keep manual overrides out of a randomized comparison. A separate diagnostic path does not provide the same inference as random assignment.
+Statespace does not force a subject into a variant in production. Keep manual overrides out of a randomized comparison. `ssp host --local` chooses a variant per request with the `x-statespace-variant` header, for testing only.
