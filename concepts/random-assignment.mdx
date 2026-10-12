@@ -55,7 +55,7 @@ Weight changes can still move subjects between variants. Analyze each experiment
 
 ## Unavailable variants
 
-A variant that is starting, failing, or over a host's `--max-variants` cannot serve its subjects. They get control, and their runs record `reason = 'variant-unavailable'` with the variant they were assigned. Exclude these subjects, or analyze them by assignment, as your estimand requires.
+A variant that is starting, failing, or over a host's `--max-variants` cannot serve its subjects. They get control, and their runs record `reason = 'variant-unavailable'` with the variant they were assigned. `ssp experiment results` counts them in the variant they were assigned. Excluding them biases the comparison when a variant fails only for some subjects.
 
 ## Forced assignment
 

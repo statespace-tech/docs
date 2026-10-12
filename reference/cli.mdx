@@ -41,11 +41,12 @@ ssp app update atlas --output-retention 30
 ssp app list
 ssp app show atlas
 ssp app hosts atlas
+ssp app outcomes atlas
 ssp app erase-subject atlas u_42
 ssp app delete atlas --yes
 ```
 
-An app name has 1 to 40 lowercase letters, digits, and underscores, and starts with a letter. `--output-retention` sets how many days captured output is kept. `ssp app list` shows how much traffic running experiments hold. `ssp app hosts` lists hosts that reported in the last day. Deleting an app needs every experiment stopped.
+An app name has 1 to 40 lowercase letters, digits, and underscores, and starts with a letter. `--output-retention` sets how many days captured output is kept. `ssp app list` shows how much traffic running experiments hold. `ssp app hosts` lists hosts that reported in the last day. `ssp app outcomes` lists the outcome names recorded in the last 30 days. Deleting an app needs every experiment stopped.
 
 ## Variants
 
@@ -118,6 +119,8 @@ ssp experiment show rank-v2
 ssp experiment results rank-v2 --outcome click
 ssp experiment results rank-v2 --outcome purchase --metric amount --version 2
 ```
+
+Results count each subject once, in the variant it was assigned, even when control served it because the variant was unavailable. Each variant reports its `subjects`, how many of them were `unavailable`, how many `converted`, the `mean` value, and its `effect` against control with a 95% interval. Once 100 subjects ran, `sample_ratio` tests whether subjects split as the weights say. A `mismatch` means the effects cannot be trusted.
 
 Delete a stopped experiment with all of its versions, runs, and notes.
 

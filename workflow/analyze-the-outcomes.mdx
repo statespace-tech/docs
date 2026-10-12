@@ -22,6 +22,14 @@ WHERE experiment = 'rank-v2'
 GROUP BY reason;
 ```
 
+Check that subjects split as the weights say. `ssp experiment results` tests the split once 100 subjects ran.
+
+```shell
+ssp experiment results rank-v2 --outcome click | jq '.sample_ratio'
+```
+
+A `mismatch` means assignment or recording is broken, and the effects cannot be trusted. The most common cause is a variant that fails for some subjects. Each variant's `unavailable` count shows how many of its subjects control served.
+
 ## Check the variants' health
 
 Compare errors and latency across processes before you trust outcomes.
@@ -38,7 +46,13 @@ GROUP BY variant;
 
 ## Compare variants
 
-Extract numeric values from the JSONB `data` column.
+List the outcomes the app recorded.
+
+```shell
+ssp app outcomes atlas
+```
+
+Count subjects in the variant they were assigned to, including runs that control served because the variant was unavailable. Leaving those runs out hides failures. Extract numeric values from the JSONB `data` column.
 
 ```sql
 SELECT
@@ -49,7 +63,7 @@ SELECT
 FROM atlas.logs
 WHERE experiment = 'rank-v2'
   AND experiment_version = 1
-  AND reason = 'assigned'
+  AND reason IN ('assigned', 'variant-unavailable')
   AND outcome_name = 'click'
 GROUP BY variant;
 ```

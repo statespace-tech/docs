@@ -13,7 +13,7 @@ assignment → exposure → raw outcome → metric
 
 An assignment records which variant a unit should receive. An exposure records that the unit received it.
 
-`ssp host` records a run the first time it routes a subject, when it serves the request. A run with `reason = 'assigned'` is an exposure. A run with `reason = 'variant-unavailable'` was assigned a variant but served by control.
+`ssp host` records a run the first time it routes a subject, when it serves the request. A run with `reason = 'assigned'` is an exposure. A run with `reason = 'variant-unavailable'` was assigned a variant but served by control. Count both in the assigned variant, so a variant that fails for some subjects cannot hide them.
 
 This distinction affects whether the [estimand](/concepts/statistical-inference#estimands) measures assignment or actual exposure.
 
@@ -67,7 +67,7 @@ WITH unit_outcomes AS (
     avg((data->>'position')::double precision) AS unit_position
   FROM atlas.logs
   WHERE experiment = 'rank-v2'
-    AND experiment_version = 1 AND reason = 'assigned' AND outcome_name = 'click'
+    AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND outcome_name = 'click'
   GROUP BY subject_id, variant
 )
 SELECT

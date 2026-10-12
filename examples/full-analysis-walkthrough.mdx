@@ -35,7 +35,7 @@ SELECT
 FROM atlas.runs
 WHERE experiment = 'rank-v2'
   AND experiment_version = 1
-  AND reason = 'assigned'
+  AND reason IN ('assigned', 'variant-unavailable')
 GROUP BY variant;
 ```
 

@@ -28,7 +28,7 @@ Count independent accounts rather than requests.
 ```sql
 SELECT variant, count(DISTINCT subject_id) AS accounts
 FROM atlas.runs
-WHERE experiment = 'rank-v2' AND experiment_version = 1 AND reason = 'assigned'
+WHERE experiment = 'rank-v2' AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable')
 GROUP BY variant;
 ```
 

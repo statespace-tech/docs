@@ -70,7 +70,7 @@ SELECT
   avg((data->>'position')::double precision) AS mean_position
 FROM atlas.logs
 WHERE experiment = 'rank-v2'
-  AND reason = 'assigned'
+  AND reason IN ('assigned', 'variant-unavailable')
   AND outcome_name = 'click'
 GROUP BY experiment_version, variant;
 ```

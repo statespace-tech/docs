@@ -41,7 +41,7 @@ SELECT variant, count(DISTINCT subject_id) AS subjects,
        avg((data->>'position')::double precision) AS mean_position
 FROM atlas.logs
 WHERE experiment = 'rank-v2' AND experiment_version = 1
-  AND reason = 'assigned' AND outcome_name = 'click'
+  AND reason IN ('assigned', 'variant-unavailable') AND outcome_name = 'click'
 GROUP BY variant;
 ```
 
