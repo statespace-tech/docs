@@ -57,8 +57,7 @@
         "pages": [
           "workflow/define-the-experiment",
           "workflow/apply-the-treatments",
-          "workflow/analyze-the-outcomes",
-          "workflow/make-a-decision"
+          "workflow/analyze-the-outcomes"
         ]
       },
       {
@@ -75,7 +74,6 @@
           "reference/experiment-definition",
           "reference/cli",
           "reference/host",
-          "reference/http-api",
           "reference/database-schema"
         ]
       }

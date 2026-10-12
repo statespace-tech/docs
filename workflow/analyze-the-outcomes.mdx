@@ -1,6 +1,6 @@
 ---
 title: Analyze the outcomes
-description: Query runs, outcomes, and host measurements in PostgreSQL.
+description: Query runs, outcomes, and host measurements, then record a decision.
 ---
 
 Start with allocation and delivery checks. Then estimate the outcome for each variant within one experiment version.
@@ -87,3 +87,32 @@ Revoke the credential when the integration no longer needs access.
 ```shell
 ssp database credential revoke dbc_123
 ```
+
+## Make a decision
+
+Decide on the primary outcome you chose before the experiment, with its uncertainty. Then check every guardrail: a better primary outcome does not cancel harm to a guardrail. Finally, weigh the effect against the cost and risk of shipping it. A precise effect can still be too small to be worth it.
+
+Choose one action:
+
+- **Ship** when the benefit holds and the guardrails pass.
+- **Reject** when the variant is not worth it.
+- **Revise** when the evidence points to a fixable problem.
+- **Repeat** with a confirmatory experiment when uncertainty is still material.
+
+Record the decision as a note when you stop the experiment, where the next person or agent will look. Stopping sends every subject back to control and keeps the evidence queryable.
+
+```shell
+ssp experiment stop rank-v2 --note 'Ship: +1.8 points of click rate (+0.6 to +3.0), no latency change.'
+```
+
+Notes are kept with the experiment version and each variant's version and commit.
+
+```sql
+SELECT timestamp, action, note, variants FROM atlas.notes WHERE experiment = 'rank-v2';
+```
+
+To ship, merge the variant's branch and deploy it as usual; Statespace does not deploy control. Turn open questions into a new experiment rather than editing a finished one.
+
+<Tip>
+  The [full analysis walkthrough](/examples/full-analysis-walkthrough) goes from raw events to a recorded decision.
+</Tip>
