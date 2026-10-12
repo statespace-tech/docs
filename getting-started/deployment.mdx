@@ -1,0 +1,101 @@
+---
+title: Deployment
+description: Publish variants from CI and run ssp host in production.
+---
+
+A deployment has two parts. CI publishes each branch as a signed variant. Your servers run `ssp host` in place of the app's start command.
+
+The [FastAPI example](https://github.com/statespace-tech/cli/tree/main/examples/fastapi) has every file on this page, ready to copy.
+
+## Publish variants from CI
+
+Create a key that CI can use to publish variants. Store it as the `SSP_API_KEY` secret, and the private key from `ssp variant keygen` as `SSP_SIGNING_KEY`.
+
+```shell
+ssp key create --name ci --scope experiments:write
+```
+
+This GitHub Actions workflow builds every branch except `main` and publishes it as a variant named after the branch.
+
+```yaml
+name: Publish variant
+on:
+  push:
+    branches-ignore: [main]
+jobs:
+  variant:
+    runs-on: ubuntu-24.04
+    container: python:3.12-slim
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./build.sh build
+      - run: |
+          apt-get update && apt-get install --yes --no-install-recommends curl ca-certificates
+          curl -fsSL https://statespace.com/install | sh
+      - env:
+          SSP_API_KEY: ${{ secrets.SSP_API_KEY }}
+          SSP_SIGNING_KEY: ${{ secrets.SSP_SIGNING_KEY }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          name=$(printf '%s' "$BRANCH" | tr -c 'A-Za-z0-9._-' '-' | cut -c 1-100)
+          ~/.local/bin/ssp variant create "$name" build --app atlas --commit "$GITHUB_SHA"
+```
+
+A variant runs on your hosts, so build it where they run. Use the same base image, operating system, architecture, and language version as production. A variant built on a laptop may fail on a Linux host.
+
+A build contains the code and its installed dependencies. The FastAPI example installs them into `deps/` with `pip install --target`, and starts the app with `PYTHONPATH=deps`.
+
+## Run hosts in containers
+
+Install `ssp` in the production image, and make `ssp host` the command. Use `exec`, so `ssp host` receives the platform's stop signal.
+
+```dockerfile
+FROM python:3.12-slim
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends curl ca-certificates \
+    && curl -fsSL https://statespace.com/install | STATESPACE_INSTALL_DIR=/usr/local/bin sh
+WORKDIR /app
+COPY . .
+RUN pip install --target deps -r requirements.txt
+ENV STATESPACE_APP=atlas STATESPACE_CACHE=/tmp/statespace
+EXPOSE 8080
+CMD exec ssp host --health /health --trust-key "$SSP_TRUST_KEY" \
+    --command "gunicorn -b 127.0.0.1:{port} atlas:app"
+```
+
+Pass the runtime key as `SSP_API_KEY` and the public signing key as `SSP_TRUST_KEY` from the platform's secrets.
+
+## Run hosts with systemd
+
+Run `ssp host` as the service's command on a virtual machine. `KillMode=mixed` lets `ssp host` stop the app's processes itself.
+
+```ini
+[Service]
+WorkingDirectory=/srv/atlas
+Environment=STATESPACE_APP=atlas
+CacheDirectory=statespace
+Environment=STATESPACE_CACHE=%C/statespace
+ExecStart=/usr/local/bin/ssp host --health /health --trust-key ${SSP_TRUST_KEY} \
+    --command "gunicorn -b 127.0.0.1:{port} atlas:app"
+KillMode=mixed
+TimeoutStopSec=30
+Restart=always
+```
+
+## Load balancers
+
+Run as many hosts as you run app servers now. Every host assigns a subject to the same variant, so requests need no sticky sessions.
+
+Point health checks at the app's health path. Control answers them, so a host passes while its variants start.
+
+On `SIGTERM`, a host lets requests finish for up to 10 seconds. Give the platform a longer stop timeout than that.
+
+## Capacity
+
+Each host runs control and up to `--max-variants` variants, 4 by default. Size machines for that many copies of the app, or lower the limit.
+
+`ssp experiment start` fails when hosts have no room for the variants it needs. Check what each host runs.
+
+```shell
+ssp app hosts atlas
+```

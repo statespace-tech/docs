@@ -38,7 +38,8 @@
         "pages": [
           "index",
           "quickstart",
-          "getting-started/installation"
+          "getting-started/installation",
+          "getting-started/deployment"
         ]
       },
       {

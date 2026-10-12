@@ -11,6 +11,12 @@ Install the CLI on macOS or Linux. The installer downloads a prebuilt binary and
 curl -fsSL https://statespace.com/install | bash
 ```
 
+The installer installs the latest release. Set `STATESPACE_VERSION` to install another one.
+
+```shell
+curl -fsSL https://statespace.com/install | STATESPACE_VERSION=0.2.0 bash
+```
+
 Confirm the installation.
 
 ```shell
@@ -26,7 +32,7 @@ Each place that uses Statespace needs its own key.
 | Where | Key | Purpose |
 | --- | --- | --- |
 | Your terminal | `ssp login` | Manage apps, variants, and experiments |
-| CI | `ssp key create --preset admin` and `SSP_SIGNING_KEY` | Publish signed variants |
+| CI | `ssp key create --scope experiments:write` and `SSP_SIGNING_KEY` | Publish signed variants |
 | Your servers | `ssp key create --preset runtime` | Run `ssp host` |
 
 Create a runtime key for `ssp host`, then store the returned secret as `SSP_API_KEY` in a secret manager.
@@ -46,3 +52,5 @@ Set `STATESPACE_URL` when the CLI or host uses a local API or a hosted domain ot
 ```shell
 export STATESPACE_URL=http://127.0.0.1:8080
 ```
+
+See [Deployment](/getting-started/deployment) to publish variants from CI and run hosts in production.
