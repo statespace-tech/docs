@@ -31,7 +31,7 @@ jobs:
       - run: ./build.sh build
       - run: |
           apt-get update && apt-get install --yes --no-install-recommends curl ca-certificates
-          curl -fsSL https://statespace.com/install | sh
+          curl -fsSL https://statespace.com/install.sh | sh
       - env:
           SSP_API_KEY: ${{ secrets.SSP_API_KEY }}
           SSP_SIGNING_KEY: ${{ secrets.SSP_SIGNING_KEY }}
@@ -53,7 +53,7 @@ Install `ssp` in the production image, and make `ssp host` the command. Use `exe
 FROM python:3.12-slim
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends curl ca-certificates \
-    && curl -fsSL https://statespace.com/install | STATESPACE_INSTALL_DIR=/usr/local/bin sh
+    && curl -fsSL https://statespace.com/install.sh | STATESPACE_INSTALL_DIR=/usr/local/bin sh
 WORKDIR /app
 COPY . .
 RUN pip install --target deps -r requirements.txt
