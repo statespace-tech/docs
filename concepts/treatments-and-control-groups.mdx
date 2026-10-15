@@ -1,9 +1,9 @@
 ---
 title: Treatments and control groups
-description: Compare variants of an app with the version you deployed.
+description: Compare variants of an app with a control arm of the version you deployed.
 ---
 
-A treatment is the behavior being tested. A variant is a signed build of your app that defines one treatment. Control supplies the comparison baseline.
+A treatment is the behavior being tested. A variant is a signed image of your app that defines one treatment. Control supplies the comparison baseline.
 
 ## Interventions, treatments, and variants
 
@@ -11,48 +11,43 @@ This example changes search ranking with the variant `atlas-search`.
 
 ```text
 intervention: change search ranking
-treatment:    atlas-search, a build of the new-ranking branch of atlas
-control:      the version of atlas you deployed
+treatment:    atlas-search, an image of the new-ranking branch of atlas
+control:      the image of atlas you deployed, pinned when the experiment started
+default:      the image of atlas you deployed, for everyone outside the experiment
 ```
 
-A variant can change anything in your app: code, dependencies, or how it starts. Variants are versioned, and an experiment records which variant version each of its versions used.
+A variant can change anything in your app's image: code, dependencies, the operating system, or how it starts. Variants are versioned, and an experiment records which variant version each of its versions used.
 
 ## Control group
 
-Control is the code you deployed. `ssp host` runs it from the directory it starts in, with the same command as every variant.
+Control is an arm of its own: a copy of the image you deployed, pinned by digest when the experiment version started. It gets the same share of subjects as a variant and runs in new containers, as the variant does. Comparing a variant with control, rather than with the default, compares two equally new, equally loaded copies that differ only in the treatment.
+
+Deploying a new default does not change a running experiment's control arm. Start a new experiment version to compare against the new default.
+
+## Arm shares
+
+`--split` gives each variant its share of all the app's subjects. Control gets the largest variant's share.
 
 ```shell
-ssp host --app atlas --command "gunicorn -b 127.0.0.1:{port} atlas:app" --trust-key "$SSP_PUBLIC_KEY"
+ssp experiment create rank-v2 --app atlas --split atlas-search=0.05
 ```
 
-Control receives the weight not allocated to variants. It estimates what would happen without the tested change.
+Here 5% of subjects get `atlas-search` and 5% get control. Ineligible subjects get the default; their runs are not randomized control and must not be counted as control.
 
-## Implicit control
-
-Give half of the experiment's subjects to `atlas-search`.
+Give control its own share with `control=SHARE`.
 
 ```shell
-ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5
+ssp experiment update rank-v2 --split atlas-search=0.05 --split atlas-search-bm25=0.05 --split control=0.1
 ```
 
-The other half belongs to control. Weights that total one leave no control group. Ineligible subjects also get control, but their runs are not randomized control and must not be counted as control.
-
-## Variant weights
-
-Weights must be greater than zero and total at most one.
-
-```shell
-ssp experiment update rank-v2 --variant atlas-search=0.25 --variant atlas-search-bm25=0.25
-```
-
-This split leaves 50% for control. Unequal weights change the sample size and statistical power of each comparison. See [Variant allocation](/concepts/random-assignment#variant-allocation) for stable assignment ranges.
+Unequal shares change the sample size and statistical power of each comparison. See [Arm allocation](/concepts/random-assignment#arm-allocation) for stable assignment ranges.
 
 ## Shared state
 
-A variant shares your database, cache, and queues with control. Keep a variant's changes inside the code that handles requests.
+Arms share your database, cache, and queues with the default. Keep an arm's changes inside the code that handles requests.
 
-- Land schema changes in the deployed code first. Give variants a database user without schema permissions with `--variant-env`.
-- Turn off schedulers and workers that run inside your web process in variants, so nothing runs twice.
-- Prefix cache keys in variants, so control never serves a response a variant cached.
+- Land schema changes in the deployed code first. Give arms a database user without schema permissions with `--variant-env`.
+- Turn off schedulers and workers that run inside your web process in arms, so nothing runs twice.
+- Prefix cache keys in arms, so the default never serves a response an arm cached.
 
 To test two changes and their interaction, build each combination as its own variant and analyze the full grid.

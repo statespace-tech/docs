@@ -1,6 +1,6 @@
 ---
 title: Define the experiment
-description: Build the variant, then choose its subjects, eligibility, and share of traffic.
+description: Publish the variant, then choose its subjects, eligibility, and share of subjects.
 ---
 
 Start with one decision. Choose the randomization unit, eligible population, variants, and outcome before you start.
@@ -9,64 +9,61 @@ Start with one decision. Choose the randomization unit, eligible population, var
 
 Use a stable identifier at the level where treatment can vary independently. Read it from the request with a CEL subject rule, such as `request.headers["x-user-id"]` for users or `request.headers["x-account-id"]` for accounts. Without a rule, each browser is a subject.
 
-## Report the outcome
+## Print the outcome
 
-Print the outcome wherever it happens. Deploy this to production first, so control and every variant report it the same way.
+Print a JSON line wherever the outcome happens, with the subject. Deploy this to production first, so the default and every variant print it the same way.
 
 ```python
 subject = request.headers["x-statespace-subject"]
-print(json.dumps({"statespace": "click", "subject": subject, "position": position}))
+print(json.dumps({"event": "click", "subject": subject, "position": position}))
 ```
+
+Every line an arm prints is recorded, so existing logs are evidence too. A `subject` field ties a line to that subject's arm.
 
 ## Build the variant
 
-Make one change on a branch. Build it the way you build production, with its dependencies installed, on the same operating system and CPU.
+Make one change on a branch. Build its image the way you build production.
 
 ```shell
 git checkout new-ranking
-uv sync --frozen
+docker build -t ghcr.io/acme/atlas:new-ranking .
 ```
 
-Try it against the deployed code before you publish it. `--local` runs directories unsigned and chooses a variant per request with a header.
+Check that it starts and answers before you publish it.
 
 ```shell
-ssp host --local --command "gunicorn -b 127.0.0.1:{port} atlas:app" --variant atlas-search=../new-ranking
-curl -H 'x-statespace-variant: atlas-search' localhost:8080/search?q=maps
+docker run --rm -p 8000:8000 ghcr.io/acme/atlas:new-ranking
+curl localhost:8000/search?q=maps
 ```
 
 ## Publish the variant
 
-Package, sign, and upload the build. In CI, the signing key comes from `SSP_SIGNING_KEY`.
+Push the image, then sign and publish it. In CI, the signing key comes from `SSP_SIGNING_KEY`.
 
 ```shell
-ssp variant create atlas-search . --app atlas
+docker push ghcr.io/acme/atlas:new-ranking
+ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas:new-ranking
 ```
 
-The CLI uploads a gzipped tar of the directory through a short-lived S3 URL. S3 stores the bytes, addressed by their SHA-256 hash. The variant records the hash, the start command, the Git commit, and the signature.
-
-A variant starts with the host's `--command` unless it brings its own. The signature covers the command.
-
-```shell
-ssp variant create atlas-search . --app atlas --command "uvicorn atlas.server:app --port {port}"
-```
+The CLI resolves the tag to the image's digest with `docker`. The variant records the digest, the commit, and the signature. Proxies and the controller run only variants signed by a key they trust.
 
 ## Create the draft
 
-Give half of the experiment's subjects to the variant, and hold 20% of the app's traffic. State the hypothesis in a note.
+Give the variant 5% of the app's subjects. The control arm gets another 5%. State the hypothesis in a note.
 
 ```shell
-ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 --traffic 0.2 \
+ssp experiment create rank-v2 --app atlas --split atlas-search=0.05 \
   --subject 'request.headers["x-user-id"]' \
   --eligibility 'request.headers["cf-ipcountry"] == "US"' \
   --note 'Sorted results should get more clicks.'
 ```
 
-The other half receives control. The backend validates both CEL rules and checks that each variant exists before it saves the draft.
+Every other subject gets the default. The backend validates both CEL rules and checks that each variant exists before it saves the draft.
 
-Review the draft before starting it.
+Review the draft before starting it. Its `split` shows each arm's share of all subjects.
 
 ```shell
 ssp experiment show rank-v2
 ```
 
-`ssp experiment update` changes the draft. Omitted flags keep their values, and `--variant` replaces the draft's variants.
+`ssp experiment update` changes the draft. Omitted flags keep their values, and `--split` replaces the draft's arms.

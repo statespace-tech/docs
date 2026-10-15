@@ -15,7 +15,7 @@ An estimand states exactly which effect the experiment intends to estimate. It i
 
 ```text
 Among eligible search users, what is the average effect of atlas-search
-assignment on clicks compared with the deployed ranking behavior?
+assignment on clicks compared with the control arm of the deployed ranking?
 ```
 
 An intention-to-treat estimand compares units by their random assignment. An exposure-based estimand compares units that received the condition. The second can lose the protection of random assignment when exposure is selective.
@@ -39,7 +39,7 @@ WITH variant_means AS (
     avg((data->>'position')::double precision) AS mean_value
   FROM atlas.logs
   WHERE experiment = 'rank-v2'
-    AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND outcome_name = 'click'
+    AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND data->>'event' = 'click'
   GROUP BY variant
 )
 SELECT
@@ -74,7 +74,7 @@ WITH variant_stats AS (
     stddev_samp((data->>'position')::double precision) AS standard_deviation
   FROM atlas.logs
   WHERE experiment = 'rank-v2'
-    AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND outcome_name = 'click'
+    AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND data->>'event' = 'click'
   GROUP BY variant
 )
 SELECT
@@ -96,8 +96,8 @@ WHERE treatment.variant = 'atlas-search'
 Power depends on these inputs:
 
 - [Eligibility](/concepts/random-sampling)
-- [Variant weights](/concepts/treatments-and-control-groups#variant-weights)
-- The experiment's share of the app's traffic
+- [Arm shares](/concepts/treatments-and-control-groups#arm-shares)
+- The arms' shares of the app's subjects
 - Outcome variance
 - Minimum effect of interest
 - Decision threshold
@@ -106,7 +106,7 @@ Do not stop an experiment only because an intermediate result looks favorable. R
 
 ## Heterogeneous effects
 
-An average effect can hide differences across populations. Estimate subgroup effects with pre-treatment attributes only when the sample supports them. Print the attribute in each outcome to analyze it.
+An average effect can hide differences across populations. Estimate subgroup effects with pre-treatment attributes only when the sample supports them. Print the attribute in each line to analyze it.
 
 ```sql
 SELECT
@@ -116,7 +116,7 @@ SELECT
   avg((data->>'position')::double precision) AS mean_position
 FROM atlas.logs
 WHERE experiment = 'rank-v2'
-  AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND outcome_name = 'click'
+  AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND data->>'event' = 'click'
 GROUP BY country, variant;
 ```
 

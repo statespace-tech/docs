@@ -13,18 +13,19 @@ Document current behavior as current. Mark proposed behavior with a visible `Pla
 - Use short, direct sentences.
 - Put one main idea in each sentence.
 - Use the same example throughout the site: the app `atlas`, the variant `atlas-search`, and the experiment `rank-v2`.
-- Use `ssp_key_...` for API key examples.
+- Use `ssp_tok_...` for token examples.
 - Never include a complete token.
 - Put one explanatory sentence immediately before each code block.
 - Prefer concrete examples over placeholders.
-- Keep CLI, outcome-line, and SQL examples consistent. Do not require YAML experiment files.
+- Keep CLI, JSON-line, and SQL examples consistent. Do not require YAML experiment files.
 - Use `randomization unit` for the identifier type defined by an experiment.
 - Use `assignment` for one randomization-unit value supplied to an experiment.
 - Use `subject` when describing a person, task, session, or other assigned entity.
-- Use `variant` for a signed build of an app, and `control` for the deployed version. Use `control group` and `treatment group` only for the statistical concepts.
+- Use `variant` for a signed image of an app, `control` for an experiment's baseline arm, and `default` for the deployed version that serves everyone outside an experiment. Use `control group` and `treatment group` only for the statistical concepts.
 - Each account has one isolated PostgreSQL database, with one schema of views per app.
-- The CLI defines apps, variants, and experiments. `ssp host` only consumes running configurations.
-- Apps report outcomes by printing JSON lines. There are no SDKs.
+- The CLI defines apps, variants, experiments, and tokens. `ssp proxy` and `ssp controller` only consume running configurations.
+- The CLI changes things; SQL reads data. Do not document a CLI command that only reads recorded data.
+- Apps print what happens. Every line arms print is recorded; a JSON line's `subject` field ties it to a subject's arm.
 
 ## Structure
 

@@ -1,14 +1,14 @@
 ---
 title: Analyze the outcomes
-description: Query runs, outcomes, and host measurements, then record a decision.
+description: Query runs, lines, and requests, then record a decision.
 ---
 
-Start with allocation and delivery checks. Then estimate the outcome for each variant within one experiment version.
+Start with allocation and delivery checks. Then compare each variant with its control arm within one experiment version.
 
-Analysis runs against your own PostgreSQL database. Create a read-only credential for the app once and point any SQL client at it.
+Analysis runs against your own PostgreSQL database. Create a token that reads the app once, and point any SQL client at its `database_url`.
 
 ```shell
-ssp database credential create --name analyst --app atlas
+ssp token create --name analyst --preset analyst --app atlas
 ```
 
 ## Check assignment counts
@@ -22,70 +22,81 @@ WHERE experiment = 'rank-v2'
 GROUP BY reason;
 ```
 
-Check that subjects split as the weights say. `ssp experiment results` tests the split once 100 subjects ran.
+Check that subjects split as the experiment's shares say.
 
-```shell
-ssp experiment results rank-v2 --outcome click | jq '.sample_ratio'
+```sql
+SELECT variant, subjects, expected, p_value, mismatch
+FROM atlas.sample_ratio
+WHERE experiment = 'rank-v2' AND experiment_version = 1;
 ```
 
-A `mismatch` means assignment or recording is broken, and the effects cannot be trusted. The most common cause is a variant that fails for some subjects. Each variant's `unavailable` count shows how many of its subjects control served.
+A `mismatch` means assignment or recording is broken, and the comparison cannot be trusted. It is tested once 100 subjects ran. The most common cause is an arm that fails for some subjects. Their runs have `reason = 'variant-unavailable'`: the default served them.
 
-## Check the variants' health
+## Check the arms' health
 
-Compare errors and latency across processes before you trust outcomes.
+Compare errors and latency of the arms before you trust outcomes. Divide by requests, so arms of different sizes compare fairly.
 
 ```sql
 SELECT variant,
-       sum((data->>'requests')::int) AS requests,
-       sum((data->>'errors')::int) AS errors,
-       max((data->>'p90_ms')::double precision) AS worst_p90_ms
-FROM atlas.metrics
-WHERE kind = 'http' AND timestamp > now() - interval '1 day'
+       count(*) AS requests,
+       avg((status >= 500)::int) AS error_rate,
+       percentile_cont(0.9) WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
+FROM atlas.requests
+WHERE experiment = 'rank-v2' AND experiment_version = 1
 GROUP BY variant;
 ```
 
-## Compare variants
+Read an arm's errors from what it printed.
 
-List the outcomes the app recorded.
-
-```shell
-ssp app outcomes atlas
+```sql
+SELECT timestamp, variant, line
+FROM atlas.output
+WHERE experiment = 'rank-v2' AND stream = 'stderr'
+ORDER BY timestamp DESC
+LIMIT 50;
 ```
 
-Count subjects in the variant they were assigned to, including runs that control served because the variant was unavailable. Leaving those runs out hides failures. Extract numeric values from the JSONB `data` column.
+## Compare the arms
+
+List the events the arms printed.
+
+```sql
+SELECT data->>'event' AS event, count(*)
+FROM atlas.output
+WHERE data IS NOT NULL
+GROUP BY 1
+ORDER BY 2 DESC;
+```
+
+Count subjects in the arm they were assigned to, including runs the default served because the arm was unavailable. Leaving those runs out hides failures. Extract numeric values from the JSONB `data` column.
 
 ```sql
 SELECT
   variant,
-  count(*) AS observations,
-  avg((data->>'position')::double precision) AS mean_position,
-  stddev_samp((data->>'position')::double precision) AS sd_position
+  count(DISTINCT subject_id) AS subjects,
+  count(*) FILTER (WHERE data->>'event' = 'click') AS clicks,
+  avg((data->>'position')::double precision) FILTER (WHERE data->>'event' = 'click') AS mean_position
 FROM atlas.logs
 WHERE experiment = 'rank-v2'
   AND experiment_version = 1
   AND reason IN ('assigned', 'variant-unavailable')
-  AND outcome_name = 'click'
 GROUP BY variant;
 ```
 
-Or summarize one outcome with the CLI.
-
-```shell
-ssp experiment results rank-v2 --outcome click --metric position
-```
+Compare `atlas-search` with `control`, never with the default. Both arms are new containers with the same share of subjects; the default serves everyone else.
 
 ## Connect another tool
 
-Create a read-only PostgreSQL credential for a BI tool, notebook, or coding agent. Omit `--app` to read every app.
+Create a token for a BI tool, notebook, or coding agent. Omit `--app` to read every app, and the account's audit log.
 
 ```shell
-ssp database credential create --name notebook
+ssp token create --name notebook --preset analyst
 ```
 
-Revoke the credential when the integration no longer needs access.
+Revoke the token when the integration no longer needs access. Revoking it also ends its database sessions.
 
 ```shell
-ssp database credential revoke dbc_123
+ssp token revoke tok_123
 ```
 
 ## Make a decision
@@ -99,19 +110,19 @@ Choose one action:
 - **Revise** when the evidence points to a fixable problem.
 - **Repeat** with a confirmatory experiment when uncertainty is still material.
 
-Record the decision as a note when you stop the experiment, where the next person or agent will look. Stopping sends every subject back to control and keeps the evidence queryable.
+Record the decision as a note when you stop the experiment, where the next person or agent will look. Stopping sends every subject back to the default, stops the arms, and keeps the evidence queryable.
 
 ```shell
 ssp experiment stop rank-v2 --note 'Ship: +1.8 points of click rate (+0.6 to +3.0), no latency change.'
 ```
 
-Notes are kept with the experiment version and each variant's version and commit.
+Notes are kept with the experiment version and the images and commits it pinned.
 
 ```sql
 SELECT timestamp, action, note, variants FROM atlas.notes WHERE experiment = 'rank-v2';
 ```
 
-To ship, merge the variant's branch and deploy it as usual; Statespace does not deploy control. Turn open questions into a new experiment rather than editing a finished one.
+To ship, merge the variant's branch and deploy it as usual; Statespace does not deploy the default. Turn open questions into a new experiment rather than editing a finished one.
 
 <Tip>
   The [full analysis walkthrough](/examples/full-analysis-walkthrough) goes from raw events to a recorded decision.

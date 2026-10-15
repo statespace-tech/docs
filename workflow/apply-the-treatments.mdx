@@ -1,63 +1,69 @@
 ---
 title: Apply the treatments
-description: Run the app and its variants behind ssp host, and record outcomes.
+description: Run the default and the arms behind ssp proxy, and record what they print.
 ---
 
 Start the draft once the outcome is deployed and the variant is published.
 
 ```shell
-ssp experiment start rank-v2 --note 'First run at 20% of US traffic.'
+ssp experiment start rank-v2 --note 'First run at 5% of US users per arm.'
 ```
 
-Starting publishes the draft as version 1, pins the newest version of each variant, and takes a slice of the app's traffic.
+Starting publishes the draft as version 1, pins the newest version of each variant, and takes a slice of the app's subjects.
 
-## Run the host
+## Run the proxy
 
-Replace the app's start command with `ssp host`. Give it a runtime key as `SSP_API_KEY` and the public signing key.
+Run the app behind `ssp proxy`. Give it a runtime token as `SSP_TOKEN` and the public signing key.
 
 ```shell
-ssp host --app atlas --command "gunicorn -b 127.0.0.1:{port} atlas:app" \
+ssp proxy --app atlas --runtime docker --image ghcr.io/acme/atlas:main \
   --health /health --trust-key "$SSP_PUBLIC_KEY"
 ```
 
-The host runs control from its working directory. It downloads each running variant, checks its signature, unpacks it, and runs it with the same command on its own port. A process gets traffic once `--health` answers 200.
+The proxy runs the default image as a container. For each running experiment, it starts a control arm from the default's image and a container for each variant, after it checks the variant's signature. A container gets traffic once `--health` answers 200.
 
-## Keep variants apart from shared state
+On Kubernetes, the proxy runs beside the default in each pod and `ssp controller` runs the arms. See [Deployment](/getting-started/deployment).
 
-Variants share the database, cache, and queues with control. Give variants their own environment with `--variant-env`.
+## Pin the control arm
+
+The first proxy or controller that serves a new version pins the default's image, by digest, as the version's control arm. Every proxy then compares against the same baseline, even after you deploy a new default. A proxy runs a control arm only from an image it ran as its default.
+
+## Keep arms apart from shared state
+
+Arms share the database, cache, and queues with the default. Give them their own environment with `--variant-env`. Control arms get it too, so both arms of a comparison run alike.
 
 ```shell
-ssp host --app atlas --command "gunicorn -b 127.0.0.1:{port} atlas:app" --trust-key "$SSP_PUBLIC_KEY" \
+ssp proxy --app atlas --runtime docker --image ghcr.io/acme/atlas:main --trust-key "$SSP_PUBLIC_KEY" \
   --variant-env DATABASE_URL="$VARIANT_DATABASE_URL" \
   --variant-env SCHEDULER_ENABLED=false \
   --variant-env CACHE_PREFIX=variant
 ```
 
-Use a database user without schema permissions for variants. Land migrations in the deployed code first.
+Use a database user without schema permissions for arms. Land migrations in the deployed code first.
 
-## Record outcomes
+## Record what arms print
 
-Every process can print outcomes. The host reads them from standard output, adds the variant, and sends them.
+Arms record every line they print on standard output and standard error. The proxy passes each line through to its own output, so existing log collection keeps working. `--redact` replaces matches before lines leave the machine.
+
+```shell
+ssp proxy ... --redact 'sk_live_\w+'
+```
+
+JSON lines keep their fields. A `subject` field ties a line to that subject's arm.
 
 ```python
-print(json.dumps({"statespace": "click", "subject": subject, "position": 3}))
+print(json.dumps({"event": "click", "subject": subject, "position": 3}))
 ```
 
-The host passes every line through to its own output, so existing log collection keeps working. Outcome lines need no `--capture`.
+Arms also record every request, lifecycle events, CPU and memory, and per-minute HTTP summaries. The default is never recorded.
 
-## Check the variants
+## Check the arms
 
-Check that each host runs the variant before you wait for outcomes.
+Check that the proxies run the arms before you wait for outcomes.
 
-```shell
-ssp app hosts atlas
-ssp variant logs atlas-search --app atlas
-```
-
-Hosts send lifecycle events, CPU and memory, and per-minute HTTP summaries for every process. Send standard output, standard error, or one row per request too with `--capture`. `--redact` removes matches before lines leave the machine.
-
-```shell
-ssp host ... --capture stderr --capture http --redact 'sk_live_\w+'
+```sql
+SELECT id, kind, version, report FROM atlas.hosts;
+SELECT timestamp, variant, event, data FROM atlas.lifecycle ORDER BY timestamp DESC LIMIT 20;
 ```
 
 ## Publish a change
@@ -65,8 +71,8 @@ ssp host ... --capture stderr --capture http --redact 'sk_live_\w+'
 Publish a new version of the variant, then start the experiment again.
 
 ```shell
-ssp variant create atlas-search . --app atlas
+ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas:new-ranking-2
 ssp experiment start rank-v2 --note 'Fix the empty-query crash.'
 ```
 
-A new variant version does not change the running version until the experiment starts again. Starting version 2 stops assignments to version 1. Existing evidence keeps its original version.
+A new variant version does not change the running version until the experiment starts again. Starting version 2 stops assignments to version 1 and gives version 2 fresh arms and a fresh control pin. Existing evidence keeps its original version.

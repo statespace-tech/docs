@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install the CLI and create the keys a deployment needs.
+description: Install the CLI and create the tokens a deployment needs.
 ---
 
 ## CLI
@@ -19,34 +19,42 @@ Confirm the installation.
 ssp --version
 ```
 
-The same binary runs `ssp host` on your servers. Install it in the image or machine that runs your app.
+The same binary runs `ssp proxy` on machines with Docker. On Kubernetes, the proxy and the controller run from the `ghcr.io/statespace-tech/ssp` image.
 
-## Keys
+## Tokens
 
-Each place that uses Statespace needs its own key.
+Each place that uses Statespace needs its own token.
 
-| Where | Key | Purpose |
+| Where | Token | Purpose |
 | --- | --- | --- |
-| Your terminal | `ssp login` | Manage apps, variants, and experiments |
-| CI | `ssp key create --scope experiments:write` and `SSP_SIGNING_KEY` | Publish signed variants |
-| Your servers | `ssp key create --preset runtime` | Run `ssp host` |
+| Your terminal | `ssp login` | Manage apps, variants, experiments, and tokens |
+| CI | `--preset publisher`, and `SSP_SIGNING_KEY` | Publish signed variants |
+| Your servers | `--preset runtime` | Run `ssp proxy` |
+| Kubernetes | `--preset controller` | Run `ssp controller` |
+| SQL clients | `--preset analyst` | Read runs, lines, and requests |
 
-Create a runtime key for `ssp host`, then store the returned secret as `SSP_API_KEY` in a secret manager.
-
-```shell
-ssp key create --name production --preset runtime
-```
-
-Create a signing key pair once. Keep the private key in CI. Give the public key to `ssp host --trust-key`.
+Create a runtime token for `ssp proxy`, then store the returned token as `SSP_TOKEN` in a secret manager.
 
 ```shell
-ssp variant keygen
+ssp token create --name production --preset runtime
 ```
 
-Set `STATESPACE_URL` when the CLI or host uses a local API or a hosted domain other than its default.
+Create a signing key pair once. Keep the private key in CI. Give the public key to `ssp proxy --trust-key` and `ssp controller --trust-key`.
+
+```shell
+ssp keygen
+```
+
+Check which credential the CLI uses and what it may do.
+
+```shell
+ssp whoami
+```
+
+Set `STATESPACE_URL` when the CLI or proxy uses a local API or a hosted domain other than its default.
 
 ```shell
 export STATESPACE_URL=http://127.0.0.1:8080
 ```
 
-See [Deployment](/getting-started/deployment) to publish variants from CI and run hosts in production.
+See [Deployment](/getting-started/deployment) to publish variants from CI and run proxies in production.

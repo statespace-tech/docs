@@ -3,11 +3,11 @@ title: Apps, variants, and experiments
 description: Define apps, variants, and experiments with CLI flags.
 ---
 
-The CLI defines apps, variants, and experiments with arguments. There is no YAML file. `ssp host` consumes running configurations and never modifies them.
+The CLI defines apps, variants, and experiments with arguments. There is no YAML file. `ssp proxy` and `ssp controller` consume running configurations and never modify them.
 
 ## Apps
 
-An app is one codebase and deployment. Its variants, experiments, and analysis views belong to it.
+An app is one codebase and deployment. Its variants, experiments, and analysis views belong to it. Its **default** is the image you deploy, which serves every subject outside an experiment.
 
 ```shell
 ssp app create atlas
@@ -15,43 +15,41 @@ ssp app create atlas
 
 | Field | Meaning |
 | --- | --- |
-| `name` | 1 to 40 lowercase letters, digits, and underscores, starting with a letter. Also the name of the app's PostgreSQL schema |
-| `output_retention_days` | Days captured output is kept, 1 to 365. Defaults to 7 |
+| `name` | 1 to 40 lowercase letters, digits, and underscores, starting with a letter. Also the name of the app's PostgreSQL schema. `account` is reserved |
+| `output_retention_days` | Days the lines arms print are kept, 1 to 365. Defaults to 7 |
 
 ## Variants
 
-A variant is a signed, ready-to-run build of an app. Each `ssp variant create` with different files, command, or commit creates the next version.
+A variant is a signed image of an app. Each `ssp variant create` with a different digest or commit creates the next version.
 
 ```shell
-ssp variant create atlas-search ./build --app atlas --command "uvicorn atlas.server:app --port {port}"
+ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas:new-ranking
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `name` | 1 to 100 letters, numbers, dots, dashes, or underscores. `control` is reserved |
-| `sha256` | The bundle's SHA-256: a gzipped tar of the directory, without its `.git`. At most 2 GiB |
-| `command` | How to start the variant, with `{port}`. Without it, the host's `--command` is used |
-| `commit` | The commit the build came from |
+| `image` | The image by digest, such as `ghcr.io/acme/atlas@sha256:…`. The CLI resolves a tag to its digest with `docker` |
+| `commit` | The commit the image was built from. Defaults to CI's commit or the current directory's Git `HEAD` |
 | `signature`, `public_key` | The Ed25519 signature and the key that made it |
 
-The signature covers this message, with an empty line for a missing command or commit.
+The signature covers this message, with an empty line for a missing commit.
 
 ```text
-statespace-variant-v1
+statespace-variant-v2
 <app>
 <name>
-<sha256>
-<command>
+<image>
 <commit>
 ```
 
 ## Experiments
 
-An experiment splits its subjects between control and its variants.
+An experiment gives each of its arms a share of the app's subjects: each variant, and a control arm.
 
 ```shell
-ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 --variant atlas-search-bm25=0.25 \
-  --traffic 0.2 --subject 'request.headers["x-user-id"]' \
+ssp experiment create rank-v2 --app atlas --split atlas-search=0.05 --split atlas-search-bm25=0.05 \
+  --subject 'request.headers["x-user-id"]' \
   --eligibility 'request.headers["cf-ipcountry"] == "US"' \
   --description 'Test sorted search results.' --note 'Sorted results should get more clicks.'
 ```
@@ -59,14 +57,17 @@ ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 --variant a
 | Flag | Meaning |
 | --- | --- |
 | `--app` | The app the experiment belongs to. It cannot change |
-| `--variant NAME=WEIGHT` | A variant and its share of the experiment's subjects, greater than 0. Weights total at most 1; control receives the rest |
-| `--traffic` | The share of the app's subjects the experiment holds while it runs, greater than 0 and at most 1. Defaults to 1 |
+| `--split ARM=SHARE` | An arm and its share of all the app's subjects, greater than 0. Repeat for each variant. Control gets the largest variant's share unless `control=SHARE` sets it. The shares total at most 1 |
 | `--subject` | A CEL expression over `request` that yields the subject ID. Defaults to `request.cookies.ssp_sid`. Cannot change after the first start |
 | `--eligibility` | A CEL expression over `request` that decides who may enter |
 | `--description` | Up to 500 bytes |
 | `--note` | A note kept with this change, up to 10,000 bytes. Also on `update`, `start`, and `stop` |
 
-Experiment names are unique within an account.
+The experiment holds the sum of its arms' shares. Responses show it as `traffic`, each variant's share of the experiment as `variants`, and each arm's share of all subjects as `split`. Experiment names are unique within an account.
+
+## Control arms
+
+Each experiment version has a control arm. It runs the default's image, pinned by digest by the first proxy or controller that serves the version. Later pins return the first, so every proxy compares against the same baseline. A proxy or controller runs a control arm only from an image it ran as the default itself.
 
 ## Request rules
 
@@ -80,24 +81,24 @@ Experiment names are unique within an account.
 | `request.headers` | Lowercase names, such as `request.headers["user-agent"]` |
 | `request.cookies` | `{"ssp_sid": "sid_…"}` |
 
-A missing header, cookie, or query parameter is `null`. A subject rule must yield a string or an integer of 1 to 128 characters; otherwise the request gets control. The backend validates both rules when the draft changes.
+A missing header, cookie, or query parameter is `null`. A subject rule must yield a string or an integer of 1 to 128 characters; otherwise the request gets the default. The backend validates both rules when the draft changes.
 
 ## Drafts and versions
 
 `create` and `update` change an experiment's draft. The running version does not change.
 
 ```shell
-ssp experiment update rank-v2 --variant atlas-search=0.5
+ssp experiment update rank-v2 --split atlas-search=0.1
 ```
 
-`start` publishes the draft as the next immutable version. It pins the newest version of each variant, takes a slice of the app's traffic, and stops the previously running version. An unchanged draft restarts the newest version.
+`start` publishes the draft as the next immutable version. It pins the newest version of each variant, takes a slice of the app's subjects, and stops the previously running version. An unchanged draft restarts the newest version.
 
 ```shell
 ssp experiment start rank-v2
 ssp experiment show rank-v2
 ```
 
-`start` fails when the app's free traffic is smaller than `--traffic`, or when the app's hosts cannot run the variants that running experiments would need. Subjects keep their variant across versions wherever its weight still covers their bucket. Restart an earlier version to roll back.
+`start` fails when the app's free share of subjects is smaller than the experiment's, or when a proxy or controller that reported in the last three minutes is older than `ssp` 0.2.0. It warns when they run fewer arms than running experiments need. Subjects keep their arm across versions wherever its share still covers their bucket. Restart an earlier version to roll back.
 
 ```shell
 ssp experiment start rank-v2 --version 1

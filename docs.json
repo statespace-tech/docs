@@ -73,7 +73,8 @@
         "pages": [
           "reference/experiment-definition",
           "reference/cli",
-          "reference/host",
+          "reference/proxy",
+          "reference/controller",
           "reference/database-schema"
         ]
       }
@@ -130,5 +131,11 @@
   },
   "fonts": {
     "family": "DM Sans"
-  }
+  },
+  "redirects": [
+    {
+      "source": "/reference/host",
+      "destination": "/reference/proxy"
+    }
+  ]
 }

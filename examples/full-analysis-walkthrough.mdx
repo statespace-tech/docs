@@ -1,6 +1,6 @@
 ---
 title: Analysis walkthrough
-description: Check delivery and health, then compare one JSON outcome.
+description: Check delivery and health, then compare one field of the lines arms print.
 ---
 
 Analyze one immutable version at a time.
@@ -17,46 +17,43 @@ WHERE experiment = 'rank-v2'
 GROUP BY reason;
 ```
 
-A large share of `variant-unavailable` means the variant often could not serve its subjects. Read its lifecycle events before you go on.
+A large share of `variant-unavailable` means an arm often could not serve its subjects. Read its lifecycle events and errors before you go on.
 
-```shell
-ssp variant logs atlas-search --app atlas
+```sql
+SELECT timestamp, variant, event, data
+FROM atlas.lifecycle
+WHERE experiment = 'rank-v2'
+ORDER BY timestamp DESC
+LIMIT 20;
 ```
 
 ## Check allocation
 
-Compare observed variant shares with configured weights.
+Compare each arm's subjects with the number its share predicts.
 
 ```sql
-SELECT
-  variant,
-  count(*) AS runs,
-  count(*)::double precision / sum(count(*)) OVER () AS observed_share
-FROM atlas.runs
-WHERE experiment = 'rank-v2'
-  AND experiment_version = 1
-  AND reason IN ('assigned', 'variant-unavailable')
-GROUP BY variant;
+SELECT variant, subjects, expected, p_value, mismatch
+FROM atlas.sample_ratio
+WHERE experiment = 'rank-v2' AND experiment_version = 1;
 ```
 
 ## Check health
 
-Compare error rates and latency of each process.
+Compare error rates and latency of each arm.
 
 ```sql
 SELECT
   variant,
-  sum((data->>'errors')::int)::double precision
-    / nullif(sum((data->>'requests')::int), 0) AS error_rate,
-  avg((data->>'p90_ms')::double precision) AS mean_p90_ms
-FROM atlas.metrics
-WHERE kind = 'http'
+  avg((status >= 500)::int) AS error_rate,
+  percentile_cont(0.9) WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
+FROM atlas.requests
+WHERE experiment = 'rank-v2' AND experiment_version = 1
 GROUP BY variant;
 ```
 
 ## Compare the outcome
 
-Read the planned field from each JSON outcome.
+Read the planned field from each JSON line.
 
 ```sql
 SELECT
@@ -67,7 +64,7 @@ SELECT
 FROM atlas.logs
 WHERE experiment = 'rank-v2'
   AND experiment_version = 1
-  AND outcome_name = 'click'
+  AND data->>'event' = 'click'
 GROUP BY variant;
 ```
 
@@ -76,5 +73,5 @@ GROUP BY variant;
 Stop the experiment with a note that states the decision and its evidence.
 
 ```shell
-ssp experiment stop rank-v2 --note 'Keep control: no change in click position, p90 latency +40 ms.'
+ssp experiment stop rank-v2 --note 'Keep the default: no change in click position, p90 latency +40 ms.'
 ```

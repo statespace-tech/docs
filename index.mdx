@@ -3,10 +3,10 @@ title: Statespace
 description: A/B test whole versions of your app on live traffic, and analyze the results with SQL.
 ---
 
-Statespace A/B tests whole versions of an app in production. A variant is a signed build of your app, usually a branch. `ssp host` runs it beside the version you deployed, sends a share of real subjects to it, and records what they do.
+Statespace A/B tests whole versions of an app in production. A variant is a signed image of your app, usually built from a branch. `ssp proxy` sends a share of real subjects to it and the same share to a control arm of the version you deployed, and records what they do.
 
 ```text
-ssp variant create → ssp experiment start → ssp host routes subjects → outcomes → results and SQL
+ssp variant create → ssp experiment start → ssp proxy routes subjects → arms print lines → SQL
 ```
 
 ## Start here
@@ -16,15 +16,27 @@ ssp variant create → ssp experiment start → ssp host routes subjects → out
     Publish a variant, run an experiment, and read the result.
   </Card>
   <Card title="Install the tools" icon="download" href="/getting-started/installation">
-    Install the CLI and create the keys you need.
+    Install the CLI and create the tokens you need.
   </Card>
   <Card title="Review the workflow" icon="route" href="/workflow/define-the-experiment">
     Follow an experiment from definition to analysis.
   </Card>
   <Card title="Use the reference" icon="book" href="/reference/experiment-definition">
-    Review exact fields, commands, APIs, and tables.
+    Review exact fields, commands, and tables.
   </Card>
 </CardGroup>
+
+## What serves a request
+
+Every request goes to one of three places.
+
+| Target | What it runs | Who gets it |
+| --- | --- | --- |
+| Default | The image you deployed | Every subject outside an experiment |
+| Control | The default's image, pinned when the experiment started | An experiment's baseline arm |
+| Variant | A signed image of a branch | An experiment's treatment arm |
+
+Control and each variant get the same share of subjects. Compare a variant with its experiment's control arm.
 
 ## Interfaces
 
@@ -32,12 +44,13 @@ Each interface has one responsibility.
 
 | Interface | Responsibility |
 | --- | --- |
-| `ssp` CLI | Defines apps, publishes variants, runs experiments, and reads results. |
-| `ssp host` | Runs your app and its variants, assigns each request's subject, and records events. |
+| `ssp` CLI | Defines apps, publishes variants, runs experiments, and manages tokens. |
+| `ssp proxy` | Assigns each request's subject and forwards it. On Docker, it also runs the default and the arms. |
+| `ssp controller` | Runs the arms on Kubernetes as copies of the default's Deployment. |
 | PostgreSQL | Stores one isolated account database, with one schema of views per app. |
 
-Your app needs no SDK. It reports outcomes by printing a JSON line.
+Your app prints what happens, as it already does. Every line an arm prints is recorded, and a JSON line with a `subject` field is tied to that subject's arm.
 
 ```python
-print(json.dumps({"statespace": "click", "subject": subject, "position": 1}))
+print(json.dumps({"event": "click", "subject": subject, "position": 1}))
 ```

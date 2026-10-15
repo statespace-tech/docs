@@ -1,26 +1,29 @@
 ---
 title: PostgreSQL schema
-description: Review each app's analysis views and the account database tables behind them.
+description: Review each app's analysis views, the account's audit log, and what they hold.
 ---
 
-Each account has one isolated PostgreSQL database. Each app has a schema of the same name, with views that show only that app's rows. Direct credentials can read these views and nothing else.
+Each account has one isolated PostgreSQL database. Each app has a schema of the same name, with views that show only that app's rows. Tokens with `query:read` can read these views and nothing else.
 
 ```text
-atlas.logs        one row per run, with the outcomes that followed it
-atlas.runs        each subject's routing by a host
-atlas.outcomes    outcomes that processes printed
-atlas.requests    one row per request, with --capture http
-atlas.output      captured standard output and standard error lines
-atlas.metrics     per-minute HTTP summaries and resource use
-atlas.lifecycle   process events: started, ready, exited, stopped, failed
-atlas.notes       notes on experiment changes
+atlas.logs          one row per run, with the lines its subject's arm printed after it
+atlas.runs          each subject's routing by a proxy
+atlas.output        every line the arms printed
+atlas.requests      one row per request an arm served
+atlas.metrics       per-minute HTTP summaries and resource use of each arm
+atlas.lifecycle     arm events: started, ready, exited, stopped, failed
+atlas.notes         notes on experiment changes
+atlas.hosts         proxies and controllers that reported in the last day
+atlas.arms          where the controller runs each arm
+atlas.sample_ratio  whether each version's subjects split as its shares say
+account.audit       every change to the account and its apps
 ```
 
-The API commits events to an account outbox. The worker writes the final rows into tables in the `statespace` schema, which credentials cannot read.
+The API commits events to an account outbox. The worker writes the final rows into tables in the `statespace` schema, which tokens cannot read. The default is never recorded.
 
 ## Runs
 
-A host records a run the first time it routes a subject in an experiment version, and again at most every 30 minutes.
+A proxy records a run the first time it routes a subject in an experiment version, and again at most every 30 minutes.
 
 | Column | Type |
 | --- | --- |
@@ -35,62 +38,75 @@ A host records a run the first time it routes a subject in an experiment version
 | `context` | `JSONB`: the request's `method` and `path` |
 | `host` | `TEXT` |
 
-A `variant-unavailable` run names the variant the subject was assigned. Control served it.
+A `variant-unavailable` run names the arm the subject was assigned. The default served it.
 
-## Outcomes
+## Output
 
-Each outcome line a process printed becomes one row. Outcomes belong to a subject in an app, so any process can report them.
+Each line an arm printed is one row. It is kept for the app's output retention.
 
 | Column | Type |
 | --- | --- |
 | `id` | `TEXT` |
 | `timestamp` | `TIMESTAMPTZ` |
-| `subject_id` | `TEXT` |
-| `name` | `TEXT` |
-| `data` | `JSONB`: every field of the line except `statespace` and `subject` |
-| `variant`, `variant_version` | The process that printed it |
+| `experiment`, `experiment_version` | The arm's experiment |
+| `variant`, `variant_version` | The arm: `control` or a variant |
+| `stream` | `stdout` or `stderr` |
+| `line` | `TEXT`, after `--redact` |
+| `data` | `JSONB`: the line's fields, when it is a JSON object |
+| `subject_id` | The line's `subject` field, when it has one |
 | `host` | `TEXT` |
 
 ## Logs view
 
-`logs` has one row for each run and outcome it led to. Each outcome joins the latest run of the same subject in the app that started at or before it. Runs without outcomes have `NULL` outcome columns.
+`logs` has one row for each run and each line with a subject that followed it. Each line joins the latest run of its subject in the app that started at or before it. Runs without lines have `NULL` line columns.
 
 | Column | Source |
 | --- | --- |
 | `run_id`, `run_timestamp`, `experiment`, `experiment_version`, `subject_id`, `variant`, `variant_version`, `reason`, `context` | The run |
-| `outcome_id`, `outcome_timestamp`, `outcome_name`, `data` | The outcome |
+| `output_id`, `output_timestamp`, `stream`, `line`, `data` | The line |
 
-Compare variants with a SQL client.
+Compare arms with a SQL client.
 
 ```sql
 SELECT
   experiment_version,
   variant,
   count(DISTINCT subject_id) AS subjects,
-  avg((data->>'position')::double precision) AS mean_position
+  avg((data->>'position')::double precision) FILTER (WHERE data->>'event' = 'click') AS mean_position
 FROM atlas.logs
 WHERE experiment = 'rank-v2'
   AND reason IN ('assigned', 'variant-unavailable')
-  AND outcome_name = 'click'
 GROUP BY experiment_version, variant;
 ```
 
-## Host measurements
+## Sample ratio
 
-`requests` has one row per proxied request when a host runs with `--capture http`: `subject_id`, `experiment`, `experiment_version`, `variant`, `variant_version`, `method`, `path`, `status`, `duration_ms`, `first_byte_ms`, `request_bytes`, and `response_bytes`. `duration_ms` runs to the response's last byte.
+`sample_ratio` has one row per arm of each experiment version: `variant`, `weight`, `subjects`, `expected`, the version's chi-square `statistic` and `p_value`, and `mismatch`. A mismatch is a p-value below 0.001 once 100 subjects ran. It means assignment or recording is broken, and comparisons between the arms cannot be trusted.
 
-`output` has captured lines: `variant`, `variant_version`, `stream`, `line`, and `host`. It is kept for the app's output retention.
+## Arm measurements
 
-`metrics` has one row per process and minute. `kind = 'http'` rows hold `requests`, `errors`, `statuses`, `p50_ms`, `p90_ms`, `p99_ms`, and `max_ms`. `kind = 'resources'` rows hold `cpu_percent`, `memory_bytes`, and `processes`.
+`requests` has one row per request an arm served: `subject_id`, `experiment`, `experiment_version`, `variant`, `variant_version`, `method`, `path`, `status`, `duration_ms`, `first_byte_ms`, `request_bytes`, and `response_bytes`. `duration_ms` runs to the response's last byte.
 
-`lifecycle` has process events with their `data`, such as an exit's `code` and `signal`.
+`metrics` has one row per arm and minute. `kind = 'http'` rows hold `requests`, `errors`, `statuses`, `p50_ms`, `p90_ms`, `p99_ms`, and `max_ms`. `kind = 'resources'` rows hold `cpu_percent` and `memory_bytes`, on Docker.
+
+`lifecycle` has arm events with their `data`, such as an exit's `code`.
+
+## Hosts and arms
+
+`hosts` has the newest report of each proxy and controller: `id`, `kind` (`proxy` or `controller`), `version`, `seen_at`, `max_variants`, and `report`, what it runs.
+
+`arms` has where the controller runs each arm: `experiment`, `experiment_version`, `variant`, `variant_version`, `image`, `address`, `ready`, `replicas`, `reported_by`, and `reported_at`.
 
 ## Notes
 
-`notes` has one row for each `--note`: `timestamp`, `experiment`, `experiment_version`, `action`, `note`, `actor`, and `variants`, the variant versions and commits that the experiment version pinned.
+`notes` has one row for each `--note`: `timestamp`, `experiment`, `experiment_version`, `action`, `note`, `actor`, and `variants`, the arms the experiment version pinned with their `image` and `commit`.
 
-Create a revocable connection URL for a SQL client.
+## Audit
+
+`account.audit` has every change to the account and its apps: `id`, `occurred_at`, `source`, `actor`, `action`, `target`, and `detail`. Records of the account itself, such as new tokens and sign-ins, have the source `control`. Only tokens that read every app can read it.
+
+Create a token for a SQL client. Its `database_url` appears only once.
 
 ```shell
-ssp database credential create --name analyst --app atlas
+ssp token create --name analyst --preset analyst --app atlas
 ```

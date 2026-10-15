@@ -3,7 +3,7 @@ title: CLI
 description: Review the public ssp command surface.
 ---
 
-Every command except `ssp host` prints one JSON document. Errors print `{"error": "..."}` on standard error and exit with status 1.
+Every command except `ssp proxy` and `ssp controller` prints one JSON document. Errors print `{"error": "..."}` on standard error and exit with status 1. The CLI changes things; read recorded data with SQL.
 Use `STATESPACE_URL` to select a local or hosted API.
 
 ## Authentication
@@ -12,23 +12,45 @@ Sign in through GitHub or Google, then approve the terminal's device code.
 
 ```shell
 ssp login
-ssp account
+ssp whoami
 ssp logout
+ssp logout --all
 ```
 
-Use `SSP_API_KEY` for CI and `ssp host`. Keep creation responses out of recorded logs.
+`whoami` shows the account, the credential in use, its scopes, and storage use. `logout --all` ends every session of the account. Use `SSP_TOKEN` for CI, proxies, and the controller. Keep creation responses out of recorded logs.
 
-## API keys
+## Tokens
 
-Create a runtime key for `ssp host`. It reads configurations and writes events.
+A token opens the API and, with `query:read`, PostgreSQL. Its secret appears only in the create response.
 
 ```shell
-ssp key create --name production --preset runtime
-ssp key list
-ssp key revoke key_123
+ssp token create --name production --preset runtime
+ssp token create --name analyst --preset analyst --app atlas
+ssp token create --name agent --scope experiments:write --scope query:read --expires-in-days 30
+ssp token list
+ssp token revoke tok_123
+ssp token revoke --all --yes
 ```
 
-Secrets appear only in create responses. Use the `admin` preset only for management tools, such as CI that publishes variants. Add `--expires-in-days` to set an expiration.
+| Preset | Scopes | For |
+| --- | --- | --- |
+| `runtime` | `runtime:read`, `events:write` | `ssp proxy` |
+| `controller` | `runtime:read`, `events:write`, `variants:report` | `ssp controller` |
+| `publisher` | `experiments:write` | CI that publishes variants |
+| `analyst` | `query:read` | SQL clients |
+| `admin` | every scope, including `tokens:manage` | Agents that run the whole loop |
+
+`--app` limits what the token reads in SQL to one app's views; it needs `query:read`. `token list` shows tokens and sign-in sessions without their secrets. `revoke --all` revokes every token and session of the account, and ends their database sessions.
+
+A token with `query:read` returns a `database_url`. Its user is the token's ID and its password is the token. Connect over TLS to your workspace hostname, such as `acme.statespace.app`, with `sslmode=verify-full`. Use a PostgreSQL 16 or newer client for the URL's `sslrootcert=system`; older clients must replace that parameter with the path to a trusted public CA bundle.
+
+## Signing keys
+
+Create a signing key pair. Nothing is stored. Keep the private key in CI as `SSP_SIGNING_KEY`, and give the public key to proxies and the controller.
+
+```shell
+ssp keygen
+```
 
 ## Apps
 
@@ -36,70 +58,58 @@ Create an app. Its name is also the name of its PostgreSQL schema.
 
 ```shell
 ssp app create atlas
-ssp app create atlas --output-retention 14
-ssp app update atlas --output-retention 30
+ssp app create atlas --output-retention-days 14
+ssp app update atlas --output-retention-days 30
 ssp app list
 ssp app show atlas
-ssp app hosts atlas
-ssp app outcomes atlas
 ssp app erase-subject atlas u_42
 ssp app delete atlas --yes
 ```
 
-An app name has 1 to 40 lowercase letters, digits, and underscores, and starts with a letter. `--output-retention` sets how many days captured output is kept. `ssp app list` shows how much traffic running experiments hold. `ssp app hosts` lists hosts that reported in the last day. `ssp app outcomes` lists the outcome names recorded in the last 30 days. Deleting an app needs every experiment stopped.
+`ssp app list` shows the share of subjects running experiments hold. Deleting an app needs every experiment stopped.
 
 ## Variants
 
-Create a signing key pair once. Keep the private key in CI as `SSP_SIGNING_KEY`.
+Sign an image and publish it as the variant's next version.
 
 ```shell
-ssp variant keygen
-```
-
-Package, sign, and upload a ready-to-run directory as the variant's next version.
-
-```shell
-ssp variant create atlas-search ./build --app atlas
-ssp variant create atlas-search ./build --app atlas --command "uvicorn atlas.server:app --port {port}"
-ssp variant create atlas-search ./build --app atlas --commit 4f2a9c1 --sign-key "$KEY"
+ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas:new-ranking
+ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas@sha256:4f2a… --commit 4f2a9c1
 ```
 
 | Flag | Meaning |
 | --- | --- |
 | `--app` | The app, or `STATESPACE_APP` |
-| `--command` | How to start this variant, with `{port}`. Defaults to the host's command |
-| `--commit` | The commit the build came from. Defaults to the directory's Git `HEAD` |
-| `--sign-key` | The base64 private key, or `SSP_SIGNING_KEY` |
+| `--image` | The image by tag or digest. A tag is resolved with `docker`, pulling it when it is not local |
+| `--commit` | The commit the image was built from. Defaults to `GITHUB_SHA` and the like, or the current directory's Git `HEAD` |
+| `--signing-key` | The base64 private key, or `SSP_SIGNING_KEY` |
 
-The bundle leaves out the directory's `.git`. Identical files, command, and commit reuse the newest version.
-
-Read and delete variants.
+The same digest and commit reuse the newest version.
 
 ```shell
 ssp variant list --app atlas
 ssp variant show atlas-search --app atlas
-ssp variant logs atlas-search --app atlas --limit 200
 ssp variant delete atlas-search --app atlas --yes
 ```
 
-`show` lists every version. `logs` merges lifecycle events and captured output, newest first. A variant that a draft or running experiment uses cannot be deleted.
+`show` lists every version. A variant that a draft or running experiment uses cannot be deleted.
 
 ## Experiments
 
 Create a draft.
 
 ```shell
-ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 --traffic 0.2 \
+ssp experiment create rank-v2 --app atlas --split atlas-search=0.05 \
   --subject 'request.headers["x-user-id"]' \
   --eligibility 'request.headers["cf-ipcountry"] == "US"' \
   --description 'Test sorted search results.' --note 'Sorted results should get more clicks.'
 ```
 
-Change the draft. `--variant` replaces the draft's variants, and `--no-eligibility` removes the rule.
+Change the draft. `--split` replaces the draft's arms, and `--no-eligibility` removes the rule.
 
 ```shell
-ssp experiment update rank-v2 --variant atlas-search=0.25 --variant atlas-search-bm25=0.25
-ssp experiment update rank-v2 --traffic 0.5 --note 'No regressions at 20%.'
+ssp experiment update rank-v2 --split atlas-search=0.05 --split atlas-search-bm25=0.05
+ssp experiment update rank-v2 --split atlas-search=0.2 --note 'No regressions at 5%.'
 ssp experiment update rank-v2 --no-eligibility
 ```
 
@@ -111,16 +121,12 @@ ssp experiment stop rank-v2 --note 'Ship atlas-search.'
 ssp experiment start rank-v2 --version 1
 ```
 
-Read experiments and results.
+Read experiments. Each shows `split`, every arm's share of all subjects.
 
 ```shell
 ssp experiment list --app atlas
 ssp experiment show rank-v2
-ssp experiment results rank-v2 --outcome click
-ssp experiment results rank-v2 --outcome purchase --metric amount --version 2
 ```
-
-Results count each subject once, in the variant it was assigned, even when control served it because the variant was unavailable. Each variant reports its `subjects`, how many of them were `unavailable`, how many `converted`, the `mean` value, and its `effect` against control with a 95% interval. Once 100 subjects ran, `sample_ratio` tests whether subjects split as the weights say. A `mismatch` means the effects cannot be trusted.
 
 Delete a stopped experiment with all of its versions, runs, and notes.
 
@@ -130,74 +136,31 @@ ssp experiment delete rank-v2 --yes
 
 See [Experiment definition](/reference/experiment-definition) for every field.
 
-## Host
+## Proxy and controller
 
-Run an app and its variants behind the proxy. See [Host](/reference/host) for every flag.
-
-```shell
-ssp host --app atlas --command "gunicorn -b 127.0.0.1:{port} atlas:app" --trust-key "$SSP_PUBLIC_KEY"
-```
-
-## Database credentials
-
-Create a read-only PostgreSQL credential. Its connection URL appears only once.
+Run the reverse proxy in front of an app. See [Proxy](/reference/proxy) for every flag.
 
 ```shell
-ssp database credential create --name analyst --app atlas
-ssp database credential create --name notebook
-ssp database credential list
-ssp database credential revoke dbc_123
+ssp proxy --app atlas --runtime docker --image ghcr.io/acme/atlas:main --trust-key "$SSP_PUBLIC_KEY"
+ssp proxy --app atlas --runtime kubernetes --default http://localhost:8000
 ```
 
-A credential with `--app` reads only that app's schema of views. Without it, a credential reads every app, including apps created later. It cannot write data or connect to another account database.
-Connect directly over TLS to your workspace hostname, such as `acme.statespace.app`. Use `sslmode=verify-full` to validate the public certificate. The CLI has no SQL query command
-and the API has no SQL query endpoint.
-
-Use a PostgreSQL 16 or newer client for the returned URL's `sslrootcert=system`. Older clients must replace that parameter with the path to a trusted public CA bundle. Keep `sslmode=verify-full`.
-
-Query an app's views with your own SQL client and protected connection settings.
+Run the arms on Kubernetes. See [Controller](/reference/controller).
 
 ```shell
-psql -c 'SELECT * FROM atlas.logs LIMIT 20'
+ssp controller --app atlas --deployment atlas --trust-key "$SSP_PUBLIC_KEY"
 ```
 
-## Sessions
+## Storage and retention
 
-List or revoke CLI sessions without exposing their secrets.
-
-```shell
-ssp token list
-ssp token revoke tok_123
-ssp token revoke-all --yes
-```
-
-`revoke-all` revokes account API keys, CLI sessions, and browser sessions.
-
-## Audit and storage
-
-Read account audit records and the event storage quota.
-
-```shell
-ssp audit --limit 50
-ssp audit --limit 50 --before 4821
-ssp storage
-```
-
-Audit reads require `audit:read`. Records include a `source` field identifying
-the control or tenant ledger. IDs support pagination across both ledgers; they
-do not define time order. Use `occurred_at` to order events by time.
-
-Events have a 64 KiB size limit and a 90-day retention limit. Captured output follows its app's shorter `--output-retention`. The quota is 1 GiB on the free plan and 10 GiB on other plans. Usage warns at 80%; new events
-are rejected when the quota is full.
+Events have a 64 KiB size limit and a 90-day retention limit. The lines arms print follow their app's shorter `--output-retention-days`. The quota is 1 GiB on the free plan and 10 GiB on other plans; `ssp whoami` shows its use. Usage warns at 80%; new events are rejected when the quota is full.
 
 ## Subject erasure
 
-Erase a subject's persisted and pending runs, outcomes, and requests in one app.
+Erase a subject's persisted and pending runs, requests, and the lines that name it in one app.
 
 ```shell
 ssp app erase-subject atlas u_42
 ```
 
-Erased data can remain in encrypted backups until backup retention expires.
-Operators must reapply later erasures after restoring an older snapshot. The
-erasure audit record retains the subject identifier as metadata.
+Erased data can remain in encrypted backups until backup retention expires. Operators must reapply later erasures after restoring an older snapshot. The erasure audit record retains the subject identifier as metadata.

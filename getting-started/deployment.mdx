@@ -1,101 +1,133 @@
 ---
 title: Deployment
-description: Publish variants from CI and run ssp host in production.
+description: Publish variants from CI and run ssp proxy on Docker or Kubernetes.
 ---
 
-A deployment has two parts. CI publishes each branch as a signed variant. Your servers run `ssp host` in place of the app's start command.
+A deployment has two parts. CI publishes each branch's image as a signed variant. Your servers run `ssp proxy` in front of the app.
 
-The [FastAPI example](https://github.com/statespace-tech/cli/tree/main/examples/fastapi) has every file on this page, ready to copy.
+The [FastAPI example](https://github.com/statespace-tech/cli/tree/main/examples/fastapi) and the [Kubernetes example](https://github.com/statespace-tech/cli/tree/main/examples/kubernetes) have every file on this page, ready to copy.
 
 ## Publish variants from CI
 
-Create a key that CI can use to publish variants. Store it as the `SSP_API_KEY` secret, and the private key from `ssp variant keygen` as `SSP_SIGNING_KEY`.
+Create a token that CI can use to publish variants. Store it as the `SSP_TOKEN` secret, and the private key from `ssp keygen` as `SSP_SIGNING_KEY`.
 
 ```shell
-ssp key create --name ci --scope experiments:write
+ssp token create --name ci --preset publisher
 ```
 
-This GitHub Actions workflow builds every branch except `main` and publishes it as a variant named after the branch.
+This GitHub Actions workflow builds every branch except `main` into an image, pushes it, and publishes it as a variant named after the branch.
 
 ```yaml
 name: Publish variant
 on:
   push:
     branches-ignore: [main]
+permissions:
+  contents: read
+  packages: write
 jobs:
   variant:
     runs-on: ubuntu-24.04
-    container: python:3.12-slim
     steps:
       - uses: actions/checkout@v4
-      - run: ./build.sh build
       - run: |
-          apt-get update && apt-get install --yes --no-install-recommends curl ca-certificates
-          curl -fsSL https://statespace.com/install.sh | sh
+          image=ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_SHA
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build --tag "$image" . && docker push "$image"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+      - run: curl -fsSL https://statespace.com/install.sh | sh
       - env:
-          SSP_API_KEY: ${{ secrets.SSP_API_KEY }}
+          SSP_TOKEN: ${{ secrets.SSP_TOKEN }}
           SSP_SIGNING_KEY: ${{ secrets.SSP_SIGNING_KEY }}
           BRANCH: ${{ github.ref_name }}
         run: |
           name=$(printf '%s' "$BRANCH" | tr -c 'A-Za-z0-9._-' '-' | cut -c 1-100)
-          ~/.local/bin/ssp variant create "$name" build --app atlas --commit "$GITHUB_SHA"
+          ~/.local/bin/ssp variant create "$name" --app atlas --image "$IMAGE"
 ```
 
-A variant runs on your hosts, so build it where they run. Use the same base image, operating system, architecture, and language version as production. A variant built on a laptop may fail on a Linux host.
+`ssp variant create` resolves the tag to its digest, so the signature covers the exact image. The commit defaults to `GITHUB_SHA`.
 
-A build contains the code and its installed dependencies. The FastAPI example installs them into `deps/` with `pip install --target`, and starts the app with `PYTHONPATH=deps`.
+## Run proxies on Docker
 
-## Run hosts in containers
-
-Install `ssp` in the production image, and make `ssp host` the command. Use `exec`, so `ssp host` receives the platform's stop signal.
-
-```dockerfile
-FROM python:3.12-slim
-RUN apt-get update \
-    && apt-get install --yes --no-install-recommends curl ca-certificates \
-    && curl -fsSL https://statespace.com/install.sh | STATESPACE_INSTALL_DIR=/usr/local/bin sh
-WORKDIR /app
-COPY . .
-RUN pip install --target deps -r requirements.txt
-ENV STATESPACE_APP=atlas STATESPACE_CACHE=/tmp/statespace
-EXPOSE 8080
-CMD exec ssp host --health /health --trust-key "$SSP_TRUST_KEY" \
-    --command "gunicorn -b 127.0.0.1:{port} atlas:app"
-```
-
-Pass the runtime key as `SSP_API_KEY` and the public signing key as `SSP_TRUST_KEY` from the platform's secrets.
-
-## Run hosts with systemd
-
-Run `ssp host` as the service's command on a virtual machine. `KillMode=mixed` lets `ssp host` stop the app's processes itself.
+On a virtual machine with Docker, `ssp proxy` runs the app's default image and every arm as containers on private ports of `127.0.0.1`, and listens on the public port. Run it with systemd.
 
 ```ini
+[Unit]
+After=docker.service
+Requires=docker.service
+
 [Service]
-WorkingDirectory=/srv/atlas
+SupplementaryGroups=docker
+EnvironmentFile=/etc/atlas/env
 Environment=STATESPACE_APP=atlas
-CacheDirectory=statespace
-Environment=STATESPACE_CACHE=%C/statespace
-ExecStart=/usr/local/bin/ssp host --health /health --trust-key ${SSP_TRUST_KEY} \
-    --command "gunicorn -b 127.0.0.1:{port} atlas:app"
+Environment=STATESPACE_RUNTIME=docker
+Environment=STATESPACE_IMAGE_FILE=/etc/atlas/image
+StateDirectory=statespace
+Environment=STATESPACE_STATE=%S/statespace
+ExecStart=/usr/local/bin/ssp proxy --health /health
+ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed
-TimeoutStopSec=30
+TimeoutStopSec=60
 Restart=always
 ```
 
+Pass the runtime token as `SSP_TOKEN` and the public signing key as `SSP_TRUST_KEY`. The containers inherit the service's environment, such as the app's settings in `/etc/atlas/env`, without the proxy's own variables.
+
+Deploy a new default by writing its image to the file and reloading the service. The proxy starts the new image, sends it traffic once `--health` answers, then stops the old container.
+
+```shell
+echo ghcr.io/acme/atlas:4f2a9c1 | sudo tee /etc/atlas/image
+sudo systemctl reload atlas
+```
+
+## Run proxies on Kubernetes
+
+On Kubernetes, the default is your Deployment as it is. Add `ssp proxy` to its pods as a sidecar, and point the Service at the sidecar's port.
+
+```yaml
+containers:
+  - name: atlas
+    image: ghcr.io/acme/atlas:main
+    ports:
+      - containerPort: 8000
+  - name: statespace-proxy
+    image: ghcr.io/statespace-tech/ssp:0.2.0
+    args: ["proxy", "--runtime", "kubernetes", "--default", "http://localhost:8000"]
+    env:
+      - name: STATESPACE_APP
+        value: atlas
+      - name: SSP_TOKEN
+        valueFrom:
+          secretKeyRef: {name: statespace, key: runtime-token}
+    ports:
+      - containerPort: 8080
+```
+
+The Service's `targetPort` becomes `8080`, the sidecar's port.
+
+Run one `ssp controller` in the namespace with a controller token. It runs each arm as a copy of the Deployment with the arm's image, and deletes the arm when its experiment stops. Apply the example's [manifest](https://github.com/statespace-tech/cli/blob/main/examples/kubernetes/statespace-controller.yaml), which grants it Deployments, Services, and its ConfigMap in this namespace, and read access to pods and their logs.
+
+```shell
+ssp token create --name controller --preset controller
+kubectl apply -f statespace-controller.yaml
+```
+
+See [Controller](/reference/controller) for what each arm copies from the default.
+
 ## Load balancers
 
-Run as many hosts as you run app servers now. Every host assigns a subject to the same variant, so requests need no sticky sessions.
+Keep as many machines or pods as you run now. Every proxy assigns a subject to the same arm, so requests need no sticky sessions.
 
-Point health checks at the app's health path. Control answers them, so a host passes while its variants start.
+Point health checks at the app's health path. The default answers them, so a proxy passes while arms start.
 
-On `SIGTERM`, a host lets requests finish for up to 10 seconds. Give the platform a longer stop timeout than that.
+On `SIGTERM`, a proxy lets requests finish for up to 10 seconds. Give the platform a longer stop timeout than that.
 
 ## Capacity
 
-Each host runs control and up to `--max-variants` variants, 4 by default. Size machines for that many copies of the app, or lower the limit.
+On Docker, each proxy runs the default and up to `--max-variants` arms, 4 by default, control arms included. Size machines for that many copies of the app, or lower the limit. On Kubernetes, the controller runs up to 10 arms, each with the default's replicas times its share of subjects, at least one.
 
-`ssp experiment start` fails when hosts have no room for the variants it needs. Check what each host runs.
+`ssp experiment start` warns when proxies or the controller run fewer arms than running experiments need. Subjects of the arms beyond the limit get the default. Check what each proxy runs.
 
-```shell
-ssp app hosts atlas
+```sql
+SELECT id, kind, version, max_variants, report FROM atlas.hosts;
 ```

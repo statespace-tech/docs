@@ -1,48 +1,42 @@
 ---
 title: Simple A/B experiment
-description: Compare one variant with control.
+description: Compare one variant with its control arm.
 ---
 
-This example gives half of the eligible US users of `atlas` the variant `atlas-search`. Its search ranks results differently. Control keeps the deployed ranking.
+This example gives 10% of the eligible US users of `atlas` the variant `atlas-search`, and another 10% the control arm. Its search ranks results differently. Control runs the deployed ranking.
 
-Publish the variant from a build of its branch.
+Publish the variant from its branch's image.
 
 ```shell
-ssp variant create atlas-search . --app atlas
+ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas:new-ranking
 ```
 
 Create the experiment and start it.
 
 ```shell
-ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 \
+ssp experiment create rank-v2 --app atlas --split atlas-search=0.1 \
   --subject 'request.headers["x-user-id"]' \
   --eligibility 'request.headers["cf-ipcountry"] == "US"' \
   --note 'Sorted results should get more clicks.'
 ssp experiment start rank-v2
 ```
 
-Print the same outcome in control and the variant.
+Print the same line in the default and the variant.
 
 ```python
 subject = request.headers["x-statespace-subject"]
-print(json.dumps({"statespace": "click", "subject": subject, "position": 1}))
+print(json.dumps({"event": "click", "subject": subject, "position": 1}))
 ```
 
-Compare the variants.
-
-```shell
-ssp experiment results rank-v2 --outcome click --metric position
-```
-
-Or compare them in SQL within version 1.
+Compare the arms within version 1.
 
 ```sql
 SELECT variant, count(DISTINCT subject_id) AS subjects,
        avg((data->>'position')::double precision) AS mean_position
 FROM atlas.logs
 WHERE experiment = 'rank-v2' AND experiment_version = 1
-  AND reason IN ('assigned', 'variant-unavailable') AND outcome_name = 'click'
+  AND reason IN ('assigned', 'variant-unavailable') AND data->>'event' = 'click'
 GROUP BY variant;
 ```
 
-Variant rows use the name `atlas-search`; control rows use `control`. Check delivery and missing outcomes before interpreting this comparison.
+Variant rows use the name `atlas-search`; control rows use `control`. Check delivery and the sample ratio before interpreting this comparison.

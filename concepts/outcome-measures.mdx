@@ -3,7 +3,7 @@ title: Outcome measures
 description: Record responses and define how an experiment measures change.
 ---
 
-An [outcome measure](https://en.wikipedia.org/wiki/Outcome_measure) assesses the effect of an intervention or treatment. Statespace stores raw outcomes and lets SQL define metrics.
+An [outcome measure](https://en.wikipedia.org/wiki/Outcome_measure) assesses the effect of an intervention or treatment. Statespace records every line the arms print and lets SQL define metrics.
 
 ```text
 assignment → exposure → raw outcome → metric
@@ -13,19 +13,19 @@ assignment → exposure → raw outcome → metric
 
 An assignment records which variant a unit should receive. An exposure records that the unit received it.
 
-`ssp host` records a run the first time it routes a subject, when it serves the request. A run with `reason = 'assigned'` is an exposure. A run with `reason = 'variant-unavailable'` was assigned a variant but served by control. Count both in the assigned variant, so a variant that fails for some subjects cannot hide them.
+`ssp proxy` records a run the first time it routes a subject, when it serves the request. A run with `reason = 'assigned'` is an exposure. A run with `reason = 'variant-unavailable'` was assigned an arm but served by the default. Count both in the assigned arm, so an arm that fails for some subjects cannot hide them.
 
 This distinction affects whether the [estimand](/concepts/statistical-inference#estimands) measures assignment or actual exposure.
 
 ## Raw outcomes
 
-An outcome records a named JSON response for a subject. Any process of the app can print it, in control or in a variant.
+Every line an arm prints is a raw outcome. A JSON line keeps its fields as `data`, and its `subject` field ties it to that subject's arm.
 
 ```python
-print(json.dumps({"statespace": "click", "subject": subject, "position": 3}))
+print(json.dumps({"event": "click", "subject": subject, "position": 3}))
 ```
 
-`statespace` names the outcome and `subject` identifies the subject. Every other field becomes the outcome's `data`. The subject of the current request is the `x-statespace-subject` header. Use the same name, meaning, and unit in every variant.
+The subject of the current request is the `x-statespace-subject` header. Use the same event names, meaning, and units in the default and every variant. A line without a subject still belongs to the arm that printed it, which serves rates such as errors per request.
 
 ## Outcome metrics
 
@@ -44,11 +44,11 @@ Statespace does not require metric definitions in the experiment definition. Thi
 
 Attribution connects an outcome to the run whose treatment could have caused it. It is an experiment join rule, not marketing attribution.
 
-An app's `logs` view joins each outcome to the latest run of the same subject in the app that started at or before it. A subject is in at most one experiment of an app at a time, so an outcome needs no experiment name. Results count an outcome for the variant of the subject's first run in the analyzed version, until the subject's next run in another experiment, and ignore outcomes that came before it. Define a narrower attribution window in SQL when a response can occur long after exposure.
+An app's `logs` view joins each line with a subject to the latest run of the same subject in the app that started at or before it. A subject is in at most one experiment of an app at a time, so a line needs no experiment name. Lines that came before the subject's first run are not attributed. Define a narrower attribution window in SQL when a response can occur long after exposure.
 
 ## Repeated observations
 
-One randomization unit can produce many runs and outcomes. These observations are related because they come from the same assigned unit.
+One randomization unit can produce many runs and lines. These observations are related because they come from the same assigned unit.
 
 ```text
 user_42
@@ -67,7 +67,7 @@ WITH unit_outcomes AS (
     avg((data->>'position')::double precision) AS unit_position
   FROM atlas.logs
   WHERE experiment = 'rank-v2'
-    AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND outcome_name = 'click'
+    AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND data->>'event' = 'click'
   GROUP BY subject_id, variant
 )
 SELECT
@@ -86,32 +86,34 @@ GROUP BY variant;
 
 A guardrail metric detects unacceptable harm outside the primary objective. Common guardrails include latency, error rate, safety violations, and user abandonment.
 
-`ssp host` records some guardrails for every process without code: per-minute request counts, error rates, and latency percentiles, and CPU and memory use.
+`ssp proxy` records some guardrails for every arm without code: each request's status and latency, and per-minute CPU and memory use.
 
 ```sql
-SELECT variant, timestamp, data->>'p90_ms' AS p90_ms, data->>'errors' AS errors
-FROM atlas.metrics
-WHERE kind = 'http'
-ORDER BY timestamp DESC;
+SELECT variant,
+       avg((status >= 500)::int) AS error_rate,
+       percentile_cont(0.9) WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
+FROM atlas.requests
+WHERE experiment = 'rank-v2'
+GROUP BY variant;
 ```
 
-Print other guardrails as outcomes in control and every variant.
+Print other guardrails as lines in the default and every variant.
 
 ```python
-print(json.dumps({"statespace": "performance", "subject": subject, "latency_ms": 42}))
+print(json.dumps({"event": "performance", "subject": subject, "latency_ms": 42}))
 ```
 
 ## Structured outcomes
 
-An outcome can contain any JSON-compatible result. This supports conversations, traces, evaluations, and other semi-structured evidence.
+A line can contain any JSON object. This supports conversations, traces, evaluations, and other semi-structured evidence.
 
 ```python
 print(json.dumps({
-    "statespace": "conversation",
+    "event": "conversation",
     "subject": subject,
     "tool_calls": 3,
     "termination": "completed",
 }))
 ```
 
-Each outcome line must be smaller than 60 KiB. Store large artifacts elsewhere and record a durable reference.
+Lines longer than 16 KiB are cut. Store large artifacts elsewhere and print a durable reference.

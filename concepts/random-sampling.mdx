@@ -8,15 +8,15 @@ Eligibility defines the population that can enter an experiment. Use information
 Create a draft with a CEL eligibility rule over the request.
 
 ```shell
-ssp experiment create rank-v2 --app atlas --variant atlas-search=0.5 \
+ssp experiment create rank-v2 --app atlas --split atlas-search=0.05 \
   --eligibility 'request.headers["cf-ipcountry"] == "US" && request.path.startsWith("/search")'
 ```
 
-The backend validates CEL when the draft changes. `ssp host` evaluates the rule against each request's `method`, `path`, `query`, `headers`, and `cookies`. A header or cookie that is missing is `null`.
+The backend validates CEL when the draft changes. `ssp proxy` evaluates the rule against each request's `method`, `path`, `query`, `headers`, and `cookies`. A header or cookie that is missing is `null`.
 
-An eligible subject receives control or a variant. An ineligible subject receives control and is recorded with `reason = 'ineligible'`. A rule that fails to evaluate is recorded with `reason = 'eligibility-error'`.
+An eligible subject receives an arm: control or a variant. An ineligible subject receives the default and is recorded with `reason = 'ineligible'`. A rule that fails to evaluate is recorded with `reason = 'eligibility-error'`.
 
-Apply the same eligibility rule to every variant. Do not use values that treatment can change.
+Apply the same eligibility rule to every arm. Do not use values that treatment can change.
 
 ```text
 Suitable:   country, path, plan in a header set by your gateway
