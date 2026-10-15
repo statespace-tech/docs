@@ -36,7 +36,7 @@ ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas:new-ranki
 The signature covers this message, with an empty line for a missing commit.
 
 ```text
-statespace-variant-v2
+statespace-variant-v1
 <app>
 <name>
 <image>
@@ -98,7 +98,7 @@ ssp experiment start rank-v2
 ssp experiment show rank-v2
 ```
 
-`start` fails when the app's free share of subjects is smaller than the experiment's, or when a proxy or controller that reported in the last three minutes is older than `ssp` 0.2.0. It warns when they run fewer arms than running experiments need. Subjects keep their arm across versions wherever its share still covers their bucket. Restart an earlier version to roll back.
+`start` fails when the app's free share of subjects is smaller than the experiment's. It warns when the proxies and controllers run fewer arms than running experiments need. Subjects keep their arm across versions wherever its share still covers their bucket. Restart an earlier version to roll back.
 
 ```shell
 ssp experiment start rank-v2 --version 1

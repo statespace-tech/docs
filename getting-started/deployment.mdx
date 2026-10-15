@@ -5,7 +5,7 @@ description: Publish variants from CI and run ssp proxy on Docker or Kubernetes.
 
 A deployment has two parts. CI publishes each branch's image as a signed variant. Your servers run `ssp proxy` in front of the app.
 
-The [FastAPI example](https://github.com/statespace-tech/cli/tree/main/examples/fastapi) and the [Kubernetes example](https://github.com/statespace-tech/cli/tree/main/examples/kubernetes) have every file on this page, ready to copy.
+The [FastAPI example](https://github.com/statespace-tech/statespace/tree/main/examples/fastapi) and the [Kubernetes example](https://github.com/statespace-tech/statespace/tree/main/examples/kubernetes) have every file on this page, ready to copy.
 
 ## Publish variants from CI
 
@@ -91,7 +91,7 @@ containers:
     ports:
       - containerPort: 8000
   - name: statespace-proxy
-    image: ghcr.io/statespace-tech/ssp:0.2.0
+    image: ghcr.io/statespace-tech/statespace:0.1.0
     args: ["proxy", "--runtime", "kubernetes", "--default", "http://localhost:8000"]
     env:
       - name: STATESPACE_APP
@@ -105,7 +105,7 @@ containers:
 
 The Service's `targetPort` becomes `8080`, the sidecar's port.
 
-Run one `ssp controller` in the namespace with a controller token. It runs each arm as a copy of the Deployment with the arm's image, and deletes the arm when its experiment stops. Apply the example's [manifest](https://github.com/statespace-tech/cli/blob/main/examples/kubernetes/statespace-controller.yaml), which grants it Deployments, Services, and its ConfigMap in this namespace, and read access to pods and their logs.
+Run one `ssp controller` in the namespace with a controller token. It runs each arm as a copy of the Deployment with the arm's image, and deletes the arm when its experiment stops. Apply the example's [manifest](https://github.com/statespace-tech/statespace/blob/main/examples/kubernetes/statespace-controller.yaml), which grants it Deployments, Services, and its ConfigMap in this namespace, and read access to pods and their logs.
 
 ```shell
 ssp token create --name controller --preset controller
