@@ -25,7 +25,7 @@ Every line an arm prints is a raw outcome. A JSON line keeps its fields as `data
 print(json.dumps({"event": "click", "subject": subject, "position": 3}))
 ```
 
-The subject of the current request is the `x-statespace-subject` header. Use the same event names, meaning, and units in the default and every variant. A line without a subject still belongs to the arm that printed it, which serves rates such as errors per request.
+The proxy sets the `x-statespace-subject` header to the subject from your rule. Thus, each arm uses the subject that the proxy assigned. Use the same event names, meaning, and units in the default and every variant. A line without a subject still belongs to the arm that printed it, which serves rates such as errors per request.
 
 ## Outcome metrics
 

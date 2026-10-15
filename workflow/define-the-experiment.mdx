@@ -11,14 +11,16 @@ Use a stable identifier at the level where treatment can vary independently. Rea
 
 ## Print the outcome
 
-Print a JSON line wherever the outcome happens, with the subject. Deploy this to production first, so the default and every variant print it the same way.
+Statespace records each line that an arm prints, with its arm. Thus, your current logs are also evidence. Print a JSON line where the outcome occurs. To compare subjects, add a `subject` field.
 
 ```python
 subject = request.headers["x-statespace-subject"]
 print(json.dumps({"event": "click", "subject": subject, "position": position}))
 ```
 
-Every line an arm prints is recorded, so existing logs are evidence too. A `subject` field ties a line to that subject's arm.
+The proxy calculates the subject with your subject rule. It sends the result in the `x-statespace-subject` header. The app reads the subject from this header.
+
+Deploy this change to production first. Then the default and each variant print the same lines.
 
 ## Build the variant
 

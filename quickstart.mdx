@@ -27,7 +27,7 @@ This example tests a branch of the search app `atlas` that ranks results differe
   </Step>
 
   <Step title="Print what you measure">
-    Print one JSON line wherever something happens that you want to measure. The subject is the `x-statespace-subject` request header.
+    Statespace records each line that an arm prints, with its arm. Thus, your current logs are also data. To compare subjects, print a JSON line with a `subject` field. The proxy sets the `x-statespace-subject` header to the subject from your rule, or to the browser ID.
 
     ```python
     subject = request.headers["x-statespace-subject"]
