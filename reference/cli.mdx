@@ -3,7 +3,7 @@ title: CLI
 description: Review the public ssp command surface.
 ---
 
-Every command except `ssp proxy` and `ssp controller` prints one JSON document. Errors print `{"error": "..."}` on standard error and exit with status 1. The CLI changes things; read recorded data with SQL.
+Commands print text. Add `--json` to print one JSON document. Errors go to standard error and exit with status 1. With `--json`, an error is `{"error": "..."}`. Notes and warnings go to standard error. The CLI changes things; read recorded data with SQL.
 Use `STATESPACE_URL` to select a local or hosted API.
 
 ## Authentication
@@ -17,11 +17,11 @@ ssp logout
 ssp logout --all
 ```
 
-`whoami` shows the account, the credential in use, its scopes, and storage use. `logout --all` ends every session of the account. Use `SSP_TOKEN` for CI, proxies, and the controller. Keep creation responses out of recorded logs.
+`whoami` shows the account, the credential in use, its scopes, and storage use. `logout --all` ends every session of the account. Use `SSP_TOKEN` for CI, proxies, and the controller. Keep the output of `ssp token create` out of recorded logs.
 
 ## Tokens
 
-A token opens the API and, with `query:read`, PostgreSQL. Its secret appears only in the create response.
+A token opens the API and, with `query:read`, PostgreSQL. Statespace shows its secret only once, when you create it.
 
 ```shell
 ssp token create --name production --preset runtime
@@ -42,7 +42,7 @@ ssp token revoke --all --yes
 
 `--app` limits what the token reads in SQL to one app's views; it needs `query:read`. `token list` shows tokens and sign-in sessions without their secrets. `revoke --all` revokes every token and session of the account, and ends their database sessions.
 
-A token with `query:read` returns a `database_url`. Its user is the token's ID and its password is the token. Connect over TLS to your workspace hostname, such as `acme.statespace.app`, with `sslmode=verify-full`. Use a PostgreSQL 16 or newer client for the URL's `sslrootcert=system`; older clients must replace that parameter with the path to a trusted public CA bundle.
+A token with `query:read` also has a database URL. Its user is the token's ID and its password is the token. Connect over TLS to your workspace hostname, such as `acme.statespace.app`, with `sslmode=verify-full`. Use a PostgreSQL 16 or newer client for the URL's `sslrootcert=system`; older clients must replace that parameter with the path to a trusted public CA bundle.
 
 ## Signing keys
 

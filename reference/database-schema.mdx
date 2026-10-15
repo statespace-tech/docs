@@ -105,7 +105,7 @@ GROUP BY experiment_version, variant;
 
 `account.audit` has every change to the account and its apps: `id`, `occurred_at`, `source`, `actor`, `action`, `target`, and `detail`. Records of the account itself, such as new tokens and sign-ins, have the source `control`. Only tokens that read every app can read it.
 
-Create a token for a SQL client. Its `database_url` appears only once.
+Create a token for a SQL client. Statespace shows its database URL only once.
 
 ```shell
 ssp token create --name analyst --preset analyst --app atlas

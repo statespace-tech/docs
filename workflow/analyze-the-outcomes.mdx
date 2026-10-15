@@ -5,7 +5,7 @@ description: Query runs, lines, and requests, then record a decision.
 
 Start with allocation and delivery checks. Then compare each variant with its control arm within one experiment version.
 
-Analysis runs against your own PostgreSQL database. Create a token that reads the app once, and point any SQL client at its `database_url`.
+Analysis runs against your own PostgreSQL database. Create a token that reads the app once, and connect any SQL client to its database URL.
 
 ```shell
 ssp token create --name analyst --preset analyst --app atlas
