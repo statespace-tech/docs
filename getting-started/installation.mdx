@@ -5,21 +5,27 @@ description: Install the CLI and create the tokens a deployment needs.
 
 ## CLI
 
-Install the CLI on macOS or Linux. The installer downloads a prebuilt binary and verifies its SHA-256 checksum. Rust and Cargo are not required.
+Install the CLI on macOS or Linux.
 
 ```shell
 curl -fsSL https://statespace.com/install.sh | bash
 ```
 
-The installer installs the latest release, the only one published.
-
-Confirm the installation.
+Make sure that the CLI is installed.
 
 ```shell
 ssp --version
 ```
 
 The same binary runs `ssp proxy` on machines with Docker. On Kubernetes, the proxy and the controller run from the `ghcr.io/statespace-tech/statespace` image.
+
+## Coding agents
+
+Give this prompt to your coding agent. The skill tells the agent how to install the CLI, sign in, and run experiments.
+
+```text
+Read https://statespace.com/skill.md and follow it.
+```
 
 ## Tokens
 
