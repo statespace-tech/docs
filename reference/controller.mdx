@@ -16,7 +16,7 @@ ssp controller --app atlas --deployment atlas --trust-key "$SSP_PUBLIC_KEY"
 | `--container` | The app's container in the default's pods. Defaults to the first container other than `statespace-proxy` |
 | `--namespace` | The namespace. Defaults to the controller's own |
 | `--trust-key` | A base64 public key whose signed variants may run, or `SSP_TRUST_KEY`. Required |
-| `--max-variants` | How many arms run at once, control arms included, 1 to 64. Defaults to 10 |
+| `--max-variants` | How many arms run at once, control arms included, 1 to 64. Defaults to 5 |
 | `--variant-env NAME=VALUE` | An environment variable every arm's container gets. Repeatable |
 | `--redact REGEX` | Replace matches in recorded lines before they leave the cluster. Repeatable |
 

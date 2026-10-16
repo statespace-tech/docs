@@ -124,7 +124,7 @@ On `SIGTERM`, a proxy lets requests finish for up to 10 seconds. Give the platfo
 
 ## Capacity
 
-On Docker, each proxy runs the default and up to `--max-variants` arms, 4 by default, control arms included. Size machines for that many copies of the app, or lower the limit. On Kubernetes, the controller runs up to 10 arms, each with the default's replicas times its share of subjects, at least one.
+On Docker, each proxy runs the default and up to `--max-variants` arms, 5 by default, control arms included. Size machines for that many copies of the app, or lower the limit. On Kubernetes, the controller runs up to 10 arms, each with the default's replicas times its share of subjects, at least one.
 
 `ssp experiment start` warns when proxies or the controller run fewer arms than running experiments need. Subjects of the arms beyond the limit get the default. Check what each proxy runs.
 
