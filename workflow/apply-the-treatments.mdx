@@ -89,7 +89,7 @@ To change the share or the rules, change `statespace.toml` on the branch and pus
 
 ## Stop the arm
 
-To stop an arm, make its pull request a draft. Mark it ready for review to run it again. In an emergency, stop every arm of the experiment at once. It also makes their pull requests drafts.
+To stop an arm, make its pull request a draft. Mark it ready for review to run it again. In an emergency, stop every arm of the experiment at once from Statespace. The `statespace/arm` check says that Statespace stopped the arm. To run it again, push a commit, or mark the pull request as a draft and then ready.
 
 ```shell
 ssp stop ranking
