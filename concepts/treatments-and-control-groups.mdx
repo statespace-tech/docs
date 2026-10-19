@@ -1,53 +1,49 @@
 ---
 title: Treatments and control groups
-description: Compare variants of an app with a control arm of the version you deployed.
+description: Compare arms of an app with a control of the version their branch started from.
 ---
 
-A treatment is the behavior being tested. A variant is a signed image of your app that defines one treatment. Control supplies the comparison baseline.
+A treatment is the behavior being tested. An arm is a branch of your app that defines one treatment. Its control supplies the comparison baseline.
 
-## Interventions, treatments, and variants
+## Interventions, treatments, and arms
 
-This example changes search ranking with the variant `atlas-search`.
+This example changes search ranking with the arm `recent-clicks`, the branch `exp/ranking/recent-clicks`.
 
 ```text
 intervention: change search ranking
-treatment:    atlas-search, an image of the new-ranking branch of atlas
-control:      the image of atlas you deployed, pinned when the experiment started
+treatment:    recent-clicks, an image of a commit of exp/ranking/recent-clicks
+control:      the default build of the commit where the branch left main
 default:      the image of atlas you deployed, for everyone outside the experiment
 ```
 
-A variant can change anything in your app's image: code, dependencies, the operating system, or how it starts. Variants are versioned, and an experiment records which variant version each of its versions used.
+An arm can change anything in your app's image: code, dependencies, the operating system, or how it starts. Each commit is a version of the arm, and an experiment version records the commit of each of its arms.
 
 ## Control group
 
-Control is an arm of its own: a copy of the image you deployed, pinned by digest when the experiment version started. It gets the same share of subjects as a variant and runs in new containers, as the variant does. Comparing a variant with control, rather than with the default, compares two equally new, equally loaded copies that differ only in the treatment.
+Each arm is compared with a control: the default build of the arm's base, the commit where its branch left the default branch. The base must have run as the default. So the arm and its control differ only by the branch's change.
 
-Deploying a new default does not change a running experiment's control arm. Start a new experiment version to compare against the new default.
+A control gets the share of the largest arm on its base and runs in new containers, as the arm does. Comparing an arm with its control, rather than with the default, compares two equally new, equally loaded copies that differ only in the treatment.
+
+Deploying a new default does not change a running control. When you update an arm with the default branch, the arm gets a control of its new base.
 
 ## Arm shares
 
-`--split` gives each variant its share of all the app's subjects. Control gets the largest variant's share.
+`share` in the branch's `statespace.toml` gives the arm its share of all the app's subjects. Its control gets the same share.
 
-```shell
-ssp experiment create rank-v2 --app atlas --split atlas-search=0.05
+```toml
+share = 0.05
 ```
 
-Here 5% of subjects get `atlas-search` and 5% get control. Ineligible subjects get the default; their runs are not randomized control and must not be counted as control.
+Here 5% of subjects get `recent-clicks` and 5% get control. Ineligible subjects get the default; their runs are not randomized control and must not be counted as control.
 
-Give control its own share with `control=SHARE`.
-
-```shell
-ssp experiment update rank-v2 --split atlas-search=0.05 --split atlas-search-bm25=0.05 --split control=0.1
-```
-
-Unequal shares change the sample size and statistical power of each comparison. See [Arm allocation](/concepts/random-assignment#arm-allocation) for stable assignment ranges.
+Arms of one experiment with the same base share one control, with the largest share among them. Unequal shares change the sample size and statistical power of each comparison. See [Arm allocation](/concepts/random-assignment#arm-allocation) for stable assignment ranges.
 
 ## Shared state
 
 Arms share your database, cache, and queues with the default. Keep an arm's changes inside the code that handles requests.
 
-- Land schema changes in the deployed code first. Give arms a database user without schema permissions with `--variant-env`.
+- Land schema changes in the deployed code first. Give arms a database user without schema permissions with `--arm-env`.
 - Turn off schedulers and workers that run inside your web process in arms, so nothing runs twice.
 - Prefix cache keys in arms, so the default never serves a response an arm cached.
 
-To test two changes and their interaction, build each combination as its own variant and analyze the full grid.
+To test two changes and their interaction, build each combination as its own arm and analyze the full grid.

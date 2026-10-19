@@ -14,7 +14,7 @@ outcomes → estimate → uncertainty → decision
 An estimand states exactly which effect the experiment intends to estimate. It identifies the population, treatment, outcome, and summary measure.
 
 ```text
-Among eligible search users, what is the average effect of atlas-search
+Among eligible search users, what is the average effect of recent-clicks
 assignment on clicks compared with the control arm of the deployed ranking?
 ```
 
@@ -33,19 +33,19 @@ ATE = mean outcome under treatment − mean outcome under control
 Calculate the observed difference in PostgreSQL.
 
 ```sql
-WITH variant_means AS (
+WITH arm_means AS (
   SELECT
-    variant,
+    arm,
     avg((data->>'position')::double precision) AS mean_value
   FROM atlas.logs
-  WHERE experiment = 'rank-v2'
-    AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND data->>'event' = 'click'
-  GROUP BY variant
+  WHERE experiment = 'ranking'
+    AND experiment_version = 1 AND reason IN ('assigned', 'arm-unavailable') AND data->>'event' = 'click'
+  GROUP BY arm
 )
 SELECT
-  max(mean_value) FILTER (WHERE variant = 'atlas-search')
-    - max(mean_value) FILTER (WHERE variant = 'control') AS treatment_effect
-FROM variant_means;
+  max(mean_value) FILTER (WHERE arm = 'recent-clicks')
+    - max(mean_value) FILTER (WHERE arm = 'control') AS treatment_effect
+FROM arm_means;
 ```
 
 ## Effect sizes
@@ -66,16 +66,16 @@ Every estimate contains sampling variation. Report a confidence interval or anot
 Estimate the standard error of a difference in means.
 
 ```sql
-WITH variant_stats AS (
+WITH arm_stats AS (
   SELECT
-    variant,
+    arm,
     count(*) AS n,
     avg((data->>'position')::double precision) AS mean_value,
     stddev_samp((data->>'position')::double precision) AS standard_deviation
   FROM atlas.logs
-  WHERE experiment = 'rank-v2'
-    AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND data->>'event' = 'click'
-  GROUP BY variant
+  WHERE experiment = 'ranking'
+    AND experiment_version = 1 AND reason IN ('assigned', 'arm-unavailable') AND data->>'event' = 'click'
+  GROUP BY arm
 )
 SELECT
   treatment.mean_value - control.mean_value AS treatment_effect,
@@ -83,10 +83,10 @@ SELECT
     pow(treatment.standard_deviation, 2) / treatment.n
     + pow(control.standard_deviation, 2) / control.n
   ) AS standard_error
-FROM variant_stats AS treatment
-CROSS JOIN variant_stats AS control
-WHERE treatment.variant = 'atlas-search'
-  AND control.variant = 'control';
+FROM arm_stats AS treatment
+CROSS JOIN arm_stats AS control
+WHERE treatment.arm = 'recent-clicks'
+  AND control.arm = 'control';
 ```
 
 ## Statistical power
@@ -111,13 +111,13 @@ An average effect can hide differences across populations. Estimate subgroup eff
 ```sql
 SELECT
   data->>'country' AS country,
-  variant,
+  arm,
   count(*) AS observations,
   avg((data->>'position')::double precision) AS mean_position
 FROM atlas.logs
-WHERE experiment = 'rank-v2'
-  AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND data->>'event' = 'click'
-GROUP BY country, variant;
+WHERE experiment = 'ranking'
+  AND experiment_version = 1 AND reason IN ('assigned', 'arm-unavailable') AND data->>'event' = 'click'
+GROUP BY country, arm;
 ```
 
 Treat an unplanned subgroup result as exploratory. Confirm it with a new experiment.

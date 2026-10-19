@@ -1,17 +1,18 @@
 ---
 title: Quickstart
-description: Test a new search ranking on live traffic and read the result.
+description: Test a new search ranking on live traffic from a pull request, and read the result.
 ---
 
-This example tests a branch of the search app `atlas` that ranks results differently. The variant is `atlas-search`. The experiment is `rank-v2`.
+This example tests a branch of the search app `atlas` that ranks results differently. The branch is `exp/ranking/recent-clicks`, so the experiment is `ranking` and the arm is `recent-clicks`.
 
 <Steps>
-  <Step title="Install the CLI and sign in">
-    Install `ssp`, then sign in with GitHub or Google and approve the displayed code.
+  <Step title="Install the CLI and connect the repository">
+    Install `ssp`, sign in with GitHub, and install the Statespace GitHub App on the repository.
 
     ```shell
     curl -fsSL https://statespace.com/install.sh | bash
     ssp login
+    ssp repo connect
     ```
 
     To let your coding agent do the next steps, give it this prompt:
@@ -21,64 +22,55 @@ This example tests a branch of the search app `atlas` that ranks results differe
     ```
   </Step>
 
-  <Step title="Create the app and a signing key">
-    Create the app, then create a key pair for signing variants.
+  <Step title="Set up the repository">
+    Write `statespace.toml` and the workflow that publishes each commit of an `exp/` branch.
 
     ```shell
-    ssp app create atlas
-    ssp keygen
+    ssp init github --app atlas
     ```
 
-    Store the private key as `SSP_SIGNING_KEY` in CI. Proxies trust the public key.
+    The command prints a step for the workflow that builds production. Add it after the build, so that Statespace knows the commit of each production image. In branch protection for `main`, require one approval.
   </Step>
 
   <Step title="Print what you measure">
-    Statespace records each line that an arm prints, with its arm. Thus, your current logs are also data. To compare subjects, print a JSON line with a `subject` field. The proxy sets the `x-statespace-subject` header to the subject from your rule, or to the browser ID.
+    Statespace records each line that an arm prints, with its arm. To compare subjects, print a JSON line with a `subject` field. The proxy sets the `x-statespace-subject` header to the subject from your rule, or to the browser ID.
 
     ```python
     subject = request.headers["x-statespace-subject"]
     print(json.dumps({"event": "click", "subject": subject, "position": 1}))
     ```
 
-    Deploy this change to production as usual, so the default and every variant print the same lines.
-  </Step>
-
-  <Step title="Publish the variant">
-    Build the branch's image the way you build production and push it. Then sign and publish it by digest.
-
-    ```shell
-    docker build -t ghcr.io/acme/atlas:new-ranking . && docker push ghcr.io/acme/atlas:new-ranking
-    ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas:new-ranking
-    ```
-  </Step>
-
-  <Step title="Create and start the experiment">
-    Give the variant 10% of the subjects. The control arm gets another 10%.
-
-    ```shell
-    ssp experiment create rank-v2 --app atlas --split atlas-search=0.1 \
-      --subject 'request.headers["x-user-id"]' --note 'Sorted results should get more clicks.'
-    ssp experiment start rank-v2
-    ```
-
-    Every other subject gets the default, the version you deployed.
+    Deploy this change to production as usual, so the default and every arm print the same lines.
   </Step>
 
   <Step title="Run the proxy">
-    Create a runtime token and store it as `SSP_TOKEN` where the app runs.
+    Create a runtime token and store it as `SSP_TOKEN` where the app runs. Then run the app behind `ssp proxy`. On a machine with Docker, it runs your deployed image and each arm as containers, and routes each user.
 
     ```shell
     ssp token create --name production --preset runtime
-    ```
-
-    Run the app behind `ssp proxy`. On a machine with Docker, it runs your deployed image and both arms as containers, and routes each user.
-
-    ```shell
-    ssp proxy --app atlas --runtime docker --image ghcr.io/acme/atlas:main \
-      --health /health --trust-key "$SSP_PUBLIC_KEY"
+    ssp proxy --app atlas --image ghcr.io/acme/atlas:main --health /health
     ```
 
     On Kubernetes, run it beside the app in each pod instead. See [Deployment](/getting-started/deployment).
+  </Step>
+
+  <Step title="Open a pull request">
+    Start a branch, change the ranking, and set the arm's share in `statespace.toml`.
+
+    ```toml
+    app = "atlas"
+    share = 0.1
+    subject = 'request.headers["x-user-id"]'
+    ```
+
+    ```shell
+    git switch -c exp/ranking/recent-clicks
+    git commit -am "Rank results by recent clicks"
+    git push -u origin exp/ranking/recent-clicks
+    gh pr create --fill
+    ```
+
+    CI publishes the commit. When a reviewer approves the pull request and GitHub says that it can merge, 10% of the subjects get the branch, and another 10% get the control. The `statespace/arm` check on the pull request tells what runs.
   </Step>
 
   <Step title="Read the results">
@@ -91,12 +83,14 @@ This example tests a branch of the search app `atlas` that ranks results differe
     Compare the share of subjects who clicked in each arm.
 
     ```sql
-    SELECT variant,
+    SELECT arm, commit,
            count(DISTINCT subject_id) AS subjects,
            count(DISTINCT subject_id) FILTER (WHERE data->>'event' = 'click') AS clicked
     FROM atlas.logs
-    WHERE experiment = 'rank-v2' AND reason IN ('assigned', 'variant-unavailable')
-    GROUP BY variant;
+    WHERE experiment = 'ranking' AND reason IN ('assigned', 'arm-unavailable')
+    GROUP BY arm, commit;
     ```
+
+    To stop the arm, make the pull request a draft. To ship it, merge it.
   </Step>
 </Steps>

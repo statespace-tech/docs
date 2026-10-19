@@ -1,26 +1,25 @@
 ---
 title: Random assignment
-description: Keep each subject in one variant, and each experiment's subjects apart.
+description: Keep each subject in one arm, and each experiment's subjects apart.
 ---
 
-Random assignment gives each eligible subject one arm: control or a variant. Each published experiment version records its arms, their allocation ranges, and its share of the app's subjects.
+Random assignment gives each eligible subject one arm: an arm of a branch, or a control. Each experiment version records its arms, their commits, their shares, and their allocation ranges.
 
 ## Stable identity
 
-Choose an identifier at the level where treatment can vary independently. The experiment's subject rule is a CEL expression that reads it from the request.
+Choose an identifier at the level where treatment can vary independently. The `subject` rule in `statespace.toml` is a CEL expression that reads it from the request.
 
-```shell
-ssp experiment create rank-v2 --app atlas --split atlas-search=0.05 \
-  --subject 'request.headers["x-user-id"]'
+```toml
+subject = 'request.headers["x-user-id"]'
 ```
 
-Without `--subject`, the subject is `request.cookies.ssp_sid`. `ssp proxy` sets that cookie for every new visitor, so a browser keeps its arm. A request whose rule yields no subject gets the default and is not recorded.
+Without a `subject`, the subject is `request.cookies.ssp_sid`. `ssp proxy` sets that cookie for every new visitor, so a browser keeps its arm. A request whose rule yields no subject gets the default and is not recorded.
 
-The subject rule cannot change after the experiment starts. Changing it would mix two populations.
+All arms of an experiment use the same subject rule. A commit with another rule does not run in that experiment.
 
 ## Stable bucket
 
-`ssp proxy` calculates a bucket from a salt and the subject ID.
+`ssp proxy` calculates a bucket from the app's salt and the subject ID.
 
 ```text
 bucket = first 53 bits of SHA-256(salt + ":" + subject_id) / 2^53
@@ -28,34 +27,29 @@ bucket = first 53 bits of SHA-256(salt + ":" + subject_id) / 2^53
 
 The same subject, salt, and allocation ranges produce the same arm on every proxy and every request.
 
-## Slices
-
-Running experiments of an app never share a subject. Each running experiment holds a slice of the app's buckets, calculated with the app's salt. The slice's size is the sum of its arms' shares.
-
-```shell
-ssp experiment create rank-v2 --app atlas --split atlas-search=0.1
-```
-
-This experiment holds 20% of the app's subjects: 10% for `atlas-search` and 10% for control. A subject outside every slice gets the default and belongs to no experiment. `ssp experiment start` fails when the app's free share is smaller than the slice. A restarted experiment keeps its previous slice when it is still free.
-
 ## Arm allocation
 
-Within its slice, an experiment calculates a second bucket with its own salt. Each variant has explicit ranges of it. The remaining interval belongs to control. For an experiment whose variant and control have equal shares, the allocation is shown below.
+Each arm and control holds ranges of the app's buckets. The size of the ranges is the arm's share. Running experiments of an app never share a subject, because their ranges never overlap. A subject outside every range gets the default and belongs to no experiment.
+
+For an arm and its control at 10% each, the allocation can look like this.
 
 ```text
-atlas-search: [0.0, 0.5)
-control:      [0.5, 1.0)
+recent-clicks: [0.0, 0.1)
+control:       [0.1, 0.2)
+default:       every other bucket
 ```
+
+The app's traffic limit caps the total. An arm that does not fit waits, first come, first served.
 
 ## New versions
 
-An experiment keeps one salt for its lifetime. Starting a changed draft keeps each variant's existing ranges where its new weight permits. New or expanded variants use free ranges. Publishing a new version of a variant keeps its ranges, so its subjects stay in the variant.
+An arm keeps its ranges across versions. A new commit of the arm, or a new arm in the experiment, starts a new version, and the subjects of the other arms stay where they are. A control of a new base takes over the ranges of a control that went. When an arm's share grows, it takes free ranges; when it shrinks, it keeps the start of its ranges.
 
-Weight changes can still move subjects between variants. Analyze each experiment version separately. Starting a new version stops assignments to the previous one.
+Share changes can still move subjects between arms. Analyze each experiment version separately. Starting a new version stops assignments to the previous one.
 
 ## Unavailable arms
 
-An arm that is starting, failing, or over a proxy's `--max-variants` cannot serve its subjects. They get the default, and their runs record `reason = 'variant-unavailable'` with the arm they were assigned. Count them in the arm they were assigned. Excluding them biases the comparison when an arm fails only for some subjects.
+An arm that is starting, failing, or over a proxy's `--max-arms` cannot serve its subjects. They get the default, and their runs record `reason = 'arm-unavailable'` with the arm they were assigned. Count them in the arm they were assigned. Excluding them biases the comparison when an arm fails only for some subjects.
 
 ## Forced assignment
 

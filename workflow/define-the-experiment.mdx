@@ -1,9 +1,9 @@
 ---
 title: Define the experiment
-description: Publish the variant, then choose its subjects, eligibility, and share of subjects.
+description: Name the experiment and arm with a branch, then choose its subjects, eligibility, and share.
 ---
 
-Start with one decision. Choose the randomization unit, eligible population, variants, and outcome before you start.
+Start with one decision. Choose the randomization unit, eligible population, arms, and outcome before you start.
 
 ## Choose the randomization unit
 
@@ -20,52 +20,51 @@ print(json.dumps({"event": "click", "subject": subject, "position": position}))
 
 The proxy calculates the subject with your subject rule. It sends the result in the `x-statespace-subject` header. The app reads the subject from this header.
 
-Deploy this change to production first. Then the default and each variant print the same lines.
+Deploy this change to production first. Then the default and each arm print the same lines.
 
-## Build the variant
+## Name the branch
 
-Make one change on a branch. Build its image the way you build production.
+The branch name gives the experiment and the arm.
+
+| Branch | Experiment | Arm |
+| --- | --- | --- |
+| `exp/ranking` | `ranking` | `ranking` |
+| `exp/ranking/recent-clicks` | `ranking` | `recent-clicks` |
+| `exp/ranking/bm25` | `ranking` | `bm25` |
+
+Branches under one experiment are arms of that experiment. They share its subjects and are compared with the same control. Start the branch from the latest default branch, so that its base is a deployed commit.
 
 ```shell
-git checkout new-ranking
-docker build -t ghcr.io/acme/atlas:new-ranking .
+git switch -c exp/ranking/recent-clicks origin/main
 ```
 
-Check that it starts and answers before you publish it.
+## Set the arm's settings
+
+`statespace.toml` on the branch gives the arm's share and rules.
+
+```toml
+app = "atlas"
+share = 0.05
+subject = 'request.headers["x-user-id"]'
+eligibility = 'request.headers["cf-ipcountry"] == "US"'
+```
+
+The arm gets 5% of the app's subjects, and its control gets another 5%. Every other subject gets the default. All arms of an experiment must use the same `subject` and `eligibility`.
+
+Test the file and a request before you push.
 
 ```shell
-docker run --rm -p 8000:8000 ghcr.io/acme/atlas:new-ranking
+ssp check --path /search --header x-user-id=u_42 --header cf-ipcountry=US
+```
+
+## Build the arm
+
+Make one change on the branch. Check that its image starts and answers.
+
+```shell
+docker build -t atlas:mine .
+docker run --rm -p 8000:8000 atlas:mine
 curl localhost:8000/search?q=maps
 ```
 
-## Publish the variant
-
-Push the image, then sign and publish it. In CI, the signing key comes from `SSP_SIGNING_KEY`.
-
-```shell
-docker push ghcr.io/acme/atlas:new-ranking
-ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas:new-ranking
-```
-
-The CLI resolves the tag to the image's digest with `docker`. The variant records the digest, the commit, and the signature. Proxies and the controller run only variants signed by a key they trust.
-
-## Create the draft
-
-Give the variant 5% of the app's subjects. The control arm gets another 5%. State the hypothesis in a note.
-
-```shell
-ssp experiment create rank-v2 --app atlas --split atlas-search=0.05 \
-  --subject 'request.headers["x-user-id"]' \
-  --eligibility 'request.headers["cf-ipcountry"] == "US"' \
-  --note 'Sorted results should get more clicks.'
-```
-
-Every other subject gets the default. The backend validates both CEL rules and checks that each variant exists before it saves the draft.
-
-Review the draft before starting it. Its `split` shows each arm's share of all subjects.
-
-```shell
-ssp experiment show rank-v2
-```
-
-`ssp experiment update` changes the draft. Omitted flags keep their values, and `--split` replaces the draft's arms.
+Then commit and push. CI builds the image the way you build production, and `ssp apply` records it as a version of the arm.

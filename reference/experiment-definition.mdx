@@ -1,77 +1,74 @@
 ---
-title: Apps, variants, and experiments
-description: Define apps, variants, and experiments with CLI flags.
+title: statespace.toml and experiments
+description: Review the file that names an app and an arm's settings, and how pull requests make experiments run.
 ---
 
-The CLI defines apps, variants, and experiments with arguments. There is no YAML file. `ssp proxy` and `ssp controller` consume running configurations and never modify them.
+Experiments come from branches. A branch named `exp/<experiment>/<arm>` is an arm, and `statespace.toml` on the branch gives its settings. No command starts an experiment: an arm runs while GitHub says that its pull request can merge.
 
-## Apps
+## statespace.toml
 
-An app is one codebase and deployment. Its variants, experiments, and analysis views belong to it. Its **default** is the image you deploy, which serves every subject outside an experiment.
+The file is at the root of the repository. Each branch reads its own copy.
+
+```toml
+app = "atlas"
+share = 0.05
+subject = 'request.headers["x-user-id"]'
+eligibility = 'request.headers["cf-ipcountry"] == "US"'
+```
+
+| Key | Meaning |
+| --- | --- |
+| `app` | 1 to 40 lowercase letters, digits, and underscores, starting with a letter. Also the name of the app's PostgreSQL schema. The app's first build creates it and binds it to the repository |
+| `share` | The arm's share of all the app's subjects, greater than 0 and at most 1. Required on `exp/` branches |
+| `subject` | A CEL expression over `request` that yields the subject ID. Defaults to `request.cookies.ssp_sid` |
+| `eligibility` | A CEL expression over `request` that decides who may enter. Omit it to let everyone in |
+
+On the default branch, Statespace reads only `app`. Use single quotes for CEL expressions, so TOML takes them as written. `ssp check` validates the file.
+
+## Branches
+
+| Branch | Experiment | Arm |
+| --- | --- | --- |
+| `exp/<experiment>` | `<experiment>` | `<experiment>` |
+| `exp/<experiment>/<arm>` | `<experiment>` | `<arm>` |
+
+Names use 1 to 100 letters, numbers, dots, dashes, or underscores. `control` is reserved. Other branches are not experiments.
+
+## Builds and versions
+
+CI runs `ssp apply` on each push. It records the commit's image by digest, proven by the job's GitHub OIDC token.
+
+| Branch | Record |
+| --- | --- |
+| The default branch | A default build. When a proxy runs it, its commit is a base |
+| `exp/…` | A version of the arm at that commit, with the commit's `statespace.toml` and its base: the merge base with the default branch |
+
+An experiment's version changes when its arms, their commits, their shares, or the rules change. Subjects keep their arm across versions.
+
+## Controls
+
+Each base commit of an experiment's arms has a control. It runs the default build of that base, and gets the share of the largest arm on that base. An arm's base must have run as the default; until then, the arm waits.
+
+## What runs
+
+| The pull request | The arm |
+| --- | --- |
+| Can merge (GitHub's merge state is clean, unstable, or has hooks) | Runs the head commit |
+| Never could merge | Does not run |
+| Could merge, and then could not | Runs the last commit that could merge. The `statespace/arm` check warns after 7 days |
+| Is a draft, or a reviewer requested changes | Stops |
+| Merged | Ends the experiment. Other arms run again from bases built after the merge |
+| Closed | The arm is removed |
+
+The arms of an experiment must use the same `subject` and `eligibility`. A commit with other rules fails `statespace/apply`. The arms of an app fit in its traffic limit, first come, first served.
 
 ```shell
-ssp app create atlas
+ssp app set atlas --max-traffic 0.2
 ```
-
-| Field | Meaning |
-| --- | --- |
-| `name` | 1 to 40 lowercase letters, digits, and underscores, starting with a letter. Also the name of the app's PostgreSQL schema. `account` is reserved |
-| `output_retention_days` | Days the lines arms print are kept, 1 to 365. Defaults to 7 |
-
-## Variants
-
-A variant is a signed image of an app. Each `ssp variant create` with a different digest or commit creates the next version.
-
-```shell
-ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas:new-ranking
-```
-
-| Field | Meaning |
-| --- | --- |
-| `name` | 1 to 100 letters, numbers, dots, dashes, or underscores. `control` is reserved |
-| `image` | The image by digest, such as `ghcr.io/acme/atlas@sha256:…`. The CLI resolves a tag to its digest with `docker` |
-| `commit` | The commit the image was built from. Defaults to CI's commit or the current directory's Git `HEAD` |
-| `signature`, `public_key` | The Ed25519 signature and the key that made it |
-
-The signature covers this message, with an empty line for a missing commit.
-
-```text
-statespace-variant-v1
-<app>
-<name>
-<image>
-<commit>
-```
-
-## Experiments
-
-An experiment gives each of its arms a share of the app's subjects: each variant, and a control arm.
-
-```shell
-ssp experiment create rank-v2 --app atlas --split atlas-search=0.05 --split atlas-search-bm25=0.05 \
-  --subject 'request.headers["x-user-id"]' \
-  --eligibility 'request.headers["cf-ipcountry"] == "US"' \
-  --description 'Test sorted search results.' --note 'Sorted results should get more clicks.'
-```
-
-| Flag | Meaning |
-| --- | --- |
-| `--app` | The app the experiment belongs to. It cannot change |
-| `--split ARM=SHARE` | An arm and its share of all the app's subjects, greater than 0. Repeat for each variant. Control gets the largest variant's share unless `control=SHARE` sets it. The shares total at most 1 |
-| `--subject` | A CEL expression over `request` that yields the subject ID. Defaults to `request.cookies.ssp_sid`. Cannot change after the first start |
-| `--eligibility` | A CEL expression over `request` that decides who may enter |
-| `--description` | Up to 500 bytes |
-| `--note` | A note kept with this change, up to 10,000 bytes. Also on `update`, `start`, and `stop` |
-
-The experiment holds the sum of its arms' shares. Responses show it as `traffic`, each variant's share of the experiment as `variants`, and each arm's share of all subjects as `split`. Experiment names are unique within an account.
-
-## Control arms
-
-Each experiment version has a control arm. It runs the default's image, pinned by digest by the first proxy or controller that serves the version. Later pins return the first, so every proxy compares against the same baseline. A proxy or controller runs a control arm only from an image it ran as the default itself.
 
 ## Request rules
 
-`--subject` and `--eligibility` read the request as `request`.
+`subject` and `eligibility` read the request as `request`.
 
 | Field | Value |
 | --- | --- |
@@ -81,25 +78,8 @@ Each experiment version has a control arm. It runs the default's image, pinned b
 | `request.headers` | Lowercase names, such as `request.headers["user-agent"]` |
 | `request.cookies` | `{"ssp_sid": "sid_…"}` |
 
-A missing header, cookie, or query parameter is `null`. A subject rule must yield a string or an integer of 1 to 128 characters; otherwise the request gets the default. The backend validates both rules when the draft changes.
-
-## Drafts and versions
-
-`create` and `update` change an experiment's draft. The running version does not change.
+A missing header, cookie, or query parameter is `null`. A subject rule must yield a string or an integer of 1 to 128 characters; otherwise the request gets the default.
 
 ```shell
-ssp experiment update rank-v2 --split atlas-search=0.1
-```
-
-`start` publishes the draft as the next immutable version. It pins the newest version of each variant, takes a slice of the app's subjects, and stops the previously running version. An unchanged draft restarts the newest version.
-
-```shell
-ssp experiment start rank-v2
-ssp experiment show rank-v2
-```
-
-`start` fails when the app's free share of subjects is smaller than the experiment's. It warns when the proxies and controllers run fewer arms than running experiments need. Subjects keep their arm across versions wherever its share still covers their bucket. Restart an earlier version to roll back.
-
-```shell
-ssp experiment start rank-v2 --version 1
+ssp check --path /search --query q=maps --header cf-ipcountry=US --cookie ssp_sid=u_1
 ```

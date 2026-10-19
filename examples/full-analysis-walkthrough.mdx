@@ -12,17 +12,17 @@ Count runs by assignment reason.
 ```sql
 SELECT reason, count(*)
 FROM atlas.runs
-WHERE experiment = 'rank-v2'
+WHERE experiment = 'ranking'
   AND experiment_version = 1
 GROUP BY reason;
 ```
 
-A large share of `variant-unavailable` means an arm often could not serve its subjects. Read its lifecycle events and errors before you go on.
+A large share of `arm-unavailable` means an arm often could not serve its subjects. Read its lifecycle events and errors before you go on.
 
 ```sql
-SELECT timestamp, variant, event, data
+SELECT timestamp, arm, commit, event, data
 FROM atlas.lifecycle
-WHERE experiment = 'rank-v2'
+WHERE experiment = 'ranking'
 ORDER BY timestamp DESC
 LIMIT 20;
 ```
@@ -32,9 +32,9 @@ LIMIT 20;
 Compare each arm's subjects with the number its share predicts.
 
 ```sql
-SELECT variant, subjects, expected, p_value, mismatch
+SELECT arm, commit, subjects, expected, p_value, mismatch
 FROM atlas.sample_ratio
-WHERE experiment = 'rank-v2' AND experiment_version = 1;
+WHERE experiment = 'ranking' AND experiment_version = 1;
 ```
 
 ## Check health
@@ -43,12 +43,13 @@ Compare error rates and latency of each arm.
 
 ```sql
 SELECT
-  variant,
+  arm,
+  commit,
   avg((status >= 500)::int) AS error_rate,
   percentile_cont(0.9) WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
 FROM atlas.requests
-WHERE experiment = 'rank-v2' AND experiment_version = 1
-GROUP BY variant;
+WHERE experiment = 'ranking' AND experiment_version = 1
+GROUP BY arm, commit;
 ```
 
 ## Compare the outcome
@@ -57,21 +58,22 @@ Read the planned field from each JSON line.
 
 ```sql
 SELECT
-  variant,
+  arm,
+  commit,
   count(*) AS observations,
   avg((data->>'position')::double precision) AS mean_position,
   stddev_samp((data->>'position')::double precision) AS sd_position
 FROM atlas.logs
-WHERE experiment = 'rank-v2'
+WHERE experiment = 'ranking'
   AND experiment_version = 1
   AND data->>'event' = 'click'
-GROUP BY variant;
+GROUP BY arm, commit;
 ```
 
 ## Record the decision
 
-Stop the experiment with a note that states the decision and its evidence.
+Write the decision and its evidence in the pull request. Then close it to drop the arm, or merge it to ship.
 
 ```shell
-ssp experiment stop rank-v2 --note 'Keep the default: no change in click position, p90 latency +40 ms.'
+gh pr close 412 --comment "Keep the default: no change in click position, p90 latency +40 ms."
 ```

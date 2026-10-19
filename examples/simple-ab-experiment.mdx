@@ -1,42 +1,46 @@
 ---
 title: Simple A/B experiment
-description: Compare one variant with its control arm.
+description: Compare one arm with its control.
 ---
 
-This example gives 10% of the eligible US users of `atlas` the variant `atlas-search`, and another 10% the control arm. Its search ranks results differently. Control runs the deployed ranking.
+This example gives 10% of the eligible US users of `atlas` the arm `recent-clicks`, and another 10% its control. The arm's search ranks results differently. The control runs the deployed ranking.
 
-Publish the variant from its branch's image.
-
-```shell
-ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas:new-ranking
-```
-
-Create the experiment and start it.
+Start a branch from the default branch, and set the arm's settings in `statespace.toml`.
 
 ```shell
-ssp experiment create rank-v2 --app atlas --split atlas-search=0.1 \
-  --subject 'request.headers["x-user-id"]' \
-  --eligibility 'request.headers["cf-ipcountry"] == "US"' \
-  --note 'Sorted results should get more clicks.'
-ssp experiment start rank-v2
+git switch -c exp/ranking/recent-clicks origin/main
 ```
 
-Print the same line in the default and the variant.
+```toml
+app = "atlas"
+share = 0.1
+subject = 'request.headers["x-user-id"]'
+eligibility = 'request.headers["cf-ipcountry"] == "US"'
+```
+
+Print the same line in the default and the arm.
 
 ```python
 subject = request.headers["x-statespace-subject"]
 print(json.dumps({"event": "click", "subject": subject, "position": 1}))
 ```
 
+Push the branch and open a pull request with the hypothesis. When it is approved and can merge, the arm runs.
+
+```shell
+git push -u origin exp/ranking/recent-clicks
+gh pr create --title "Rank by recent clicks" --body "Sorted results should get more clicks."
+```
+
 Compare the arms within version 1.
 
 ```sql
-SELECT variant, count(DISTINCT subject_id) AS subjects,
+SELECT arm, commit, count(DISTINCT subject_id) AS subjects,
        avg((data->>'position')::double precision) AS mean_position
 FROM atlas.logs
-WHERE experiment = 'rank-v2' AND experiment_version = 1
-  AND reason IN ('assigned', 'variant-unavailable') AND data->>'event' = 'click'
-GROUP BY variant;
+WHERE experiment = 'ranking' AND experiment_version = 1
+  AND reason IN ('assigned', 'arm-unavailable') AND data->>'event' = 'click'
+GROUP BY arm, commit;
 ```
 
-Variant rows use the name `atlas-search`; control rows use `control`. Check delivery and the sample ratio before interpreting this comparison.
+Arm rows use the name `recent-clicks`; control rows use `control`, with the arm's base as their commit. Check delivery and the sample ratio before interpreting this comparison.

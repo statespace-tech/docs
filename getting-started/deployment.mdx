@@ -1,51 +1,58 @@
 ---
 title: Deployment
-description: Publish variants from CI and run ssp proxy on Docker or Kubernetes.
+description: Record builds from CI, protect your default branch, and run ssp proxy on Docker or Kubernetes.
 ---
 
-A deployment has two parts. CI publishes each branch's image as a signed variant. Your servers run `ssp proxy` in front of the app.
+A deployment has three parts. CI records the image of each commit with `ssp apply`. Branch protection decides who approves each commit of an arm. Your servers run `ssp proxy` in front of the app.
 
 The [FastAPI example](https://github.com/statespace-tech/statespace/tree/main/examples/fastapi) and the [Kubernetes example](https://github.com/statespace-tech/statespace/tree/main/examples/kubernetes) have every file on this page, ready to copy.
 
-## Publish variants from CI
+## Record builds from CI
 
-Create a token that CI can use to publish variants. Store it as the `SSP_TOKEN` secret, and the private key from `ssp keygen` as `SSP_SIGNING_KEY`.
-
-```shell
-ssp token create --name ci --preset publisher
-```
-
-This GitHub Actions workflow builds every branch except `main` into an image, pushes it, and publishes it as a variant named after the branch.
+`ssp init github` writes `.github/workflows/statespace.yml`. It builds each commit of an `exp/` branch the way you build production, pushes the image, and records it.
 
 ```yaml
-name: Publish variant
+name: Statespace
 on:
   push:
-    branches-ignore: [main]
+    branches: ["exp/**"]
 permissions:
   contents: read
   packages: write
+  id-token: write
 jobs:
-  variant:
-    runs-on: ubuntu-24.04
+  arm:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: |
-          image=ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_SHA
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker build --tag "$image" . && docker push "$image"
-          echo "IMAGE=$image" >> "$GITHUB_ENV"
-      - run: curl -fsSL https://statespace.com/install.sh | sh
-      - env:
-          SSP_TOKEN: ${{ secrets.SSP_TOKEN }}
-          SSP_SIGNING_KEY: ${{ secrets.SSP_SIGNING_KEY }}
-          BRANCH: ${{ github.ref_name }}
-        run: |
-          name=$(printf '%s' "$BRANCH" | tr -c 'A-Za-z0-9._-' '-' | cut -c 1-100)
-          ~/.local/bin/ssp variant create "$name" --app atlas --image "$IMAGE"
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          push: true
+          tags: ghcr.io/acme/atlas:${{ github.sha }}
+      - uses: statespace-tech/action@v1
+        with:
+          image: ghcr.io/acme/atlas@${{ steps.build.outputs.digest }}
 ```
 
-`ssp variant create` resolves the tag to its digest, so the signature covers the exact image. The commit defaults to `GITHUB_SHA`.
+Add the same last step to the workflow that builds production, after its build. On the default branch, the step records a default build. When a proxy runs that image, its commit becomes a base that arms can start from.
+
+The job needs `id-token: write`. `ssp apply` sends the job's GitHub OIDC token, which proves the repository, the workflow, and the commit. CI keeps no Statespace secret.
+
+## Protect the default branch
+
+An arm runs only while GitHub says that its pull request can merge. So your branch protection or rulesets decide who approves:
+
+- Require one approval, so that a second person approves each commit before users see it.
+- Turn on "Dismiss stale pull request approvals when new commits are pushed", so that each new commit needs a new approval.
+- To make a team approve every change of an arm's share or rules, put `statespace.toml` in `CODEOWNERS` and require code owner review.
+
+Without branch protection, a pull request can merge at once, and its arm runs without review.
 
 ## Run proxies on Docker
 
@@ -60,10 +67,7 @@ Requires=docker.service
 SupplementaryGroups=docker
 EnvironmentFile=/etc/atlas/env
 Environment=STATESPACE_APP=atlas
-Environment=STATESPACE_RUNTIME=docker
 Environment=STATESPACE_IMAGE_FILE=/etc/atlas/image
-StateDirectory=statespace
-Environment=STATESPACE_STATE=%S/statespace
 ExecStart=/usr/local/bin/ssp proxy --health /health
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed
@@ -71,7 +75,7 @@ TimeoutStopSec=60
 Restart=always
 ```
 
-Pass the runtime token as `SSP_TOKEN` and the public signing key as `SSP_TRUST_KEY`. The containers inherit the service's environment, such as the app's settings in `/etc/atlas/env`, without the proxy's own variables.
+Pass the runtime token as `SSP_TOKEN`. The containers inherit the service's environment, such as the app's settings in `/etc/atlas/env`, without the proxy's own variables.
 
 Deploy a new default by writing its image to the file and reloading the service. The proxy starts the new image, sends it traffic once `--health` answers, then stops the old container.
 
@@ -82,7 +86,7 @@ sudo systemctl reload atlas
 
 ## Run proxies on Kubernetes
 
-On Kubernetes, the default is your Deployment as it is. Add `ssp proxy` to its pods as a sidecar, and point the Service at the sidecar's port.
+On Kubernetes, the default is your Deployment as it is. Add `ssp proxy` to its pods as a sidecar, and point the Service at the sidecar's port. With `--default`, the proxy only routes.
 
 ```yaml
 containers:
@@ -91,8 +95,8 @@ containers:
     ports:
       - containerPort: 8000
   - name: statespace-proxy
-    image: ghcr.io/statespace-tech/statespace:0.1.0
-    args: ["proxy", "--runtime", "kubernetes", "--default", "http://localhost:8000"]
+    image: ghcr.io/statespace-tech/statespace:0.2.0
+    args: ["proxy", "--default", "http://localhost:8000"]
     env:
       - name: STATESPACE_APP
         value: atlas
@@ -105,7 +109,7 @@ containers:
 
 The Service's `targetPort` becomes `8080`, the sidecar's port.
 
-Run one `ssp controller` in the namespace with a controller token. It runs each arm as a copy of the Deployment with the arm's image, and deletes the arm when its experiment stops. Apply the example's [manifest](https://github.com/statespace-tech/statespace/blob/main/examples/kubernetes/statespace-controller.yaml), which grants it Deployments, Services, and its ConfigMap in this namespace, and read access to pods and their logs.
+Run one `ssp controller kubernetes` in the namespace with a controller token. It runs each arm and control as a copy of the Deployment with the arm's image, and deletes it when the arm stops. It also reports the digest of the default that the Deployment's pods run. Apply the example's [manifest](https://github.com/statespace-tech/statespace/blob/main/examples/kubernetes/statespace-controller.yaml), which grants it Deployments, Services, and its ConfigMap in this namespace, and read access to pods and their logs.
 
 ```shell
 ssp token create --name controller --preset controller
@@ -124,10 +128,16 @@ On `SIGTERM`, a proxy lets requests finish for up to 10 seconds. Give the platfo
 
 ## Capacity
 
-On Docker, each proxy runs the default and up to `--max-variants` arms, 5 by default, control arms included. Size machines for that many copies of the app, or lower the limit. On Kubernetes, the controller runs up to 10 arms, each with the default's replicas times its share of subjects, at least one.
+Each proxy on Docker, and each controller, runs up to `--max-arms` arms, 5 by default, controls included. Size machines for that many copies of the app, or lower the limit. On Kubernetes, each arm gets the default's replicas times its share of subjects, at least one. Subjects of the arms beyond the limit get the default.
 
-`ssp experiment start` warns when proxies or the controller run fewer arms than running experiments need. Subjects of the arms beyond the limit get the default. Check what each proxy runs.
+To limit how many subjects are in experiments at all, set the app's traffic limit. Arms that do not fit wait, first come, first served.
+
+```shell
+ssp app set atlas --max-traffic 0.2
+```
+
+Check what each proxy runs.
 
 ```sql
-SELECT id, kind, version, max_variants, report FROM atlas.hosts;
+SELECT id, kind, version, max_arms, report FROM atlas.hosts;
 ```

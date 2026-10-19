@@ -12,9 +12,9 @@ atlas.output        every line the arms printed
 atlas.requests      one row per request an arm served
 atlas.metrics       per-minute HTTP summaries and resource use of each arm
 atlas.lifecycle     arm events: started, ready, exited, stopped, failed
-atlas.notes         notes on experiment changes
 atlas.hosts         proxies and controllers that reported in the last day
-atlas.arms          where the controller runs each arm
+atlas.arms          every arm and control of every version, and where it runs
+atlas.pull_requests what the pull requests of experiment branches run, and why they wait
 atlas.sample_ratio  whether each version's subjects split as its shares say
 account.audit       every change to the account and its apps
 ```
@@ -32,13 +32,13 @@ A proxy records a run the first time it routes a subject in an experiment versio
 | `experiment` | `TEXT` |
 | `experiment_version` | `INTEGER` |
 | `subject_id` | `TEXT` |
-| `variant` | `control` or a variant; `NULL` when ineligible |
-| `variant_version` | `INTEGER`, or `NULL` for control |
-| `reason` | `assigned`, `ineligible`, `eligibility-error`, or `variant-unavailable` |
+| `arm` | `control` or an arm; `NULL` when ineligible |
+| `commit` | The arm's commit, or a control's base commit; `NULL` when ineligible |
+| `reason` | `assigned`, `ineligible`, `eligibility-error`, or `arm-unavailable` |
 | `context` | `JSONB`: the request's `method` and `path` |
 | `host` | `TEXT` |
 
-A `variant-unavailable` run names the arm the subject was assigned. The default served it.
+An `arm-unavailable` run names the arm the subject was assigned. The default served it.
 
 ## Output
 
@@ -49,7 +49,7 @@ Each line an arm printed is one row. It is kept for the app's output retention.
 | `id` | `TEXT` |
 | `timestamp` | `TIMESTAMPTZ` |
 | `experiment`, `experiment_version` | The arm's experiment |
-| `variant`, `variant_version` | The arm: `control` or a variant |
+| `arm`, `commit` | The arm: `control` or an arm, and its commit |
 | `stream` | `stdout` or `stderr` |
 | `line` | `TEXT`, after `--redact` |
 | `data` | `JSONB`: the line's fields, when it is a JSON object |
@@ -62,7 +62,7 @@ Each line an arm printed is one row. It is kept for the app's output retention.
 
 | Column | Source |
 | --- | --- |
-| `run_id`, `run_timestamp`, `experiment`, `experiment_version`, `subject_id`, `variant`, `variant_version`, `reason`, `context` | The run |
+| `run_id`, `run_timestamp`, `experiment`, `experiment_version`, `subject_id`, `arm`, `commit`, `reason`, `context` | The run |
 | `output_id`, `output_timestamp`, `stream`, `line`, `data` | The line |
 
 Compare arms with a SQL client.
@@ -70,22 +70,23 @@ Compare arms with a SQL client.
 ```sql
 SELECT
   experiment_version,
-  variant,
+  arm,
+  commit,
   count(DISTINCT subject_id) AS subjects,
   avg((data->>'position')::double precision) FILTER (WHERE data->>'event' = 'click') AS mean_position
 FROM atlas.logs
-WHERE experiment = 'rank-v2'
-  AND reason IN ('assigned', 'variant-unavailable')
-GROUP BY experiment_version, variant;
+WHERE experiment = 'ranking'
+  AND reason IN ('assigned', 'arm-unavailable')
+GROUP BY experiment_version, arm, commit;
 ```
 
 ## Sample ratio
 
-`sample_ratio` has one row per arm of each experiment version: `variant`, `weight`, `subjects`, `expected`, the version's chi-square `statistic` and `p_value`, and `mismatch`. A mismatch is a p-value below 0.001 once 100 subjects ran. It means assignment or recording is broken, and comparisons between the arms cannot be trusted.
+`sample_ratio` has one row per arm and control of each experiment version: `arm`, `commit`, `share`, `subjects`, `expected`, the version's chi-square `statistic` and `p_value`, and `mismatch`. A mismatch is a p-value below 0.001 once 100 subjects ran. It means assignment or recording is broken, and comparisons between the arms cannot be trusted.
 
 ## Arm measurements
 
-`requests` has one row per request an arm served: `subject_id`, `experiment`, `experiment_version`, `variant`, `variant_version`, `method`, `path`, `status`, `duration_ms`, `first_byte_ms`, `request_bytes`, and `response_bytes`. `duration_ms` runs to the response's last byte.
+`requests` has one row per request an arm served: `subject_id`, `experiment`, `experiment_version`, `arm`, `commit`, `method`, `path`, `status`, `duration_ms`, `first_byte_ms`, `request_bytes`, and `response_bytes`. `duration_ms` runs to the response's last byte.
 
 `metrics` has one row per arm and minute. `kind = 'http'` rows hold `requests`, `errors`, `statuses`, `p50_ms`, `p90_ms`, `p99_ms`, and `max_ms`. `kind = 'resources'` rows hold `cpu_percent` and `memory_bytes`, on Docker.
 
@@ -93,13 +94,13 @@ GROUP BY experiment_version, variant;
 
 ## Hosts and arms
 
-`hosts` has the newest report of each proxy and controller: `id`, `kind` (`proxy` or `controller`), `version`, `seen_at`, `max_variants`, and `report`, what it runs.
+`hosts` has the newest report of each proxy and controller: `id`, `kind` (`proxy` or `controller`), `version`, `seen_at`, `max_arms`, and `report`, what it runs.
 
-`arms` has where the controller runs each arm: `experiment`, `experiment_version`, `variant`, `variant_version`, `image`, `address`, `ready`, `replicas`, `reported_by`, and `reported_at`.
+`arms` has every arm and control of every experiment version: `experiment`, `experiment_version`, `kind` (`variant` or `control`), `arm`, `commit`, `base_commit`, `share`, `image`, the version's `status`, `started_at`, and `stopped_at`, and where a controller runs it: `address`, `ready`, and `replicas`. Compare a variant with the control whose `commit` is the variant's `base_commit`.
 
-## Notes
+## Pull requests
 
-`notes` has one row for each `--note`: `timestamp`, `experiment`, `experiment_version`, `action`, `note`, `actor`, and `variants`, the arms the experiment version pinned with their `image` and `commit`.
+`pull_requests` has the pull requests of the app's experiment branches: `repo`, `number`, `branch`, `head_commit`, `state`, `draft`, `review_decision`, `merge_state`, `merged_at`, `held_at` (an emergency stop), `running_commit`, `waiting` (why the head commit does not run), and `waiting_since`.
 
 ## Audit
 

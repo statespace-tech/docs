@@ -1,22 +1,22 @@
 ---
 title: Statespace
-description: A/B test whole versions of your app on live traffic, and analyze the results with SQL.
+description: A/B test whole versions of your app on live traffic, from pull requests, and analyze the results with SQL.
 ---
 
-Statespace A/B tests whole versions of an app in production. A variant is a signed image of your app, usually built from a branch. `ssp proxy` sends a share of real subjects to it and the same share to a control arm of the version you deployed, and records what they do.
+Statespace A/B tests whole versions of an app in production. A branch named `exp/<experiment>/<arm>` is an arm. When GitHub says that its pull request can merge, `ssp proxy` sends a share of real subjects to the branch, and the same share to a control: the version the branch started from. Then it records what they do.
 
 ```text
-ssp variant create → ssp experiment start → ssp proxy routes subjects → arms print lines → SQL
+push exp/ branch → CI runs ssp apply → pull request can merge → ssp proxy routes subjects → arms print lines → SQL
 ```
 
 ## Start here
 
 <CardGroup cols={2}>
   <Card title="Complete the quickstart" icon="rocket" href="/quickstart">
-    Publish a variant, run an experiment, and read the result.
+    Open a pull request, run an arm, and read the result.
   </Card>
   <Card title="Install the tools" icon="download" href="/getting-started/installation">
-    Install the CLI and create the tokens you need.
+    Install the CLI and connect your repository.
   </Card>
   <Card title="Review the workflow" icon="route" href="/workflow/define-the-experiment">
     Follow an experiment from definition to analysis.
@@ -33,20 +33,33 @@ Every request goes to one of three places.
 | Target | What it runs | Who gets it |
 | --- | --- | --- |
 | Default | The image you deployed | Every subject outside an experiment |
-| Control | The default's image, pinned when the experiment started | An experiment's baseline arm |
-| Variant | A signed image of a branch | An experiment's treatment arm |
+| Control | The default build of the commit an arm's branch started from | An experiment's baseline |
+| Arm | The image of a commit of an `exp/` branch | An experiment's treatment |
 
-Control and each variant get the same share of subjects. Compare a variant with its experiment's control arm.
+A control gets the share of the largest arm on its base. Compare an arm with its control.
+
+## What decides
+
+GitHub decides what may run, and Statespace decides only whether it runs fairly.
+
+| The pull request | The arm |
+| --- | --- |
+| Can merge | Runs the latest commit |
+| Never could merge | Does not run |
+| Could merge, and then could not | Runs the last commit that could merge, and warns after 7 days |
+| Is a draft, or a reviewer requested changes | Stops |
+| Merged | The experiment ends |
+
+Branch protection decides who must approve. Each new commit needs a new approval, unless your repository says otherwise.
 
 ## Interfaces
 
-Each interface has one responsibility.
-
 | Interface | Responsibility |
 | --- | --- |
-| `ssp` CLI | Defines apps, publishes variants, runs experiments, and manages tokens. |
-| `ssp proxy` | Assigns each request's subject and forwards it. On Docker, it also runs the default and the arms. |
-| `ssp controller` | Runs the arms on Kubernetes as copies of the default's Deployment. |
+| GitHub App | Reports the state of pull requests, and posts the `statespace/apply` and `statespace/arm` checks. |
+| `ssp apply` | Runs in CI. It records the image of each commit with the job's GitHub OIDC token. |
+| `ssp proxy` | Assigns each request's subject and forwards it. With `--image`, it also runs the default and the arms on Docker. |
+| `ssp controller kubernetes` | Runs the arms on Kubernetes as copies of the default's Deployment. |
 | PostgreSQL | Stores one isolated account database, with one schema of views per app. |
 
 Your app prints what happens, as it already does. Every line an arm prints is recorded, and a JSON line with a `subject` field is tied to that subject's arm.

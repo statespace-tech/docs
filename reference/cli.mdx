@@ -3,12 +3,12 @@ title: CLI
 description: Review the public ssp command surface.
 ---
 
-Commands print text. Add `--json` to print one JSON document. Errors go to standard error and exit with status 1. With `--json`, an error is `{"error": "..."}`. Notes and warnings go to standard error. The CLI changes things; read recorded data with SQL.
+Commands print text. Add `--json` to print one JSON document. Errors go to standard error and exit with status 1. With `--json`, an error is `{"error": "..."}`. Notes and warnings go to standard error. Pull requests start arms; the CLI sets up repositories, records builds in CI, shows experiments, and stops arms. Read recorded data with SQL.
 Use `STATESPACE_URL` to select a local or hosted API.
 
 ## Authentication
 
-Sign in through GitHub or Google, then approve the terminal's device code.
+Sign in through GitHub, then approve the terminal's device code.
 
 ```shell
 ssp login
@@ -17,7 +17,7 @@ ssp logout
 ssp logout --all
 ```
 
-`whoami` shows the account, the credential in use, its scopes, and storage use. `logout --all` ends every session of the account. Use `SSP_TOKEN` for CI, proxies, and the controller. Keep the output of `ssp token create` out of recorded logs.
+`whoami` shows the account, the credential in use, its scopes, and storage use. `logout --all` ends every session of the account. Use `SSP_TOKEN` for proxies and the controller. CI needs no token. Keep the output of `ssp token create` out of recorded logs.
 
 ## Tokens
 
@@ -35,8 +35,7 @@ ssp token revoke --all --yes
 | Preset | Scopes | For |
 | --- | --- | --- |
 | `runtime` | `runtime:read`, `events:write` | `ssp proxy` |
-| `controller` | `runtime:read`, `events:write`, `variants:report` | `ssp controller` |
-| `publisher` | `experiments:write` | CI that publishes variants |
+| `controller` | `runtime:read`, `events:write`, `arms:report` | `ssp controller kubernetes` |
 | `analyst` | `query:read` | SQL clients |
 | `admin` | every scope, including `tokens:manage` | Agents that run the whole loop |
 
@@ -44,111 +43,99 @@ ssp token revoke --all --yes
 
 A token with `query:read` also has a database URL. Its user is the token's ID and its password is the token. Connect over TLS to your workspace hostname, such as `acme.statespace.app`, with `sslmode=verify-full`. Use a PostgreSQL 16 or newer client for the URL's `sslrootcert=system`; older clients must replace that parameter with the path to a trusted public CA bundle.
 
-## Signing keys
+## Repositories
 
-Create a signing key pair. Nothing is stored. Keep the private key in CI as `SSP_SIGNING_KEY`, and give the public key to proxies and the controller.
+Install the Statespace GitHub App on the repositories that run experiments, and list them.
 
 ```shell
-ssp keygen
+ssp repo connect
+ssp repo list
 ```
 
-## Apps
-
-Create an app. Its name is also the name of its PostgreSQL schema.
+Write `statespace.toml` and `.github/workflows/statespace.yml`. The command also prints the step to add to the workflow that builds production.
 
 ```shell
-ssp app create atlas
-ssp app create atlas --output-retention-days 14
-ssp app update atlas --output-retention-days 30
-ssp app list
-ssp app show atlas
-ssp app erase-subject atlas u_42
-ssp app delete atlas --yes
-```
-
-`ssp app list` shows the share of subjects running experiments hold. Deleting an app needs every experiment stopped.
-
-## Variants
-
-Sign an image and publish it as the variant's next version.
-
-```shell
-ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas:new-ranking
-ssp variant create atlas-search --app atlas --image ghcr.io/acme/atlas@sha256:4f2a… --commit 4f2a9c1
+ssp init github --app atlas
+ssp init github --app atlas --image ghcr.io/acme/atlas --force
 ```
 
 | Flag | Meaning |
 | --- | --- |
-| `--app` | The app, or `STATESPACE_APP` |
-| `--image` | The image by tag or digest. A tag is resolved with `docker`, pulling it when it is not local |
-| `--commit` | The commit the image was built from. Defaults to `GITHUB_SHA` and the like, or the current directory's Git `HEAD` |
-| `--signing-key` | The base64 private key, or `SSP_SIGNING_KEY` |
+| `--app` | The app. Defaults to the directory's name |
+| `--image` | The image repository CI pushes to. Defaults to `ghcr.io/<owner>/<repository>` from the `origin` remote |
+| `--force` | Replace files that exist |
 
-The same digest and commit reuse the newest version.
+## Check and apply
+
+Check `statespace.toml`, and test a request against its rules.
 
 ```shell
-ssp variant list --app atlas
-ssp variant show atlas-search --app atlas
-ssp variant delete atlas-search --app atlas --yes
+ssp check
+ssp check --path /search --query q=maps --header cf-ipcountry=US --cookie ssp_sid=u_1
 ```
 
-`show` lists every version. A variant that a draft or running experiment uses cannot be deleted.
+In GitHub Actions, record the image of the job's commit. On the default branch, it becomes a default build. On an `exp/` branch, it becomes a version of the arm.
+
+```shell
+ssp apply --image ghcr.io/acme/atlas@sha256:4f2a…
+ssp apply --image ghcr.io/acme/atlas:main --dry-run
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--image` | The image by tag or digest, or `STATESPACE_IMAGE`. A tag is resolved with `docker` |
+| `--file` | The path of `statespace.toml` |
+| `--dry-run` | Check and print the plan, but record nothing. It also works outside CI |
+
+`apply` needs the job's OIDC token: the workflow needs `id-token: write`. The [Statespace action](https://github.com/statespace-tech/action) runs it.
 
 ## Experiments
 
-Create a draft.
+Show the experiments of an app, or one experiment with its arms, controls, and pull requests. `--app` defaults to the `app` of `statespace.toml`.
 
 ```shell
-ssp experiment create rank-v2 --app atlas --split atlas-search=0.05 \
-  --subject 'request.headers["x-user-id"]' \
-  --eligibility 'request.headers["cf-ipcountry"] == "US"' \
-  --description 'Test sorted search results.' --note 'Sorted results should get more clicks.'
+ssp status
+ssp status ranking --app atlas
+ssp status exp/ranking/recent-clicks
 ```
 
-Change the draft. `--split` replaces the draft's arms, and `--no-eligibility` removes the rule.
+Stop every arm of an experiment, or one arm, at once. Their pull requests become drafts. Mark a pull request ready for review to run its arm again.
 
 ```shell
-ssp experiment update rank-v2 --split atlas-search=0.05 --split atlas-search-bm25=0.05
-ssp experiment update rank-v2 --split atlas-search=0.2 --note 'No regressions at 5%.'
-ssp experiment update rank-v2 --no-eligibility
+ssp stop ranking
+ssp stop ranking/recent-clicks
 ```
 
-Publish and run the draft, stop it, or restart a published version.
+To stop one arm in the normal way, make its pull request a draft.
+
+## Apps
+
+The first build that CI records for an app creates it. Its name is also the name of its PostgreSQL schema.
 
 ```shell
-ssp experiment start rank-v2 --note 'First run.'
-ssp experiment stop rank-v2 --note 'Ship atlas-search.'
-ssp experiment start rank-v2 --version 1
+ssp app list
+ssp app show atlas
+ssp app set atlas --max-traffic 0.2
+ssp app set atlas --output-retention-days 30
+ssp app erase-subject atlas u_42
+ssp app delete atlas --yes
 ```
 
-Read experiments. Each shows `split`, every arm's share of all subjects.
-
-```shell
-ssp experiment list --app atlas
-ssp experiment show rank-v2
-```
-
-Delete a stopped experiment with all of its versions, runs, and notes.
-
-```shell
-ssp experiment delete rank-v2 --yes
-```
-
-See [Experiment definition](/reference/experiment-definition) for every field.
+`--max-traffic` limits the share of the app's subjects that experiments hold, arms and controls together. Arms that do not fit wait, first come, first served. A lower limit stops no arm that runs. Deleting an app needs every arm stopped.
 
 ## Proxy and controller
 
 Run the reverse proxy in front of an app. See [Proxy](/reference/proxy) for every flag.
 
 ```shell
-ssp proxy --app atlas --runtime docker --image ghcr.io/acme/atlas:main --trust-key "$SSP_PUBLIC_KEY"
-ssp proxy --app atlas --runtime kubernetes --default http://localhost:8000
+ssp proxy --app atlas --image ghcr.io/acme/atlas:main
+ssp proxy --app atlas --default http://localhost:8000
 ```
 
 Run the arms on Kubernetes. See [Controller](/reference/controller).
 
 ```shell
-ssp controller --app atlas --deployment atlas --trust-key "$SSP_PUBLIC_KEY"
+ssp controller kubernetes --app atlas --deployment atlas
 ```
 
 ## Storage and retention

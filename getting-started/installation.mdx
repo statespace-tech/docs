@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install the CLI and create the tokens a deployment needs.
+description: Install the CLI, connect your repository, and create the tokens a deployment needs.
 ---
 
 ## CLI
@@ -21,34 +21,40 @@ The same binary runs `ssp proxy` on machines with Docker. On Kubernetes, the pro
 
 ## Coding agents
 
-Give this prompt to your coding agent. The skill tells the agent how to install the CLI, sign in, and run experiments.
+Give this prompt to your coding agent. The skill tells the agent how to install the CLI, set up the repository, and run experiments through pull requests.
 
 ```text
 Read https://statespace.com/skill.md and follow it.
 ```
 
+## GitHub
+
+Sign in with GitHub, and install the Statespace GitHub App on the repositories that run experiments.
+
+```shell
+ssp login
+ssp repo connect
+ssp repo list
+```
+
+The App reads the state of the pull requests of `exp/` branches, posts checks on their commits, and makes pull requests drafts in an emergency stop. It cannot change your code.
+
 ## Tokens
 
-Each place that uses Statespace needs its own token.
+CI needs no token: `ssp apply` proves itself with the job's GitHub OIDC token. Your servers and SQL clients need their own tokens.
 
 | Where | Token | Purpose |
 | --- | --- | --- |
-| Your terminal | `ssp login` | Manage apps, variants, experiments, and tokens |
-| CI | `--preset publisher`, and `SSP_SIGNING_KEY` | Publish signed variants |
+| Your terminal | `ssp login` | Show experiments, stop arms, and manage tokens |
+| CI | none | Record images with `ssp apply` |
 | Your servers | `--preset runtime` | Run `ssp proxy` |
-| Kubernetes | `--preset controller` | Run `ssp controller` |
+| Kubernetes | `--preset controller` | Run `ssp controller kubernetes` |
 | SQL clients | `--preset analyst` | Read runs, lines, and requests |
 
 Create a runtime token for `ssp proxy`, then store the returned token as `SSP_TOKEN` in a secret manager.
 
 ```shell
 ssp token create --name production --preset runtime
-```
-
-Create a signing key pair once. Keep the private key in CI. Give the public key to `ssp proxy --trust-key` and `ssp controller --trust-key`.
-
-```shell
-ssp keygen
 ```
 
 Check which credential the CLI uses and what it may do.
@@ -63,4 +69,4 @@ Set `STATESPACE_URL` when the CLI or proxy uses a local API or a hosted domain o
 export STATESPACE_URL=http://127.0.0.1:8080
 ```
 
-See [Deployment](/getting-started/deployment) to publish variants from CI and run proxies in production.
+See [Deployment](/getting-started/deployment) to set up CI and run proxies in production.

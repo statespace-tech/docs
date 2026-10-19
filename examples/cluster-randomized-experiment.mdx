@@ -5,16 +5,15 @@ description: Keep users in one account in the same arm.
 
 Use account-level randomization when users share data or can affect each other. The randomization unit is the account, not each user or request.
 
-Read the account from the request in the subject rule. Here a gateway in front of the app sets `x-account-id`.
+Read the account from the request in the subject rule of the branch's `statespace.toml`. Here a gateway in front of the app sets `x-account-id`.
 
-```shell
-ssp experiment create rank-v2 --app atlas --split atlas-search=0.1 \
-  --subject 'request.headers["x-account-id"]' \
-  --note 'Test sorted results by account.'
-ssp experiment start rank-v2
+```toml
+app = "atlas"
+share = 0.1
+subject = 'request.headers["x-account-id"]'
 ```
 
-Every user in an account gets the same arm on every proxy. The app receives the account ID as `x-statespace-subject`.
+Every user in an account gets the same arm on every proxy. The app receives the account ID as `x-statespace-subject`. All arms of the experiment must use this subject rule.
 
 Print lines with the account ID as the subject.
 
@@ -26,10 +25,10 @@ print(json.dumps({"event": "click", "subject": subject, "user": user_id}))
 Count independent accounts rather than requests.
 
 ```sql
-SELECT variant, count(DISTINCT subject_id) AS accounts
+SELECT arm, commit, count(DISTINCT subject_id) AS accounts
 FROM atlas.runs
-WHERE experiment = 'rank-v2' AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable')
-GROUP BY variant;
+WHERE experiment = 'ranking' AND experiment_version = 1 AND reason IN ('assigned', 'arm-unavailable')
+GROUP BY arm, commit;
 ```
 
 Aggregate outcomes at the account level before a simple independent-unit analysis. Request-level standard errors can understate uncertainty when requests in an account are related.

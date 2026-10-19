@@ -3,7 +3,7 @@ title: Analyze the outcomes
 description: Query runs, lines, and requests, then record a decision.
 ---
 
-Start with allocation and delivery checks. Then compare each variant with its control arm within one experiment version.
+Start with allocation and delivery checks. Then compare each arm with its control within one experiment version.
 
 Analysis runs against your own PostgreSQL database. Create a token that reads the app once, and connect any SQL client to its database URL.
 
@@ -18,40 +18,40 @@ Count runs by assignment reason.
 ```sql
 SELECT reason, count(*)
 FROM atlas.runs
-WHERE experiment = 'rank-v2'
+WHERE experiment = 'ranking'
 GROUP BY reason;
 ```
 
 Check that subjects split as the experiment's shares say.
 
 ```sql
-SELECT variant, subjects, expected, p_value, mismatch
+SELECT arm, commit, subjects, expected, p_value, mismatch
 FROM atlas.sample_ratio
-WHERE experiment = 'rank-v2' AND experiment_version = 1;
+WHERE experiment = 'ranking' AND experiment_version = 1;
 ```
 
-A `mismatch` means assignment or recording is broken, and the comparison cannot be trusted. It is tested once 100 subjects ran. The most common cause is an arm that fails for some subjects. Their runs have `reason = 'variant-unavailable'`: the default served them.
+A `mismatch` means assignment or recording is broken, and the comparison cannot be trusted. It is tested once 100 subjects ran. The most common cause is an arm that fails for some subjects. Their runs have `reason = 'arm-unavailable'`: the default served them.
 
 ## Check the arms' health
 
 Compare errors and latency of the arms before you trust outcomes. Divide by requests, so arms of different sizes compare fairly.
 
 ```sql
-SELECT variant,
+SELECT arm, commit,
        count(*) AS requests,
        avg((status >= 500)::int) AS error_rate,
        percentile_cont(0.9) WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
 FROM atlas.requests
-WHERE experiment = 'rank-v2' AND experiment_version = 1
-GROUP BY variant;
+WHERE experiment = 'ranking' AND experiment_version = 1
+GROUP BY arm, commit;
 ```
 
 Read an arm's errors from what it printed.
 
 ```sql
-SELECT timestamp, variant, line
+SELECT timestamp, arm, commit, line
 FROM atlas.output
-WHERE experiment = 'rank-v2' AND stream = 'stderr'
+WHERE experiment = 'ranking' AND stream = 'stderr'
 ORDER BY timestamp DESC
 LIMIT 50;
 ```
@@ -72,18 +72,19 @@ Count subjects in the arm they were assigned to, including runs the default serv
 
 ```sql
 SELECT
-  variant,
+  arm,
+  commit,
   count(DISTINCT subject_id) AS subjects,
   count(*) FILTER (WHERE data->>'event' = 'click') AS clicks,
   avg((data->>'position')::double precision) FILTER (WHERE data->>'event' = 'click') AS mean_position
 FROM atlas.logs
-WHERE experiment = 'rank-v2'
+WHERE experiment = 'ranking'
   AND experiment_version = 1
-  AND reason IN ('assigned', 'variant-unavailable')
-GROUP BY variant;
+  AND reason IN ('assigned', 'arm-unavailable')
+GROUP BY arm, commit;
 ```
 
-Compare `atlas-search` with `control`, never with the default. Both arms are new containers with the same share of subjects; the default serves everyone else.
+Compare `recent-clicks` with the control whose `commit` is the arm's base, never with the default. In `atlas.arms`, that is the arm's `base_commit`. Both are new containers with the same share of subjects; the default serves everyone else.
 
 ## Connect another tool
 
@@ -106,23 +107,17 @@ Decide on the primary outcome you chose before the experiment, with its uncertai
 Choose one action:
 
 - **Ship** when the benefit holds and the guardrails pass.
-- **Reject** when the variant is not worth it.
+- **Reject** when the arm is not worth it.
 - **Revise** when the evidence points to a fixable problem.
 - **Repeat** with a confirmatory experiment when uncertainty is still material.
 
-Record the decision as a note when you stop the experiment, where the next person or agent will look. Stopping sends every subject back to the default, stops the arms, and keeps the evidence queryable.
+Record the decision in the pull request, where the next person or agent will look. Then act on it:
 
-```shell
-ssp experiment stop rank-v2 --note 'Ship: +1.8 points of click rate (+0.6 to +3.0), no latency change.'
-```
+- To ship, merge the pull request and deploy it as usual. Merging ends the experiment. Statespace does not deploy the default.
+- To reject, close the pull request. Its arm is removed.
+- To revise, push a fix. It runs once it is approved and can merge.
 
-Notes are kept with the experiment version and the images and commits it pinned.
-
-```sql
-SELECT timestamp, action, note, variants FROM atlas.notes WHERE experiment = 'rank-v2';
-```
-
-To ship, merge the variant's branch and deploy it as usual; Statespace does not deploy the default. Turn open questions into a new experiment rather than editing a finished one.
+The evidence stays queryable with its version and commit. Turn open questions into a new experiment rather than editing a finished one.
 
 <Tip>
   The [full analysis walkthrough](/examples/full-analysis-walkthrough) goes from raw events to a recorded decision.

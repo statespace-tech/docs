@@ -11,9 +11,9 @@ assignment → exposure → raw outcome → metric
 
 ## Treatment exposure
 
-An assignment records which variant a unit should receive. An exposure records that the unit received it.
+An assignment records which arm a unit should receive. An exposure records that the unit received it.
 
-`ssp proxy` records a run the first time it routes a subject, when it serves the request. A run with `reason = 'assigned'` is an exposure. A run with `reason = 'variant-unavailable'` was assigned an arm but served by the default. Count both in the assigned arm, so an arm that fails for some subjects cannot hide them.
+`ssp proxy` records a run the first time it routes a subject, when it serves the request. A run with `reason = 'assigned'` is an exposure. A run with `reason = 'arm-unavailable'` was assigned an arm but served by the default. Count both in the assigned arm, so an arm that fails for some subjects cannot hide them.
 
 This distinction affects whether the [estimand](/concepts/statistical-inference#estimands) measures assignment or actual exposure.
 
@@ -25,11 +25,11 @@ Every line an arm prints is a raw outcome. A JSON line keeps its fields as `data
 print(json.dumps({"event": "click", "subject": subject, "position": 3}))
 ```
 
-The proxy sets the `x-statespace-subject` header to the subject from your rule. Thus, each arm uses the subject that the proxy assigned. Use the same event names, meaning, and units in the default and every variant. A line without a subject still belongs to the arm that printed it, which serves rates such as errors per request.
+The proxy sets the `x-statespace-subject` header to the subject from your rule. Thus, each arm uses the subject that the proxy assigned. Use the same event names, meaning, and units in the default and every arm. A line without a subject still belongs to the arm that printed it, which serves rates such as errors per request.
 
 ## Outcome metrics
 
-A metric is a rule that summarizes raw outcomes. Choose important metrics before you inspect the variant comparison.
+A metric is a rule that summarizes raw outcomes. Choose important metrics before you inspect the comparison of the arms.
 
 | Metric | Purpose |
 | --- | --- |
@@ -63,19 +63,19 @@ Aggregate repeated observations at the randomization-unit level before a simple 
 WITH unit_outcomes AS (
   SELECT
     subject_id,
-    variant,
+    arm,
     avg((data->>'position')::double precision) AS unit_position
   FROM atlas.logs
-  WHERE experiment = 'rank-v2'
-    AND experiment_version = 1 AND reason IN ('assigned', 'variant-unavailable') AND data->>'event' = 'click'
-  GROUP BY subject_id, variant
+  WHERE experiment = 'ranking'
+    AND experiment_version = 1 AND reason IN ('assigned', 'arm-unavailable') AND data->>'event' = 'click'
+  GROUP BY subject_id, arm
 )
 SELECT
-  variant,
+  arm,
   count(*) AS units,
   avg(unit_position) AS mean_position
 FROM unit_outcomes
-GROUP BY variant;
+GROUP BY arm;
 ```
 
 <Warning>
@@ -89,15 +89,15 @@ A guardrail metric detects unacceptable harm outside the primary objective. Comm
 `ssp proxy` records some guardrails for every arm without code: each request's status and latency, and per-minute CPU and memory use.
 
 ```sql
-SELECT variant,
+SELECT arm,
        avg((status >= 500)::int) AS error_rate,
        percentile_cont(0.9) WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
 FROM atlas.requests
-WHERE experiment = 'rank-v2'
-GROUP BY variant;
+WHERE experiment = 'ranking'
+GROUP BY arm;
 ```
 
-Print other guardrails as lines in the default and every variant.
+Print other guardrails as lines in the default and every arm.
 
 ```python
 print(json.dumps({"event": "performance", "subject": subject, "latency_ms": 42}))
