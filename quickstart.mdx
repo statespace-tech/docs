@@ -3,7 +3,7 @@ title: Quickstart
 description: Test a new search ranking on live traffic from a pull request, and read the result.
 ---
 
-This example tests a branch of the search app `atlas` that ranks results differently. The branch is `exp/ranking/recent-clicks`, so the experiment is `ranking` and the arm is `recent-clicks`.
+This example tests a branch of the search app `atlas` that ranks results by recent clicks. The branch is `exp/recent-clicks`, so the experiment is `recent-clicks`, with one arm.
 
 <Steps>
   <Step title="Connect GitHub">
@@ -63,7 +63,7 @@ This example tests a branch of the search app `atlas` that ranks results differe
   </Step>
 
   <Step title="Open a pull request">
-    Start a branch named `exp/<experiment>/<arm>`, change the ranking, and set the arm's share in `statespace.toml`. A branch named `exp/<name>` is an experiment with one arm.
+    Start a branch named `exp/<name>`, change the ranking, and set the arm's share in `statespace.toml`. To compare more arms in one experiment, name the branches `exp/<experiment>/<arm>`.
 
     ```toml
     app = "atlas"
@@ -72,9 +72,9 @@ This example tests a branch of the search app `atlas` that ranks results differe
     ```
 
     ```shell
-    git switch -c exp/ranking/recent-clicks
+    git switch -c exp/recent-clicks
     git commit -am "Rank results by recent clicks"
-    git push -u origin exp/ranking/recent-clicks
+    git push -u origin exp/recent-clicks
     gh pr create --fill
     ```
 
@@ -95,7 +95,7 @@ This example tests a branch of the search app `atlas` that ranks results differe
            count(DISTINCT subject_id) AS subjects,
            count(DISTINCT subject_id) FILTER (WHERE data->>'event' = 'click') AS clicked
     FROM atlas.logs
-    WHERE experiment = 'ranking' AND reason IN ('assigned', 'arm-unavailable')
+    WHERE experiment = 'recent-clicks' AND reason IN ('assigned', 'arm-unavailable')
     GROUP BY arm, commit;
     ```
 
