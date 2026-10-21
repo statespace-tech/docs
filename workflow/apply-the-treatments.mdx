@@ -73,8 +73,10 @@ Arms also record every request, lifecycle events, CPU and memory, and per-minute
 Check that the arms run before you wait for outcomes.
 
 ```shell
-ssp status ranking
+ssp status https://github.com/acme/atlas/pull/418
 ```
+
+Without a target, `ssp status` shows the arm of the `exp/` branch that you checked out, else the app or repository that you are in.
 
 ```sql
 SELECT id, kind, version, report FROM atlas.hosts;
@@ -85,14 +87,34 @@ SELECT timestamp, arm, commit, event, data FROM atlas.lifecycle ORDER BY timesta
 
 Push a new commit. When it is approved and can merge, it replaces the running commit. The arm keeps its subjects, and the experiment gets a new version. Evidence keeps its version and commit.
 
-To change the share or the rules, change `statespace.toml` on the branch and push.
+To change the share or the rules, change `statespace.toml` on the branch and push. To change only the share, use **Edit** on the arm in the dashboard: the Statespace App commits the change to the branch, with you as co-author.
 
-## Stop the arm
+## Stop and resume
 
-To stop an arm, make its pull request a draft. Mark it ready for review to run it again. In an emergency, stop every arm of the experiment at once from Statespace. The `statespace/arm` check says that Statespace stopped the arm. To run it again, push a commit, or mark the pull request as a draft and then ready.
+To stop an arm, make its pull request a draft. Mark it ready for review to run it again.
+
+In an emergency, stop arms at once with `ssp stop`, or with **Stop** in the dashboard. The Statespace App makes the pull requests drafts, and comments who stopped them. Their subjects get the default within seconds.
 
 ```shell
-ssp stop ranking
+ssp stop https://github.com/acme/atlas/pull/418
+ssp stop https://github.com/acme/atlas
+ssp stop .
 ```
+
+| Target | Stops |
+| --- | --- |
+| A pull request URL | Its arm, in every app it runs in |
+| A repository URL | Every arm of the repository's apps |
+| A path, such as `.` | The arms of the app of the nearest `statespace.toml`; without one, of the repository |
+
+The dashboard also stops every arm of one experiment or one app.
+
+To run the arms again, run `ssp resume` with the same targets, or mark the pull requests ready for review on GitHub. `ssp resume` marks ready only the drafts that a stop made. A draft that a person made stays a draft. Each arm runs again while its pull request can merge.
+
+```shell
+ssp resume https://github.com/acme/atlas/pull/418
+```
+
+If a stop or a resume cannot change some pull requests, it lists them and exits with status 1. While GitHub is unavailable, a stop is not possible. Proxies keep their last plan.
 
 To ship an arm, merge its pull request and deploy as usual. Merging ends the experiment. Its other arms run again after you update them with the default branch.

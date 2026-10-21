@@ -6,30 +6,38 @@ description: Test a new search ranking on live traffic from a pull request, and 
 This example tests a branch of the search app `atlas` that ranks results differently. The branch is `exp/ranking/recent-clicks`, so the experiment is `ranking` and the arm is `recent-clicks`.
 
 <Steps>
-  <Step title="Install the CLI and connect the repository">
-    Install `ssp`, sign in with GitHub, and install the Statespace GitHub App on the repository.
+  <Step title="Connect GitHub">
+    On [statespace.com](https://statespace.com), select **Connect GitHub**. On GitHub's screen, pick your organization and the repositories that run experiments. One screen installs the Statespace GitHub App and signs you in. Your workspace takes the name of the organization.
+
+    To use the terminal too, install `ssp` and sign in.
 
     ```shell
     curl -fsSL https://statespace.com/install.sh | bash
     ssp login
-    ssp repo connect
     ```
+  </Step>
+
+  <Step title="Merge the setup pull request">
+    The App opens a pull request named "Set up Statespace" on each repository that you picked. It adds two files:
+
+    - `statespace.toml`, which names the app after the repository and gives each arm 5% of its subjects.
+    - `.github/workflows/statespace.yml`, which builds each push to an `exp/` branch from your `Dockerfile`, pushes the image to GitHub Packages, and records it.
+
+    The description lists one more step. In the workflow that builds production, add this step after the build, so that Statespace knows the commit of each production image:
+
+    ```yaml
+    - uses: statespace-tech/action@v1
+      with:
+        image: ghcr.io/acme/atlas@${{ steps.build.outputs.digest }}
+    ```
+
+    Merge the pull request. In branch protection for `main`, require one approval. If the App did not open the pull request, open it from the checklist on the **Apps** page of the dashboard.
 
     To let your coding agent do the next steps, give it this prompt:
 
     ```text
     Read https://statespace.com/skill.md and follow it.
     ```
-  </Step>
-
-  <Step title="Set up the repository">
-    Write `statespace.toml` and the workflow that publishes each commit of an `exp/` branch.
-
-    ```shell
-    ssp init github --app atlas
-    ```
-
-    The command prints a step for the workflow that builds production. Add it after the build, so that Statespace knows the commit of each production image. In branch protection for `main`, require one approval.
   </Step>
 
   <Step title="Print what you measure">
@@ -55,7 +63,7 @@ This example tests a branch of the search app `atlas` that ranks results differe
   </Step>
 
   <Step title="Open a pull request">
-    Start a branch, change the ranking, and set the arm's share in `statespace.toml`.
+    Start a branch named `exp/<experiment>/<arm>`, change the ranking, and set the arm's share in `statespace.toml`. A branch named `exp/<name>` is an experiment with one arm.
 
     ```toml
     app = "atlas"
@@ -91,6 +99,10 @@ This example tests a branch of the search app `atlas` that ranks results differe
     GROUP BY arm, commit;
     ```
 
-    To stop the arm, make the pull request a draft. To ship it, merge it.
+    To stop the arm, make the pull request a draft, or run `ssp stop` with its URL. To ship it, merge it.
+
+    ```shell
+    ssp stop https://github.com/acme/atlas/pull/418
+    ```
   </Step>
 </Steps>

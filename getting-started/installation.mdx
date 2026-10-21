@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install the CLI, connect your repository, and create the tokens a deployment needs.
+description: Install the CLI, connect GitHub, and create the tokens a deployment needs.
 ---
 
 ## CLI
@@ -21,7 +21,7 @@ The same binary runs `ssp proxy` on machines with Docker. On Kubernetes, the pro
 
 ## Coding agents
 
-Give this prompt to your coding agent. The skill tells the agent how to install the CLI, set up the repository, and run experiments through pull requests.
+Give this prompt to your coding agent. The skill tells the agent how to install the CLI, finish the setup, and run experiments through pull requests.
 
 ```text
 Read https://statespace.com/skill.md and follow it.
@@ -29,15 +29,27 @@ Read https://statespace.com/skill.md and follow it.
 
 ## GitHub
 
-Sign in with GitHub, and install the Statespace GitHub App on the repositories that run experiments.
+On [statespace.com](https://statespace.com), select **Connect GitHub**, and install the Statespace GitHub App on the repositories that run experiments. The same screen signs you in. Your workspace takes the name of the GitHub organization or user. If that name is not available, choose a workspace name in the dashboard.
+
+Sign the terminal in with the same GitHub account.
 
 ```shell
 ssp login
-ssp repo connect
-ssp repo list
 ```
 
-The App reads the state of the pull requests of `exp/` branches, and posts checks on their commits. It cannot change your code.
+For each repository that you selected, the App opens a "Set up Statespace" pull request. It adds `statespace.toml` and `.github/workflows/statespace.yml`. If you gave the App access to all repositories, open the pull request from the checklist on the **Apps** page, for the repositories that you choose. See [Deployment](/getting-started/deployment).
+
+The App asks for these repository permissions:
+
+| Permission | Access | Why |
+| --- | --- | --- |
+| Checks | Read and write | Post the `statespace/apply` and `statespace/arm` checks |
+| Contents | Read and write | Find merge bases, open the setup pull request, and commit settings that you change in the dashboard |
+| Pull requests | Read and write | Read merge state, and make pull requests drafts when you stop arms |
+| Workflows | Read and write | Add `.github/workflows/statespace.yml` in the setup pull request |
+| Metadata | Read | Required by GitHub |
+
+The App writes only `statespace.toml` and the Statespace workflow. It receives the events check suite, pull request, pull request review, and push.
 
 ## Tokens
 
@@ -45,7 +57,7 @@ CI needs no token: `ssp apply` proves itself with the job's GitHub OIDC token. Y
 
 | Where | Token | Purpose |
 | --- | --- | --- |
-| Your terminal | `ssp login` | Show experiments, stop arms, and manage tokens |
+| Your terminal | `ssp login` | Show what runs, stop and resume arms, and manage tokens |
 | CI | none | Record images with `ssp apply` |
 | Your servers | `--preset runtime` | Run `ssp proxy` |
 | Kubernetes | `--preset controller` | Run `ssp controller kubernetes` |

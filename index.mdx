@@ -3,10 +3,10 @@ title: Statespace
 description: A/B test whole versions of your app on live traffic, from pull requests, and analyze the results with SQL.
 ---
 
-Statespace A/B tests whole versions of an app in production. A branch named `exp/<experiment>/<arm>` is an arm. When GitHub says that its pull request can merge, `ssp proxy` sends a share of real subjects to the branch, and the same share to a control: the version the branch started from. Then it records what they do.
+Statespace A/B tests whole versions of an app in production. A branch named `exp/<name>` is an arm, and its pull request is its address. `exp/<experiment>/<arm>` adds more arms to one experiment. When GitHub says that its pull request can merge, `ssp proxy` sends a share of real subjects to the branch, and the same share to a control: the version the branch started from. Then it records what they do.
 
 ```text
-push exp/ branch → CI runs ssp apply → pull request can merge → ssp proxy routes subjects → arms print lines → SQL
+connect GitHub → merge "Set up Statespace" → push exp/ branch → CI runs ssp apply → pull request can merge → ssp proxy routes subjects → arms print lines → SQL
 ```
 
 ## Start here
@@ -16,7 +16,7 @@ push exp/ branch → CI runs ssp apply → pull request can merge → ssp proxy 
     Open a pull request, run an arm, and read the result.
   </Card>
   <Card title="Install the tools" icon="download" href="/getting-started/installation">
-    Install the CLI and connect your repository.
+    Connect GitHub, and install the CLI.
   </Card>
   <Card title="Review the workflow" icon="route" href="/workflow/define-the-experiment">
     Follow an experiment from definition to analysis.
@@ -50,13 +50,15 @@ GitHub decides what may run, and Statespace decides only whether it runs fairly.
 | Is a draft, or a reviewer requested changes | Stops |
 | Merged | The experiment ends |
 
-Branch protection decides who must approve. Each new commit needs a new approval, unless your repository says otherwise.
+A stop from Statespace makes the pull request a draft, so GitHub stays the one record of what may run. Branch protection decides who must approve. Each new commit needs a new approval, unless your repository says otherwise.
 
 ## Interfaces
 
 | Interface | Responsibility |
 | --- | --- |
-| GitHub App | Reports the state of pull requests, and posts the `statespace/apply` and `statespace/arm` checks. |
+| GitHub App | Opens the setup pull request, reports the state of pull requests, posts the `statespace/apply` and `statespace/arm` checks, and makes pull requests drafts when you stop arms. |
+| Dashboard | Shows what runs, stops and resumes arms, and edits `statespace.toml` through the App. |
+| `ssp status`, `stop`, `resume` | Show and stop arms from a terminal or an agent, by pull request URL, repository URL, or path. |
 | `ssp apply` | Runs in CI. It records the image of each commit with the job's GitHub OIDC token. |
 | `ssp proxy` | Assigns each request's subject and forwards it. With `--image`, it also runs the default and the arms on Docker. |
 | `ssp controller kubernetes` | Runs the arms on Kubernetes as copies of the default's Deployment. |

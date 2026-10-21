@@ -9,7 +9,7 @@ The [FastAPI example](https://github.com/statespace-tech/statespace/tree/main/ex
 
 ## Record builds from CI
 
-`ssp init github` writes `.github/workflows/statespace.yml`. It builds each commit of an `exp/` branch the way you build production, pushes the image, and records it.
+The "Set up Statespace" pull request adds `.github/workflows/statespace.yml`. It builds each commit of an `exp/` branch from the repository's `Dockerfile`, pushes the image to GitHub Packages, and records it. If the repository has no `Dockerfile`, the App leaves a comment above the build step. Change that step to build your image the way you build production, and keep its `id`.
 
 ```yaml
 name: Statespace
@@ -40,7 +40,7 @@ jobs:
           image: ghcr.io/acme/atlas@${{ steps.build.outputs.digest }}
 ```
 
-Add the same last step to the workflow that builds production, after its build. On the default branch, the step records a default build. When a proxy runs that image, its commit becomes a base that arms can start from.
+Add the same last step to the workflow that builds production, after its build. The App does not change deploy workflows, so this step is yours to add. On the default branch, the step records a default build. When a proxy runs that image, its commit becomes a base that arms can start from.
 
 The job needs `id-token: write`. `ssp apply` sends the job's GitHub OIDC token, which proves the repository, the workflow, and the commit. CI keeps no Statespace secret.
 
@@ -130,11 +130,14 @@ On `SIGTERM`, a proxy lets requests finish for up to 10 seconds. Give the platfo
 
 Each proxy on Docker, and each controller, runs up to `--max-arms` arms, 5 by default, controls included. Size machines for that many copies of the app, or lower the limit. On Kubernetes, each arm gets the default's replicas times its share of subjects, at least one. Subjects of the arms beyond the limit get the default.
 
-To limit how many subjects are in experiments at all, set the app's traffic limit. Arms that do not fit wait, first come, first served.
+To limit how many subjects are in experiments at all, set the app's traffic limit in `statespace.toml` on the default branch. Arms that do not fit wait, first come, first served.
 
-```shell
-ssp app set atlas --max-traffic 0.2
+```toml
+app = "atlas"
+max_traffic = 0.2
 ```
+
+You can also change it with **Edit** on the **Apps** page of the dashboard. The App opens a pull request that changes the file, and the limit changes when the pull request merges.
 
 Check what each proxy runs.
 

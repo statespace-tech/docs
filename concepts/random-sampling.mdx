@@ -11,7 +11,7 @@ Set a CEL eligibility rule over the request in the branch's `statespace.toml`.
 eligibility = 'request.headers["cf-ipcountry"] == "US" && request.path.startsWith("/search")'
 ```
 
-`ssp check` and `ssp apply` validate the rule. `ssp proxy` evaluates the rule against each request's `method`, `path`, `query`, `headers`, and `cookies`. A header or cookie that is missing is `null`.
+`ssp apply` validates the rule, also with `--dry-run`. `ssp proxy` evaluates the rule against each request's `method`, `path`, `query`, `headers`, and `cookies`. A header or cookie that is missing is `null`.
 
 An eligible subject receives an arm: an arm of a branch, or a control. An ineligible subject receives the default and is recorded with `reason = 'ineligible'`. A rule that fails to evaluate is recorded with `reason = 'eligibility-error'`.
 

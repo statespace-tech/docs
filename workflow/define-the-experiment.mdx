@@ -24,7 +24,7 @@ Deploy this change to production first. Then the default and each arm print the 
 
 ## Name the branch
 
-The branch name gives the experiment and the arm.
+The branch name gives the experiment and the arm. For one change, name the branch `exp/<name>`. To compare more than one change, name each branch `exp/<experiment>/<arm>`.
 
 | Branch | Experiment | Arm |
 | --- | --- | --- |
@@ -51,10 +51,10 @@ eligibility = 'request.headers["cf-ipcountry"] == "US"'
 
 The arm gets 5% of the app's subjects, and its control gets another 5%. Every other subject gets the default. All arms of an experiment must use the same `subject` and `eligibility`.
 
-Test the file and a request before you push.
+Check the file and see the plan before you push. `--dry-run` records nothing, and works outside CI. Give it any pushed image of the app, such as the production image.
 
 ```shell
-ssp check --path /search --header x-user-id=u_42 --header cf-ipcountry=US
+ssp apply --image ghcr.io/acme/atlas:main --dry-run
 ```
 
 ## Build the arm

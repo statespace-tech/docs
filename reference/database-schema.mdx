@@ -100,7 +100,7 @@ GROUP BY experiment_version, arm, commit;
 
 ## Pull requests
 
-`pull_requests` has the pull requests of the app's experiment branches: `repo`, `number`, `branch`, `head_commit`, `state`, `draft`, `review_decision`, `merge_state`, `merged_at`, `held_at` (an emergency stop), `running_commit`, `waiting` (why the head commit does not run), and `waiting_since`.
+`pull_requests` has the pull requests of the app's experiment branches: `repo`, `number`, `branch`, `head_commit`, `state`, `draft` (a stop makes the pull request a draft), `review_decision`, `merge_state`, `merged_at`, `running_commit`, `waiting` (why the head commit does not run), and `waiting_since`.
 
 ## Audit
 

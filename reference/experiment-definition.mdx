@@ -1,19 +1,21 @@
 ---
 title: statespace.toml and experiments
-description: Review the file that names an app and an arm's settings, and how pull requests make experiments run.
+description: Review the file that holds an app's settings and an arm's settings, and how pull requests make experiments run.
 ---
 
-Experiments come from branches. A branch named `exp/<experiment>/<arm>` is an arm, and `statespace.toml` on the branch gives its settings. No command starts an experiment: an arm runs while GitHub says that its pull request can merge.
+Experiments come from branches. A branch named `exp/<name>` or `exp/<experiment>/<arm>` is an arm, and `statespace.toml` on the branch gives its settings. No command starts an experiment: an arm runs while GitHub says that its pull request can merge.
 
 ## statespace.toml
 
-The file is at the root of the repository. Each branch reads its own copy.
+The "Set up Statespace" pull request adds the file at the root of the repository. In a repository with more than one app, each app has the file in its folder. Each branch reads its own copy.
 
 ```toml
 app = "atlas"
 share = 0.05
 subject = 'request.headers["x-user-id"]'
 eligibility = 'request.headers["cf-ipcountry"] == "US"'
+max_traffic = 0.2
+output_retention_days = 30
 ```
 
 | Key | Meaning |
@@ -22,8 +24,25 @@ eligibility = 'request.headers["cf-ipcountry"] == "US"'
 | `share` | The arm's share of all the app's subjects, greater than 0 and at most 1. Required on `exp/` branches |
 | `subject` | A CEL expression over `request` that yields the subject ID. Defaults to `request.cookies.ssp_sid` |
 | `eligibility` | A CEL expression over `request` that decides who may enter. Omit it to let everyone in |
+| `max_traffic` | The share of the app's subjects that experiments may hold, arms and controls together, greater than 0 and at most 1. Defaults to 1 |
+| `output_retention_days` | Days to keep the lines that arms print, 1 to 365. Defaults to 7 |
 
-On the default branch, Statespace reads only `app`. Use single quotes for CEL expressions, so TOML takes them as written. `ssp check` validates the file.
+`share`, `subject`, and `eligibility` are arm settings: Statespace reads them from each `exp/` branch. `max_traffic` and `output_retention_days` are app settings: Statespace reads them from the default branch, when CI records a default build. So a branch cannot raise its own limit. Use single quotes for CEL expressions, so TOML takes them as written.
+
+Check the file and see the plan without recording anything:
+
+```shell
+ssp apply --image ghcr.io/acme/atlas:main --dry-run
+```
+
+## Edit from the dashboard
+
+**Edit** in the dashboard changes `statespace.toml` for you. The Statespace App makes the commit, with you as co-author, so the change has the same review and history as any other commit.
+
+| Setting | Where the commit goes |
+| --- | --- |
+| An arm's share | The arm's `exp/` branch. CI records the commit, and the arm changes while its pull request can merge |
+| The traffic limit and output retention | A new pull request to the default branch. The change takes effect when it merges |
 
 ## Branches
 
@@ -60,11 +79,9 @@ Each base commit of an experiment's arms has a control. It runs the default buil
 | Merged | Ends the experiment. Other arms run again from bases built after the merge |
 | Closed | The arm is removed |
 
-The arms of an experiment must use the same `subject` and `eligibility`. A commit with other rules fails `statespace/apply`. The arms of an app fit in its traffic limit, first come, first served.
+The arms of an experiment must use the same `subject` and `eligibility`. A commit with other rules fails `statespace/apply`. The arms of an app fit in its `max_traffic`, first come, first served. A lower limit stops no arm that runs.
 
-```shell
-ssp app set atlas --max-traffic 0.2
-```
+A stop makes a pull request a draft, so its arm stops. See [Stop and resume](/workflow/apply-the-treatments#stop-and-resume).
 
 ## Request rules
 
@@ -78,8 +95,4 @@ ssp app set atlas --max-traffic 0.2
 | `request.headers` | Lowercase names, such as `request.headers["user-agent"]` |
 | `request.cookies` | `{"ssp_sid": "sid_…"}` |
 
-A missing header, cookie, or query parameter is `null`. A subject rule must yield a string or an integer of 1 to 128 characters; otherwise the request gets the default.
-
-```shell
-ssp check --path /search --query q=maps --header cf-ipcountry=US --cookie ssp_sid=u_1
-```
+A missing header, cookie, or query parameter is `null`. A subject rule must yield a string or an integer of 1 to 128 characters; otherwise the request gets the default. `ssp apply` rejects a rule that does not compile.
