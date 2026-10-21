@@ -1,88 +1,135 @@
 ---
 title: CLI
-description: Review the public ssp command surface.
+description: Every ssp command, argument, and flag.
 ---
 
-Commands print text. Add `--json` to print one JSON document. Errors go to standard error and exit with status 1. With `--json`, an error is `{"error": "..."}`. Notes and warnings go to standard error. Pull requests start arms; the CLI records builds in CI, shows what runs, stops and resumes arms, and runs the proxy and the controller. The dashboard sets up repositories and edits settings. Read recorded data with SQL.
-Use `STATESPACE_URL` to select a local or hosted API.
+`ssp` records builds in CI, shows and stops arms, manages tokens, and runs the proxy and the controller. Install it with the [install script](/getting-started/installation).
 
-## Authentication
+```shell
+ssp <command> [options]
+```
 
-Sign in through GitHub, then approve the terminal's device code.
+## Global options
+
+Every command takes these options.
+
+<ParamField body="--endpoint" type="string" default="https://api.statespace.com">
+  The Statespace API URL. Environment variable: `STATESPACE_URL`.
+</ParamField>
+
+<ParamField body="--token" type="string">
+  A token. Defaults to the session that `ssp login` saved. Environment variable: `SSP_TOKEN`. Proxies and controllers use a token; CI uses none.
+</ParamField>
+
+<ParamField body="--json" type="boolean">
+  Print one JSON document instead of text.
+</ParamField>
+
+## Output and exit codes
+
+Commands print text on standard output. Notes, warnings, and errors go to standard error. A command that fails exits with status 1. With `--json`, the result is one JSON document, and an error is `{"error": "..."}` on standard error.
+
+## login
+
+Sign in with GitHub and save the session. The command opens a browser, and you approve the terminal's code there.
 
 ```shell
 ssp login
-ssp whoami
-ssp logout
-ssp logout --all
 ```
 
-`whoami` shows the account, the credential in use, its scopes, and storage use. `logout --all` ends every session of the account. Use `SSP_TOKEN` for proxies and the controller. CI needs no token. Keep the output of `ssp token create` out of recorded logs.
+<ParamField body="--no-open" type="boolean">
+  Print the sign-in URL. Do not open a browser.
+</ParamField>
 
-## Tokens
+## logout
 
-A token opens the API and, with `query:read`, PostgreSQL. Statespace shows its secret only once, when you create it.
+Sign this terminal out.
 
 ```shell
-ssp token create --name production --preset runtime
-ssp token create --name analyst --preset analyst --app atlas
-ssp token create --name agent --expires-in-days 30 \
-  --scope experiments:write --scope query:read
-ssp token list
-ssp token revoke tok_123
-ssp token revoke --all --yes
+ssp logout
 ```
 
-| Preset | Scopes | For |
-| --- | --- | --- |
-| `runtime` | `runtime:read`, `events:write` | `ssp proxy` |
-| `controller` | `runtime:read`, `events:write`, `arms:report` | `ssp controller kubernetes` |
-| `analyst` | `query:read` | SQL clients |
-| `admin` | every scope, including `tokens:manage` | Agents that run the whole loop |
+<ParamField body="--all" type="boolean">
+  Sign out every session of the account, on every machine.
+</ParamField>
 
-`--app` limits what the token reads in SQL to one app's views; it needs `query:read`. `token list` shows tokens and sign-in sessions without their secrets. `revoke --all` revokes every token and session of the account, and ends their database sessions.
+## whoami
 
-A token with `query:read` also has a database URL. Its user is the token's ID and its password is the token. Connect over TLS to your workspace hostname, such as `acme.statespace.app`, with `sslmode=verify-full`. Use a PostgreSQL 16 or newer client for the URL's `sslrootcert=system`; older clients must replace that parameter with the path to a trusted public CA bundle.
+Show the account, the credential in use, its scopes, and storage use.
 
-## Apply
+```shell
+ssp whoami
+```
 
-In GitHub Actions, record the image of the job's commit. On the default branch, it becomes a default build. On an `exp/` branch, it becomes a version of the arm.
+## apply
+
+Record the image that this CI job built. On the default branch, the image becomes the app's default build. On an `exp/` branch, it becomes a version of the arm. The [Statespace action](https://github.com/statespace-tech/action) runs this command.
 
 ```shell
 ssp apply --image ghcr.io/acme/atlas@sha256:4f2a…
-ssp apply --image ghcr.io/acme/atlas:main --dry-run
 ```
 
-| Flag | Meaning |
-| --- | --- |
-| `--image` | The image by tag or digest, or `STATESPACE_IMAGE`. A tag is resolved with `docker` |
-| `--file` | The path of `statespace.toml`. Defaults to `statespace.toml` |
-| `--dry-run` | Check `statespace.toml` and print the plan, but record nothing. It also works outside CI |
+<ParamField body="--image" type="string" required>
+  The image, by tag or digest. `ssp` resolves a tag to its digest with `docker`. Environment variable: `STATESPACE_IMAGE`.
+</ParamField>
 
-`apply` needs the job's OIDC token: the workflow needs `id-token: write`. The [Statespace action](https://github.com/statespace-tech/action) runs it.
+<ParamField body="--file" type="string" default="statespace.toml">
+  The path of `statespace.toml`.
+</ParamField>
 
-## Status
+<ParamField body="--dry-run" type="boolean">
+  Check `statespace.toml` and print the plan, but record nothing. It works outside CI. Give an image that is in the registry.
+</ParamField>
+
+`apply` proves the build with the job's GitHub OIDC token, so the workflow needs the permission `id-token: write`.
+
+## status
 
 Show what runs, and why.
 
 ```shell
-ssp status
 ssp status https://github.com/acme/atlas/pull/418
-ssp status https://github.com/acme/atlas
-ssp status services/search
 ```
 
-A target is a pull request URL, a repository URL, or a path. Without a target, `status` shows the arm of the `exp/` branch that you checked out, else the app of the nearest `statespace.toml`, else the repository that you are in, else every app.
+<ParamField body="targets" type="string[]">
+  Pull request URLs, repository URLs, or paths. See [Targets](#targets). Without a target, `status` shows the arm of the `exp/` branch that you checked out. Else it shows the app of the nearest `statespace.toml`, else the repository you are in, else every app.
+</ParamField>
 
-## Stop and resume
+## stop
 
-Stop arms at once. The Statespace App makes the pull requests drafts, and comments who stopped them. Their subjects get the default.
+Stop arms at once. The Statespace App makes their pull requests drafts and comments who stopped them. Their subjects get the default.
 
 ```shell
 ssp stop https://github.com/acme/atlas/pull/418
-ssp stop https://github.com/acme/atlas
-ssp stop .
 ```
+
+<ParamField body="targets" type="string[]" required>
+  One or more pull request URLs, repository URLs, or paths. See [Targets](#targets).
+</ParamField>
+
+The command does not ask for confirmation, so agents can run it. If it cannot change some pull requests, it names them on standard error and exits with status 1. With `--json`, they are under `failed`.
+
+<Note>
+  While GitHub is unavailable, a stop is not possible. Proxies keep their last plan.
+</Note>
+
+## resume
+
+Mark ready for review the pull requests that a stop made drafts. Each arm runs again while its pull request can merge.
+
+```shell
+ssp resume https://github.com/acme/atlas/pull/418
+```
+
+<ParamField body="targets" type="string[]" required>
+  One or more pull request URLs, repository URLs, or paths. See [Targets](#targets).
+</ParamField>
+
+`resume` changes only the drafts that a stop made. A named pull request that a person made a draft is an error; a wider target skips it. Failures work as for `stop`.
+
+## Targets
+
+`status`, `stop`, and `resume` take the same targets.
 
 | Target | Means |
 | --- | --- |
@@ -90,54 +137,111 @@ ssp stop .
 | `https://github.com/acme/atlas` | Every arm of the repository's apps |
 | `.` or `services/search` | The app of the nearest `statespace.toml`; without one, the repository |
 
-Mark the pull requests that a stop made drafts ready for review. Each arm runs again while its pull request can merge. A draft that a person made stays a draft.
+## token create
+
+Create a token. `ssp` prints its secret only once.
 
 ```shell
-ssp resume https://github.com/acme/atlas/pull/418
+ssp token create --name production --preset runtime
 ```
 
-Give at least one target. Neither command asks for confirmation, so agents can run them. If some pull requests cannot change, the command lists them on standard error and exits with status 1. With `--json`, they are under `failed`.
+<ParamField body="--name" type="string" required>
+  A name for the token.
+</ParamField>
 
-To stop one arm in the normal way, make its pull request a draft:
+<ParamField body="--preset" type="string">
+  The usual scopes for a job: `runtime`, `controller`, `analyst`, or `admin`. See [Presets](#presets).
+</ParamField>
+
+<ParamField body="--scope" type="string">
+  A scope, for a combination that no preset covers. Repeat for each: `runtime:read`, `events:write`, `arms:report`, `experiments:write`, `query:read`, or `tokens:manage`.
+</ParamField>
+
+<ParamField body="--app" type="string">
+  Limit what the token reads in SQL to the views of one app. Needs `query:read`. Environment variable: `STATESPACE_APP`.
+</ParamField>
+
+<ParamField body="--expires-in-days" type="integer">
+  Days until the token expires. Omit it for no expiration.
+</ParamField>
+
+A token with `query:read` also has a database URL. Its user is the token's ID, and its password is the token. Connect over TLS to your workspace host, such as `acme.statespace.app`, with `sslmode=verify-full`. A PostgreSQL 16 or newer client reads the URL's `sslrootcert=system`. With an older client, replace that parameter with the path of a trusted CA bundle.
+
+<Warning>
+  Keep the output of `ssp token create` out of logs. Statespace cannot show the secret again.
+</Warning>
+
+### Presets
+
+| Preset | Scopes | For |
+| --- | --- | --- |
+| `runtime` | `runtime:read`, `events:write` | `ssp proxy` |
+| `controller` | `runtime:read`, `events:write`, `arms:report` | `ssp controller kubernetes` |
+| `analyst` | `query:read` | SQL clients |
+| `admin` | Every scope, `tokens:manage` included | Agents that run the whole loop |
+
+## token list
+
+List tokens and sign-in sessions, without their secrets.
 
 ```shell
-gh pr ready 418 --undo
+ssp token list
 ```
 
-## Apps
+## token revoke
 
-The first build that CI records for an app creates it. Its name is also the name of its PostgreSQL schema. `statespace.toml` on the default branch sets its traffic limit and output retention; see [statespace.toml](/reference/experiment-definition). The dashboard shows each app's settings, and **Edit** opens a pull request that changes them.
+Revoke a token or a session by its ID, or all of them.
 
-Erase a subject or delete an app on the **Apps** page of the dashboard, or with the API:
+```shell
+ssp token revoke tok_123
+```
 
-| Request | Does |
-| --- | --- |
-| `DELETE /v1/apps/{app}/subjects/{subject}` | Erase a subject's runs, requests, and lines in one app |
-| `DELETE /v1/apps/{app}` | Delete an app and all its data. Every arm must be stopped |
+<ParamField body="id" type="string">
+  The ID of the token or session. `ssp token list` shows it.
+</ParamField>
 
-You cannot undo either.
+<ParamField body="--all" type="boolean">
+  Revoke every token and session of the account, and end their database sessions. Needs `--yes`.
+</ParamField>
 
-## Proxy and controller
+<ParamField body="--yes" type="boolean">
+  Confirm `--all`. You cannot undo it.
+</ParamField>
+
+## proxy
 
 Run the reverse proxy in front of an app. See [Proxy](/reference/proxy) for every flag.
 
 ```shell
-ssp proxy --app atlas --image ghcr.io/acme/atlas:main
-ssp proxy --app atlas --default http://localhost:8000
+ssp proxy --app atlas \
+  --image ghcr.io/acme/atlas:main
 ```
 
-Run the arms on Kubernetes. See [Controller](/reference/controller).
+## controller kubernetes
+
+Run the arms of an app on Kubernetes. See [Controller](/reference/controller) for every flag.
 
 ```shell
-ssp controller kubernetes --app atlas --deployment atlas
+ssp controller kubernetes \
+  --app atlas --deployment atlas
 ```
 
-## Storage and retention
+## Not in the CLI
 
-Events have a 64 KiB size limit and a 90-day retention limit. The lines arms print follow their app's shorter `output_retention_days`. The quota is 1 GiB on the free plan and 10 GiB on other plans; `ssp whoami` shows its use. Usage warns at 80%; new events are rejected when the quota is full.
+Some actions are in the dashboard and the API only.
 
-## Subject erasure
+| Action | Where |
+| --- | --- |
+| Change settings | Commit `statespace.toml`, or use **Edit** in the dashboard |
+| Erase a subject | **Apps** page, or `DELETE /v1/apps/{app}/subjects/{subject}` |
+| Delete an app | **Apps** page, or `DELETE /v1/apps/{app}`. Every arm must be stopped |
 
-Erase a subject's persisted and pending runs, requests, and the lines that name it in one app, from the dashboard or with `DELETE /v1/apps/{app}/subjects/{subject}`.
+An erasure deletes the subject's runs, requests, and the lines that name it, in one app. Erased data can stay in encrypted backups until their retention ends. The audit record of the erasure keeps the subject ID.
 
-Erased data can remain in encrypted backups until backup retention expires. Operators must reapply later erasures after restoring an older snapshot. The erasure audit record retains the subject identifier as metadata.
+<Warning>
+  You cannot undo an erasure or a deletion.
+</Warning>
+
+## Limits
+
+An event can be 64 KiB at most, and Statespace keeps events for 90 days. The lines that arms print follow the app's shorter `output_retention_days`. Storage is 1 GiB on the free plan and 10 GiB on other plans. `ssp whoami` shows the use. Statespace warns at 80%, and refuses new events when storage is full.

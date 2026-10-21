@@ -1,43 +1,74 @@
 ---
 title: Controller
-description: Review how ssp controller kubernetes runs arms.
+description: Every flag of ssp controller kubernetes, and how it runs arms on Kubernetes.
 ---
 
-`ssp controller kubernetes` runs the arms and controls of an app's experiments on Kubernetes. It runs as one pod in the app's namespace, never touches the default's Deployment, and never handles requests.
+`ssp controller kubernetes` runs the arms and controls of an app's experiments on Kubernetes. It runs as one pod in the app's namespace. It does not change the default's Deployment, and it does not handle requests. `ssp proxy --default` runs beside the default in each pod and routes the requests.
 
 ```shell
-ssp controller kubernetes --app atlas --deployment atlas
+ssp controller kubernetes \
+  --app atlas --deployment atlas
 ```
 
-| Flag | Meaning |
-| --- | --- |
-| `--app` | The app, or `STATESPACE_APP` |
-| `--deployment` | The default's Deployment, or `STATESPACE_DEPLOYMENT` |
-| `--container` | The app's container in the default's pods. Defaults to the first container other than `statespace-proxy` |
-| `--namespace` | The namespace. Defaults to the controller's own |
-| `--max-arms` | How many arms run at once, controls included, 1 to 64. Defaults to 5 |
-| `--arm-env NAME=VALUE` | An environment variable every arm's container gets. Repeatable |
-| `--redact REGEX` | Replace matches in recorded lines before they leave the cluster. Repeatable |
+The controller needs a token with the `controller` preset in `SSP_TOKEN`. Set `STATESPACE_CONTROLLER` to the name of the controller's own Deployment. Then Kubernetes deletes its arms when you delete the controller.
 
-The controller needs a token with the `controller` preset in `SSP_TOKEN`. Set `STATESPACE_CONTROLLER` to the name of its own Deployment, so its arms are deleted with it.
+## Flags
+
+<ParamField body="--app" type="string" required>
+  The app whose experiments the controller serves. Environment variable: `STATESPACE_APP`.
+</ParamField>
+
+<ParamField body="--deployment" type="string" required>
+  The Deployment that runs the app's default. Environment variable: `STATESPACE_DEPLOYMENT`.
+</ParamField>
+
+<ParamField body="--container" type="string">
+  The app's container in the default's pods. Defaults to the first container that is not `statespace-proxy`. Environment variable: `STATESPACE_CONTAINER`.
+</ParamField>
+
+<ParamField body="--namespace" type="string">
+  The namespace of the Deployment. Defaults to the controller's own namespace. Environment variable: `STATESPACE_NAMESPACE`.
+</ParamField>
+
+<ParamField body="--health" type="string">
+  A path that must answer 200 before an arm gets traffic. Without it, an arm is ready when its port accepts connections. Environment variable: `STATESPACE_HEALTH`.
+</ParamField>
+
+<ParamField body="--max-arms" type="integer" default={5}>
+  How many arms run at the same time, controls included, 1 to 64.
+</ParamField>
+
+<ParamField body="--stale-after" type="integer" default={300}>
+  The seconds to keep the last configuration while Statespace is unreachable.
+</ParamField>
+
+<ParamField body="--arm-env" type="NAME=VALUE">
+  An environment variable that the container of every arm gets. Repeat it for each variable.
+</ParamField>
+
+<ParamField body="--redact" type="regex">
+  A regular expression. The controller replaces its matches in recorded lines before the lines leave the cluster. Repeat it for each expression.
+</ParamField>
 
 ## Arms
 
-Every few seconds, the controller compares the running experiments with the arms it runs. For each arm and control, it keeps a Deployment and a Service named after the default, the experiment, and the arm.
+Every few seconds, the controller compares the running experiments with the arms that it runs. For each arm and control, it keeps a Deployment and a Service. Their names come from the default, the experiment, and the arm.
 
-- **Pods.** A copy of the default's pod spec: its environment, Secrets, service account, resources, probes, and volumes. Only the app container's image differs, and the `statespace-proxy` sidecar is left out.
-- **Labels.** Only `statespace.com/arm`, `statespace.com/app`, and `app.kubernetes.io/managed-by: ssp-controller`, so the default's Service never sends arms traffic.
-- **Replicas.** The default's replicas times the arm's share of all subjects, at least one.
-- **Images.** Each arm runs the image Statespace names by digest: a build CI recorded, or for a control, the default build of its base.
-- **Ownership.** Each object is owned by the controller's Deployment, so deleting the controller deletes every arm.
+| Part | What the controller does |
+| --- | --- |
+| Pods | Copies the default's pod spec: environment, Secrets, service account, resources, probes, and volumes. Only the image of the app container is different. The `statespace-proxy` sidecar is not copied |
+| Labels | Sets only `statespace.com/arm`, `statespace.com/app`, and `app.kubernetes.io/managed-by: ssp-controller`. The default's Service does not send traffic to arms |
+| Replicas | Uses the default's replicas times the arm's share of all subjects, with one replica at least |
+| Images | Runs the image that Statespace names by digest: a build that CI recorded, or for a control, the default build of its base |
+| Ownership | Makes the controller's Deployment the owner of each object |
 
-When an arm stops, the controller deletes it. After its own restart, it deletes the arms no running experiment uses.
+When an arm stops, the controller deletes it. After the controller starts again, it deletes the arms that no running experiment uses.
 
 ## Reports
 
-The controller reports each arm's address and readiness to Statespace, and the proxies beside the default forward to arms that are ready. It also reports the digest that the default's ready pods run, so Statespace knows which commit is deployed. The `atlas.arms` view shows the arms.
+The controller reports the address of each arm, and whether it is ready. The proxies beside the default send requests only to arms that are ready. The controller also reports the digest that the default's ready pods run, so Statespace knows which commit is deployed. The `atlas.arms` view shows the arms.
 
-The controller streams each arm pod's log through the Kubernetes API and records every line. Kubernetes merges a container's standard output and standard error, so every line is recorded as `stdout`. Each pod's position is kept in the ConfigMap `<deployment>-statespace`, so a restarted controller records each line once.
+The controller reads the log of each arm pod through the Kubernetes API, and records each line. Kubernetes merges the standard output and standard error of a container, so each line has the stream `stdout`. The controller keeps the position in each log in the ConfigMap `<deployment>-statespace`. Then a controller that starts again records each line one time only.
 
 ## Permissions
 

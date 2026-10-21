@@ -1,76 +1,40 @@
 ---
 title: Statespace
+sidebarTitle: Introduction
 description: A/B test whole versions of your app on live traffic, from pull requests, and analyze the results with SQL.
 ---
 
-Statespace A/B tests whole versions of an app in production. A branch named `exp/<name>` is an arm, and its pull request is its address. `exp/<experiment>/<arm>` adds more arms to one experiment. When GitHub says that its pull request can merge, `ssp proxy` sends a share of real subjects to the branch, and the same share to a control: the version the branch started from. Then it records what they do.
+Statespace A/B tests whole versions of your app in production. A pull request of a branch named `exp/<name>` is an experiment. While GitHub says that the pull request can merge, `ssp proxy` sends a share of real subjects to the branch. The same share goes to a control: the version that the branch started from. Every line the arms print goes to your PostgreSQL database.
 
 1. Connect GitHub, and merge the "Set up Statespace" pull request.
 2. Push an `exp/` branch, and open a pull request. CI records each commit with `ssp apply`.
 3. When the pull request can merge, `ssp proxy` routes a share of the subjects to the arm.
 4. The arm prints lines. Compare the arms in SQL.
 
-## Start here
+## Get started
 
 <CardGroup cols={2}>
-  <Card title="Complete the quickstart" icon="rocket" href="/quickstart">
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
     Open a pull request, run an arm, and read the result.
   </Card>
-  <Card title="Install the tools" icon="download" href="/getting-started/installation">
-    Connect GitHub, and install the CLI.
+  <Card title="How it works" icon="workflow" href="/getting-started/how-it-works">
+    See what serves each request, and what GitHub decides.
   </Card>
-  <Card title="Review the workflow" icon="route" href="/workflow/define-the-experiment">
-    Follow an experiment from definition to analysis.
+  <Card title="Installation" icon="download" href="/getting-started/installation">
+    Connect GitHub, install the CLI, and create tokens.
   </Card>
-  <Card title="Use the reference" icon="book" href="/reference/experiment-definition">
-    Review exact fields, commands, and tables.
+  <Card title="Deployment" icon="server" href="/getting-started/deployment">
+    Record builds from CI, and run the proxy in production.
   </Card>
 </CardGroup>
 
-## What serves a request
+## Learn more
 
-Every request goes to one of three places.
-
-| Target | What it runs | Who gets it |
-| --- | --- | --- |
-| Default | The image you deployed | Every subject outside an experiment |
-| Control | The default build of the commit an arm's branch started from | An experiment's baseline |
-| Arm | The image of a commit of an `exp/` branch | An experiment's treatment |
-
-A control gets the share of the largest arm on its base. Compare an arm with its control.
-
-## What decides
-
-GitHub decides what may run, and Statespace decides only whether it runs fairly.
-
-| The pull request | The arm |
-| --- | --- |
-| Can merge | Runs the latest commit |
-| Never could merge | Does not run |
-| Could merge, and then could not | Runs the last commit that could merge, and warns after 7 days |
-| Is a draft, or a reviewer requested changes | Stops |
-| Merged | The experiment ends |
-
-A stop from Statespace makes the pull request a draft, so GitHub stays the one record of what may run. Branch protection decides who must approve. Each new commit needs a new approval, unless your repository says otherwise.
-
-## Interfaces
-
-| Interface | Responsibility |
-| --- | --- |
-| GitHub App | Opens the setup pull request, reports the state of pull requests, posts the `statespace/apply` and `statespace/arm` checks, and makes pull requests drafts when you stop arms. |
-| Dashboard | Shows what runs, stops and resumes arms, and edits `statespace.toml` through the App. |
-| `ssp status`, `stop`, `resume` | Show and stop arms from a terminal or an agent, by pull request URL, repository URL, or path. |
-| `ssp apply` | Runs in CI. It records the image of each commit with the job's GitHub OIDC token. |
-| `ssp proxy` | Assigns each request's subject and forwards it. With `--image`, it also runs the default and the arms on Docker. |
-| `ssp controller kubernetes` | Runs the arms on Kubernetes as copies of the default's Deployment. |
-| PostgreSQL | Stores one isolated account database, with one schema of views per app. |
-
-Your app prints what happens, as it already does. Every line an arm prints is recorded, and a JSON line with a `subject` field is tied to that subject's arm.
-
-```python
-print(json.dumps({
-    "event": "click",
-    "subject": subject,
-    "position": 1,
-}))
-```
+<CardGroup cols={2}>
+  <Card title="Experiment workflow" icon="route" href="/workflow/define-the-experiment">
+    Follow an experiment from definition to analysis.
+  </Card>
+  <Card title="Reference" icon="book" href="/reference/experiment-definition">
+    Look up settings, commands, and tables.
+  </Card>
+</CardGroup>

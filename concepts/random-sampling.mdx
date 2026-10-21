@@ -1,26 +1,36 @@
 ---
 title: Eligibility
-description: Select subjects with information in the request.
+description: Which subjects can enter an experiment, and why the rule must use only what exists before assignment.
 ---
 
-Eligibility defines the population that can enter an experiment. Use information that exists before treatment assignment.
+Who can enter an experiment? Eligibility defines that population. It is a CEL rule over the request, in the arm's `statespace.toml`.
 
-Set a CEL eligibility rule over the request in the branch's `statespace.toml`.
-
-```toml
+```toml statespace.toml
 eligibility = '''
 request.headers["cf-ipcountry"] == "US"
   && request.path.startsWith("/search")
 '''
 ```
 
-`ssp apply` validates the rule, also with `--dry-run`. `ssp proxy` evaluates the rule against each request's `method`, `path`, `query`, `headers`, and `cookies`. A header or cookie that is missing is `null`.
+## How the proxy applies the rule
 
-An eligible subject receives an arm: an arm of a branch, or a control. An ineligible subject receives the default and is recorded with `reason = 'ineligible'`. A rule that fails to evaluate is recorded with `reason = 'eligibility-error'`.
+`ssp proxy` evaluates the rule against each request's `method`, `path`, `query`, `headers`, and `cookies`. A missing header or cookie is `null`.
 
-All arms of an experiment use the same eligibility rule. Do not use values that treatment can change.
+| Result | The subject gets | The run records |
+| --- | --- | --- |
+| `true` | An arm or its control | `reason = 'assigned'` |
+| `false` | The default | `reason = 'ineligible'` |
+| An error | The default | `reason = 'eligibility-error'` |
+
+All arms of an experiment use the same rule. For the syntax and the request fields, see [the `statespace.toml` reference](/reference/experiment-definition).
+
+## Choose pre-treatment values
+
+The treatment must not change who is eligible. Otherwise the arms compare different populations.
 
 - **Use:** the country, the path, or a plan in a header that your gateway sets.
 - **Do not use:** response quality, latency after the treatment, or conversion.
 
-Eligibility restricts the study population. It does not make that population a representative sample of all users. State this limit when interpreting the result.
+## Know the limit
+
+Eligibility restricts the study population. It does not make that population a representative sample of all users. State this limit when you report the result.

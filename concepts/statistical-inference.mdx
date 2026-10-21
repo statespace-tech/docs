@@ -1,34 +1,30 @@
 ---
 title: Statistical inference
-description: Estimate treatment effects and quantify uncertainty in experiment results.
+description: How to turn the outcomes of an experiment into an estimate, its uncertainty, and a decision.
 ---
 
-[Statistical inference](https://en.wikipedia.org/wiki/Statistical_inference) uses observed data to estimate properties of a broader population. It turns experiment outcomes into evidence for a decision.
-
-```text
-outcomes → estimate → uncertainty → decision
-```
+What do the outcomes say about the treatment? [Statistical inference](https://en.wikipedia.org/wiki/Statistical_inference) uses observed data to estimate properties of a larger population. In an experiment, it turns outcomes into an estimate, a measure of its uncertainty, and evidence for a decision.
 
 ## Estimands
 
-An estimand states exactly which effect the experiment intends to estimate. It identifies the population, treatment, outcome, and summary measure.
+An estimand states which effect the experiment estimates. It names the population, the treatment, the outcome, and the summary measure.
 
 > Among eligible search users, what is the average effect of assignment to `recent-clicks` on clicks, compared with the control of the deployed ranking?
 
-An intention-to-treat estimand compares units by their random assignment. An exposure-based estimand compares units that received the condition. The second can lose the protection of random assignment when exposure is selective.
+An intention-to-treat estimand compares subjects by their random assignment. An exposure-based estimand compares subjects that got the condition. The second can lose the protection of random assignment when exposure is selective.
 
-Define the estimand before selecting a statistical procedure. See [Treatment exposure](/concepts/outcome-measures#treatment-exposure) and [Forced assignment](/concepts/random-assignment#forced-assignment).
+Define the estimand before you choose a statistical procedure. See [Treatment exposure](/concepts/outcome-measures#treatment-exposure) and [Forced assignment](/concepts/random-assignment#forced-assignment).
 
 ## Treatment effects
 
-The [average treatment effect](https://en.wikipedia.org/wiki/Average_treatment_effect) is the difference between the expected outcome under treatment and control.
+The [average treatment effect](https://en.wikipedia.org/wiki/Average_treatment_effect) (ATE) is the difference between the expected outcome under treatment and under control.
 
 ```text
 ATE = mean outcome under treatment
     − mean outcome under control
 ```
 
-Calculate the observed difference in PostgreSQL.
+This query calculates the observed difference.
 
 ```sql
 WITH arm_means AS (
@@ -51,20 +47,18 @@ FROM arm_means;
 
 ## Effect sizes
 
-An [effect size](https://en.wikipedia.org/wiki/Effect_size) describes the magnitude of a difference. Report it in a unit that supports a product decision.
+An [effect size](https://en.wikipedia.org/wiki/Effect_size) describes the size of a difference. Report it in a unit that supports a product decision.
 
 ```text
 absolute effect = treatment mean − control mean
 relative effect = absolute effect / control mean
 ```
 
-Always report the control value with a relative effect. A large relative change can represent a small absolute change.
+Always report the control value with a relative effect. A large relative change can be a small absolute change.
 
 ## Statistical uncertainty
 
-Every estimate contains sampling variation. Report a confidence interval or another uncertainty measure with the point estimate.
-
-Estimate the standard error of a difference in means.
+Each estimate includes sampling variation. Report a confidence interval, or another measure of uncertainty, with the point estimate. This query estimates the standard error of a difference in means.
 
 ```sql
 WITH arm_stats AS (
@@ -95,22 +89,21 @@ WHERE treatment.arm = 'recent-clicks'
 
 ## Statistical power
 
-[Statistical power](https://en.wikipedia.org/wiki/Statistical_power) is the probability that a test detects an effect of a specified size when that effect exists.
+[Statistical power](https://en.wikipedia.org/wiki/Statistical_power) is the probability that a test finds an effect of a given size when that effect exists. Power depends on:
 
-Power depends on these inputs:
+- The eligible population. See [Eligibility](/concepts/random-sampling).
+- The arms' shares of the app's subjects. See [Arm shares](/concepts/treatments-and-control-groups#arm-shares).
+- The variance of the outcome.
+- The minimum effect of interest.
+- The decision threshold.
 
-- [Eligibility](/concepts/random-sampling)
-- [Arm shares](/concepts/treatments-and-control-groups#arm-shares)
-- The arms' shares of the app's subjects
-- Outcome variance
-- Minimum effect of interest
-- Decision threshold
-
-Do not stop an experiment only because an intermediate result looks favorable. Repeated inspection changes the error properties unless the analysis accounts for sequential decisions.
+<Warning>
+  Do not stop an experiment only because an intermediate result looks good. Each look at the data changes the error rates, unless the analysis allows for sequential decisions.
+</Warning>
 
 ## Heterogeneous effects
 
-An average effect can hide differences across populations. Estimate subgroup effects with pre-treatment attributes only when the sample supports them. Print the attribute in each line to analyze it.
+An average effect can hide differences between populations. Estimate subgroup effects with attributes from before the treatment, and only when the sample supports them. To analyze an attribute, print it in each line.
 
 ```sql
 SELECT
@@ -126,10 +119,10 @@ WHERE experiment = 'ranking'
 GROUP BY country, arm;
 ```
 
-Treat an unplanned subgroup result as exploratory. Confirm it with a new experiment.
+Treat a subgroup result that you did not plan as exploratory. Confirm it with a new experiment.
 
 ## Practical significance
 
-Statistical significance asks whether random variation can reasonably explain an estimate. Practical significance asks whether the effect is large enough to justify a decision.
+Statistical significance asks whether random variation can explain an estimate. Practical significance asks whether the effect is large enough for a decision.
 
-Compare the estimated benefit with implementation cost, operational risk, and guardrail changes. A precise effect can still be too small to matter.
+Compare the benefit with the cost of the change, its operational risk, and its guardrails. A precise effect can still be too small to matter. To record the decision, see [Make a decision](/workflow/analyze-the-outcomes#make-a-decision).

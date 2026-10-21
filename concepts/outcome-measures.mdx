@@ -1,25 +1,21 @@
 ---
 title: Outcome measures
-description: Record responses and define how an experiment measures change.
+description: What Statespace records as evidence, and how raw lines become metrics in SQL.
 ---
 
-An [outcome measure](https://en.wikipedia.org/wiki/Outcome_measure) assesses the effect of an intervention or treatment. Statespace records every line the arms print and lets SQL define metrics.
-
-```text
-assignment → exposure → raw outcome → metric
-```
+How does an experiment measure change? An [outcome measure](https://en.wikipedia.org/wiki/Outcome_measure) assesses the effect of a treatment. Statespace records what each subject was assigned and what the arms print. You define metrics over that evidence in SQL.
 
 ## Treatment exposure
 
-An assignment records which arm a unit should receive. An exposure records that the unit received it.
+An assignment records which arm a subject should get. An exposure records that the subject got it.
 
-`ssp proxy` records a run the first time it routes a subject, when it serves the request. A run with `reason = 'assigned'` is an exposure. A run with `reason = 'arm-unavailable'` was assigned an arm but served by the default. Count both in the assigned arm, so an arm that fails for some subjects cannot hide them.
+`ssp proxy` records a run the first time that it routes a subject. A run with `reason = 'assigned'` is an exposure. A run with `reason = 'arm-unavailable'` was assigned an arm, but the default served it. Count both in the assigned arm, so an arm that fails for some subjects cannot hide them.
 
-This distinction affects whether the [estimand](/concepts/statistical-inference#estimands) measures assignment or actual exposure.
+This difference decides whether the [estimand](/concepts/statistical-inference#estimands) measures assignment or exposure.
 
 ## Raw outcomes
 
-Every line an arm prints is a raw outcome. A JSON line keeps its fields as `data`, and its `subject` field ties it to that subject's arm.
+Each line that an arm prints is a raw outcome. A JSON line keeps its fields as `data`, and its `subject` field ties it to that subject's arm.
 
 ```python
 print(json.dumps({
@@ -29,30 +25,32 @@ print(json.dumps({
 }))
 ```
 
-The proxy sets the `x-statespace-subject` header to the subject from your rule. Thus, each arm uses the subject that the proxy assigned. Use the same event names, meaning, and units in the default and every arm. A line without a subject still belongs to the arm that printed it, which serves rates such as errors per request.
+The proxy sends the subject from your rule in the `x-statespace-subject` header, so each arm uses the subject that the proxy assigned. Use the same event names, meanings, and units in the default and in every arm.
+
+A line without a subject still belongs to the arm that printed it. Such lines serve rates per request, such as errors.
 
 ## Outcome metrics
 
-A metric is a rule that summarizes raw outcomes. Choose important metrics before you inspect the comparison of the arms.
+A metric is a rule that summarizes raw outcomes. Choose the important metrics before you look at the comparison.
 
 | Metric | Purpose |
 | --- | --- |
-| Primary | Answers the main experiment question. |
-| Secondary | Measures another expected effect. |
-| Diagnostic | Explains why another metric changed. |
-| Data quality | Detects missing or invalid instrumentation. |
+| Primary | Answers the main question of the experiment |
+| Secondary | Measures another expected effect |
+| Diagnostic | Explains why another metric changed |
+| Data quality | Finds missing or incorrect instrumentation |
 
-Statespace does not require metric definitions in the experiment definition. This keeps the raw evidence available for new SQL analyses.
+Statespace does not store metric definitions. The raw evidence stays available for new analyses.
 
 ## Outcome attribution
 
-Attribution connects an outcome to the run whose treatment could have caused it. It is an experiment join rule, not marketing attribution.
+Attribution connects an outcome to the run whose treatment could have caused it.
 
-An app's `logs` view joins each line with a subject to the latest run of the same subject in the app that started at or before it. A subject is in at most one experiment of an app at a time, so a line needs no experiment name. Lines that came before the subject's first run are not attributed. Define a narrower attribution window in SQL when a response can occur long after exposure.
+An app's `logs` view joins each line that has a subject to a run of that subject. It uses the latest run that started at or before the line. A subject is in at most one experiment of an app at a time, so a line needs no experiment name. Lines from before the subject's first run have no attribution. When a response can occur long after exposure, define a narrower window in SQL.
 
 ## Repeated observations
 
-One randomization unit can produce many runs and lines. These observations are related because they come from the same assigned unit.
+One subject can give many runs and lines. These observations are related, because they come from the same assigned unit.
 
 ```text
 user_42
@@ -61,7 +59,7 @@ user_42
 └── click → position: 2
 ```
 
-Aggregate repeated observations at the randomization-unit level before a simple independent-unit analysis.
+Aggregate repeated observations for each subject before an analysis that assumes independent units.
 
 ```sql
 WITH unit_outcomes AS (
@@ -85,14 +83,14 @@ GROUP BY arm;
 ```
 
 <Warning>
-  Counting every run as an independent unit can understate uncertainty. Match the analysis unit to the [stable identity](/concepts/random-assignment#stable-identity), or use a method that accounts for clustering.
+  If you count each run as an independent unit, the uncertainty looks smaller than it is. Match the unit of analysis to the [stable identity](/concepts/random-assignment#stable-identity), or use a method for clustered data.
 </Warning>
 
 ## Guardrail metrics
 
-A guardrail metric detects unacceptable harm outside the primary objective. Common guardrails include latency, error rate, safety violations, and user abandonment.
+A guardrail metric finds harm outside the primary objective, such as latency, errors, safety violations, or abandonment.
 
-`ssp proxy` records some guardrails for every arm without code: each request's status and latency, and per-minute CPU and memory use.
+`ssp proxy` records some guardrails for every arm, with no code. It records the status and latency of each request, and CPU and memory for each minute.
 
 ```sql
 SELECT arm,
@@ -104,7 +102,7 @@ WHERE experiment = 'ranking'
 GROUP BY arm;
 ```
 
-Print other guardrails as lines in the default and every arm.
+Print other guardrails as lines, in the default and in every arm.
 
 ```python
 print(json.dumps({
@@ -116,7 +114,7 @@ print(json.dumps({
 
 ## Structured outcomes
 
-A line can contain any JSON object. This supports conversations, traces, evaluations, and other semi-structured evidence.
+A line can hold any JSON object, so it can record conversations, traces, evaluations, and other structured evidence.
 
 ```python
 print(json.dumps({
@@ -127,4 +125,4 @@ print(json.dumps({
 }))
 ```
 
-Lines longer than 16 KiB are cut. Store large artifacts elsewhere and print a durable reference.
+Statespace cuts lines longer than 16 KiB. Store large artifacts elsewhere, and print a reference to them.

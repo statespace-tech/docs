@@ -3,13 +3,21 @@ title: Quickstart
 description: Test a new search ranking on live traffic from a pull request, and read the result.
 ---
 
-This example tests a branch of the search app `atlas` that ranks results by recent clicks. The branch is `exp/recent-clicks`, so the experiment is `recent-clicks`, with one arm.
+In this tutorial, you test a change to the search app `atlas` on live traffic. You push the branch `exp/recent-clicks`, which ranks results by recent clicks. At the end, 10% of the subjects get the branch and 10% get its control. Then you compare the two in SQL.
+
+## Prerequisites
+
+- A GitHub repository with a `Dockerfile`, such as `acme/atlas`.
+- A GitHub Actions workflow that builds and deploys the app from `main`.
+- A server with Docker that runs the app.
+
+## Run your first experiment
 
 <Steps>
   <Step title="Connect GitHub">
-    On [statespace.com](https://statespace.com), select **Connect GitHub**. On GitHub's screen, pick your organization and the repositories that run experiments. One screen installs the Statespace GitHub App and signs you in. Your workspace takes the name of the organization.
+    On [statespace.com](https://statespace.com), select **Connect GitHub**. Pick your organization and the repositories that run experiments. One screen installs the Statespace GitHub App and signs you in.
 
-    To use the terminal too, install `ssp` and sign in.
+    Install the CLI, and sign in with the same GitHub account.
 
     ```shell
     curl -fsSL https://statespace.com/install.sh | bash
@@ -18,33 +26,28 @@ This example tests a branch of the search app `atlas` that ranks results by rece
   </Step>
 
   <Step title="Merge the setup pull request">
-    The App opens a pull request named "Set up Statespace" on each repository that you picked. It adds two files:
+    The App opens a pull request named "Set up Statespace". It adds `statespace.toml` and `.github/workflows/statespace.yml`. The workflow builds each push to an `exp/` branch from your `Dockerfile`, and records the image.
 
-    - `statespace.toml`, which names the app after the repository and gives each arm 5% of its subjects.
-    - `.github/workflows/statespace.yml`, which builds each push to an `exp/` branch from your `Dockerfile`, pushes the image to GitHub Packages, and records it.
+    In the workflow that builds production, add this step after the build. Statespace then knows the commit of each production image.
 
-    The description lists one more step. In the workflow that builds production, add this step after the build, so that Statespace knows the commit of each production image:
-
-    ```yaml
+    ```yaml .github/workflows/production.yml
     - uses: statespace-tech/action@v1
       with:
         image: >-
           ghcr.io/acme/atlas@${{ steps.build.outputs.digest }}
     ```
 
-    Merge the pull request. In branch protection for `main`, require one approval. If the App did not open the pull request, open it from the checklist on the **Apps** page of the dashboard.
+    Merge the pull request. In branch protection for `main`, require one approval.
 
-    To let your coding agent do the next steps, give it this prompt:
-
-    ```text
-    Read https://statespace.com/skill.md and follow it.
-    ```
+    <Tip>
+      If the App did not open the pull request, open it from the checklist on the **Apps** page.
+    </Tip>
   </Step>
 
   <Step title="Print what you measure">
-    Statespace records each line that an arm prints, with its arm. To compare subjects, print a JSON line with a `subject` field. The proxy sets the `x-statespace-subject` header to the subject from your rule, or to the browser ID.
+    Statespace records each line that an arm prints. To compare subjects, print a JSON line with a `subject` field. The proxy puts the subject in the `x-statespace-subject` header.
 
-    ```python
+    ```python app.py
     subject = request.headers["x-statespace-subject"]
     print(json.dumps({
         "event": "click",
@@ -53,29 +56,36 @@ This example tests a branch of the search app `atlas` that ranks results by rece
     }))
     ```
 
-    Deploy this change to production as usual, so the default and every arm print the same lines.
+    Deploy this change to production as usual. Then the default and every arm print the same lines.
   </Step>
 
   <Step title="Run the proxy">
-    Create a runtime token and store it as `SSP_TOKEN` where the app runs. Then run the app behind `ssp proxy`. On a machine with Docker, it runs your deployed image and each arm as containers, and routes each user.
+    Create a runtime token, and store it as `SSP_TOKEN` where the app runs.
 
     ```shell
     ssp token create --name production --preset runtime
-    ssp proxy --app atlas --health /health \
-  --image ghcr.io/acme/atlas:main
     ```
 
-    On Kubernetes, run it beside the app in each pod instead. See [Deployment](/getting-started/deployment).
+    Run the app behind `ssp proxy`. It runs your deployed image and each arm as containers, and routes each subject.
+
+    ```shell
+    ssp proxy --app atlas --health /health \
+      --image ghcr.io/acme/atlas:main
+    ```
+
+    On Kubernetes, run the proxy beside the app in each pod instead. See [Deployment](/getting-started/deployment).
   </Step>
 
   <Step title="Open a pull request">
-    Start a branch named `exp/<name>`, change the ranking, and set the arm's share in `statespace.toml`. To compare more arms in one experiment, name the branches `exp/<experiment>/<arm>`.
+    Start the branch, and change the ranking. Set the arm's share in `statespace.toml`.
 
-    ```toml
+    ```toml statespace.toml
     app = "atlas"
     share = 0.1
     subject = 'request.headers["x-user-id"]'
     ```
+
+    Push the branch, and open a pull request.
 
     ```shell
     git switch -c exp/recent-clicks
@@ -84,14 +94,25 @@ This example tests a branch of the search app `atlas` that ranks results by rece
     gh pr create --fill
     ```
 
-    CI publishes the commit. When a reviewer approves the pull request and GitHub says that it can merge, 10% of the subjects get the branch, and another 10% get the control. The `statespace/arm` check on the pull request tells what runs.
+    CI records the commit. When a reviewer approves the pull request and GitHub says that it can merge, the arm runs.
+  </Step>
+
+  <Step title="Check that the arm runs">
+    Show the arm of the branch that you are on.
+
+    ```shell
+    ssp status
+    ```
+
+    Make sure that the status is `running`, with a share of 10%. If the status is `waiting`, it tells you why. The `statespace/arm` check on the pull request shows the same status.
   </Step>
 
   <Step title="Read the results">
     Create a token that reads the app in SQL. The output shows its database URL.
 
     ```shell
-    ssp token create --name analyst --preset analyst --app atlas
+    ssp token create --name analyst --preset analyst \
+      --app atlas
     ```
 
     Compare the share of subjects who clicked in each arm.
@@ -107,10 +128,27 @@ This example tests a branch of the search app `atlas` that ranks results by rece
     GROUP BY arm, commit;
     ```
 
-    To stop the arm, make the pull request a draft, or run `ssp stop` with its URL. To ship it, merge it.
+    To ship the arm, merge the pull request. To stop it, make the pull request a draft, or run `ssp stop` with its URL.
 
     ```shell
     ssp stop https://github.com/acme/atlas/pull/418
     ```
   </Step>
 </Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="How it works" icon="workflow" href="/getting-started/how-it-works">
+    See what serves each request, and what GitHub decides.
+  </Card>
+  <Card title="Deployment" icon="server" href="/getting-started/deployment">
+    Run the proxy with systemd or on Kubernetes.
+  </Card>
+  <Card title="Define the experiment" icon="flask-conical" href="/workflow/define-the-experiment">
+    Choose the subject, the eligibility, and the outcome.
+  </Card>
+  <Card title="Analyze the outcomes" icon="chart-column" href="/workflow/analyze-the-outcomes">
+    Check the split, then compare the arms.
+  </Card>
+</CardGroup>

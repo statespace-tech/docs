@@ -1,15 +1,12 @@
 ---
 title: statespace.toml and experiments
-description: Review the file that holds an app's settings and an arm's settings, and how pull requests make experiments run.
+sidebarTitle: statespace.toml
+description: Every key of statespace.toml, the names of experiment branches, and the request fields that rules read.
 ---
 
-Experiments come from branches. A branch named `exp/<name>` or `exp/<experiment>/<arm>` is an arm, and `statespace.toml` on the branch gives its settings. No command starts an experiment: an arm runs while GitHub says that its pull request can merge.
+`statespace.toml` holds the settings of an app and of each arm. The "Set up Statespace" pull request adds it at the root of the repository. In a repository with more than one app, each app has the file in its folder. Each branch reads its own copy.
 
-## statespace.toml
-
-The "Set up Statespace" pull request adds the file at the root of the repository. In a repository with more than one app, each app has the file in its folder. Each branch reads its own copy.
-
-```toml
+```toml statespace.toml
 app = "atlas"
 share = 0.05
 subject = 'request.headers["x-user-id"]'
@@ -18,81 +15,83 @@ max_traffic = 0.2
 output_retention_days = 30
 ```
 
-| Key | Meaning |
-| --- | --- |
-| `app` | 1 to 40 lowercase letters, digits, and underscores, starting with a letter. Also the name of the app's PostgreSQL schema. The app's first build creates it and binds it to the repository |
-| `share` | The arm's share of all the app's subjects, greater than 0 and at most 1. Required on `exp/` branches |
-| `subject` | A CEL expression over `request` that yields the subject ID. Defaults to `request.cookies.ssp_sid` |
-| `eligibility` | A CEL expression over `request` that decides who may enter. Omit it to let everyone in |
-| `max_traffic` | The share of the app's subjects that experiments may hold, arms and controls together, greater than 0 and at most 1. Defaults to 1 |
-| `output_retention_days` | Days to keep the lines that arms print, 1 to 365. Defaults to 7 |
-
-`share`, `subject`, and `eligibility` are arm settings: Statespace reads them from each `exp/` branch. `max_traffic` and `output_retention_days` are app settings: Statespace reads them from the default branch, when CI records a default build. So a branch cannot raise its own limit. Use single quotes for CEL expressions, so TOML takes them as written.
-
-Check the file and see the plan without recording anything:
+Check the file and see the plan. This command records nothing:
 
 ```shell
-ssp apply --image ghcr.io/acme/atlas:main --dry-run
+ssp apply --dry-run \
+  --image ghcr.io/acme/atlas:main
 ```
+
+## Keys
+
+Arm settings come from each `exp/` branch. App settings come from the default branch, when CI records a default build, so a branch cannot raise its own limit.
+
+<ParamField path="app" type="string" required>
+  The app. 1 to 40 lowercase letters, digits, and underscores. The first character is a letter. It is also the name of the app's PostgreSQL schema. The app's first build creates the app and binds it to the repository.
+</ParamField>
+
+<ParamField path="share" type="number">
+  Arm setting. The arm's share of all the app's subjects: greater than 0 and at most 1, such as `0.05` for 5%. Required on `exp/` branches. The arm's control gets the share of the largest arm on the same base.
+</ParamField>
+
+<ParamField path="subject" type="string" default="request.cookies.ssp_sid">
+  Arm setting. A CEL expression over [`request`](#request-fields) that gives the subject ID. The default reads the cookie that `ssp proxy` sets for each new visitor. All arms of an experiment use the same rule.
+</ParamField>
+
+<ParamField path="eligibility" type="string">
+  Arm setting. A CEL expression over [`request`](#request-fields) that is `true` for subjects who may enter. Omit it to let every subject in. All arms of an experiment use the same rule.
+</ParamField>
+
+<ParamField path="max_traffic" type="number" default={1}>
+  App setting. The share of the app's subjects that experiments may hold, arms and controls together: greater than 0 and at most 1. Arms that do not fit wait, first come, first served. A lower limit stops no arm that runs.
+</ParamField>
+
+<ParamField path="output_retention_days" type="integer" default={7}>
+  App setting. The days to keep the lines that arms print, 1 to 365.
+</ParamField>
+
+Write CEL expressions in single quotes, so TOML takes them as written. A long rule can use a multi-line literal string:
+
+```toml statespace.toml
+eligibility = '''
+request.headers["cf-ipcountry"] == "US"
+  && request.path.startsWith("/search")
+'''
+```
+
+`ssp apply` rejects a file with an unknown key, a value out of range, or a rule that does not compile. A commit whose rules differ from the other arms of its experiment fails the `statespace/apply` check.
 
 ## Edit from the dashboard
 
-**Edit** in the dashboard changes `statespace.toml` for you. The Statespace App makes the commit, with you as co-author, so the change has the same review and history as any other commit.
+**Edit** in the dashboard changes `statespace.toml` for you. The Statespace App makes the commit, with you as co-author.
 
 | Setting | Where the commit goes |
 | --- | --- |
-| An arm's share | The arm's `exp/` branch. CI records the commit, and the arm changes while its pull request can merge |
-| The traffic limit and output retention | A new pull request to the default branch. The change takes effect when it merges |
+| An arm's `share` | The arm's `exp/` branch. CI records the commit |
+| `max_traffic`, `output_retention_days` | A new pull request to the default branch. The change takes effect when it merges |
 
 ## Branches
 
+The branch name gives the experiment and the arm. Other branches are not experiments.
+
 | Branch | Experiment | Arm |
 | --- | --- | --- |
-| `exp/<experiment>` | `<experiment>` | `<experiment>` |
-| `exp/<experiment>/<arm>` | `<experiment>` | `<arm>` |
+| `exp/recent-clicks` | `recent-clicks` | `recent-clicks` |
+| `exp/ranking/recent-clicks` | `ranking` | `recent-clicks` |
+| `exp/ranking/bm25` | `ranking` | `bm25` |
 
-Names use 1 to 100 letters, numbers, dots, dashes, or underscores. `control` is reserved. Other branches are not experiments.
+Names use 1 to 100 letters, numbers, dots, dashes, or underscores. `control` is reserved. An arm runs while its pull request can merge; see [How it works](/getting-started/how-it-works).
 
-## Builds and versions
-
-CI runs `ssp apply` on each push. It records the commit's image by digest, proven by the job's GitHub OIDC token.
-
-| Branch | Record |
-| --- | --- |
-| The default branch | A default build. When a proxy runs it, its commit is a base |
-| `exp/…` | A version of the arm at that commit, with the commit's `statespace.toml` and its base: the merge base with the default branch |
-
-An experiment's version changes when its arms, their commits, their shares, or the rules change. Subjects keep their arm across versions.
-
-## Controls
-
-Each base commit of an experiment's arms has a control. It runs the default build of that base, and gets the share of the largest arm on that base. An arm's base must have run as the default; until then, the arm waits.
-
-## What runs
-
-| The pull request | The arm |
-| --- | --- |
-| Can merge (GitHub's merge state is clean, unstable, or has hooks) | Runs the head commit |
-| Never could merge | Does not run |
-| Could merge, and then could not | Runs the last commit that could merge. The `statespace/arm` check warns after 7 days |
-| Is a draft, or a reviewer requested changes | Stops |
-| Merged | Ends the experiment. Other arms run again from bases built after the merge |
-| Closed | The arm is removed |
-
-The arms of an experiment must use the same `subject` and `eligibility`. A commit with other rules fails `statespace/apply`. The arms of an app fit in its `max_traffic`, first come, first served. A lower limit stops no arm that runs.
-
-A stop makes a pull request a draft, so its arm stops. See [Stop and resume](/workflow/apply-the-treatments#stop-and-resume).
-
-## Request rules
+## Request fields
 
 `subject` and `eligibility` read the request as `request`.
 
-| Field | Value |
+| Field | Example |
 | --- | --- |
 | `request.method` | `"GET"` |
 | `request.path` | `"/search"` |
 | `request.query` | `{"q": "maps"}` |
-| `request.headers` | Lowercase names, such as `request.headers["user-agent"]` |
+| `request.headers` | `request.headers["user-agent"]`. Names are lowercase |
 | `request.cookies` | `{"ssp_sid": "sid_…"}` |
 
-A missing header, cookie, or query parameter is `null`. A subject rule must yield a string or an integer of 1 to 128 characters; otherwise the request gets the default. `ssp apply` rejects a rule that does not compile.
+A header, cookie, or query parameter that is not in the request is `null`. A subject rule must give a string or an integer of 1 to 128 characters. Otherwise, the request gets the default.

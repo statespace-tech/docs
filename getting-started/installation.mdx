@@ -1,45 +1,29 @@
 ---
 title: Installation
-description: Install the CLI, connect GitHub, and create the tokens a deployment needs.
+description: Connect GitHub, install the CLI, and create the tokens a deployment needs.
 ---
 
-## CLI
-
-Install the CLI on macOS or Linux.
-
-```shell
-curl -fsSL https://statespace.com/install.sh | bash
-```
-
-Make sure that the CLI is installed.
-
-```shell
-ssp --version
-```
-
-The same binary runs `ssp proxy` on machines with Docker. On Kubernetes, the proxy and the controller run from the `ghcr.io/statespace-tech/statespace` image.
-
-## Coding agents
-
-Give this prompt to your coding agent. The skill tells the agent how to install the CLI, finish the setup, and run experiments through pull requests.
-
-```text
-Read https://statespace.com/skill.md and follow it.
-```
+Set up Statespace for your repositories, your terminal, and your servers.
 
 ## GitHub
 
-On [statespace.com](https://statespace.com), select **Connect GitHub**, and install the Statespace GitHub App on the repositories that run experiments. The same screen signs you in. Your workspace takes the name of the GitHub organization or user. If that name is not available, choose a workspace name in the dashboard.
+<Steps>
+  <Step title="Install the GitHub App">
+    On [statespace.com](https://statespace.com), select **Connect GitHub**, and install the Statespace GitHub App on the repositories that run experiments. The same screen signs you in.
 
-Sign the terminal in with the same GitHub account.
+    Your workspace takes the name of the GitHub organization or user. If that name is not available, choose a workspace name in the dashboard.
+  </Step>
 
-```shell
-ssp login
-```
+  <Step title="Merge the setup pull request">
+    For each repository that you selected, the App opens a "Set up Statespace" pull request. It adds `statespace.toml` and `.github/workflows/statespace.yml`. See [Deployment](/getting-started/deployment) for the step that you add to your production workflow.
 
-For each repository that you selected, the App opens a "Set up Statespace" pull request. It adds `statespace.toml` and `.github/workflows/statespace.yml`. If you gave the App access to all repositories, open the pull request from the checklist on the **Apps** page, for the repositories that you choose. See [Deployment](/getting-started/deployment).
+    <Note>
+      If you gave the App access to all repositories, it opens no pull requests by itself. Open them from the checklist on the **Apps** page, for the repositories that you choose.
+    </Note>
+  </Step>
+</Steps>
 
-The App asks for these repository permissions:
+The App asks for these repository permissions. It writes only `statespace.toml` and the Statespace workflow.
 
 | Permission | Access | Why |
 | --- | --- | --- |
@@ -49,7 +33,39 @@ The App asks for these repository permissions:
 | Workflows | Read and write | Add `.github/workflows/statespace.yml` in the setup pull request |
 | Metadata | Read | Required by GitHub |
 
-The App writes only `statespace.toml` and the Statespace workflow. It receives the events check suite, pull request, pull request review, and push.
+The App receives the events check suite, pull request, pull request review, and push.
+
+## CLI
+
+Install the CLI on macOS or Linux, and sign in with the same GitHub account.
+
+```shell
+curl -fsSL https://statespace.com/install.sh | bash
+ssp login
+```
+
+Check the version, and the credential that the CLI uses.
+
+```shell
+ssp --version
+ssp whoami
+```
+
+The same binary runs `ssp proxy` on machines with Docker. On Kubernetes, the proxy and the controller run from the `ghcr.io/statespace-tech/statespace` image.
+
+To use a local API, or a hosted domain other than the default, set `STATESPACE_URL`.
+
+```shell
+export STATESPACE_URL=http://127.0.0.1:8080
+```
+
+## Coding agents
+
+Give this prompt to your coding agent. The skill tells the agent how to install the CLI, finish the setup, and run experiments through pull requests.
+
+```text
+Read https://statespace.com/skill.md and follow it.
+```
 
 ## Tokens
 
@@ -58,27 +74,28 @@ CI needs no token: `ssp apply` proves itself with the job's GitHub OIDC token. Y
 | Where | Token | Purpose |
 | --- | --- | --- |
 | Your terminal | `ssp login` | Show what runs, stop and resume arms, and manage tokens |
-| CI | none | Record images with `ssp apply` |
+| CI | None | Record images with `ssp apply` |
 | Your servers | `--preset runtime` | Run `ssp proxy` |
 | Kubernetes | `--preset controller` | Run `ssp controller kubernetes` |
 | SQL clients | `--preset analyst` | Read runs, lines, and requests |
 
-Create a runtime token for `ssp proxy`, then store the returned token as `SSP_TOKEN` in a secret manager.
+Create a runtime token for `ssp proxy`. Store the token in the output as `SSP_TOKEN` in a secret manager.
 
 ```shell
 ssp token create --name production --preset runtime
 ```
 
-Check which credential the CLI uses and what it may do.
+<Warning>
+  Statespace shows a token only once. Keep the output out of recorded logs.
+</Warning>
 
-```shell
-ssp whoami
-```
+## Next steps
 
-Set `STATESPACE_URL` when the CLI or proxy uses a local API or a hosted domain other than its default.
-
-```shell
-export STATESPACE_URL=http://127.0.0.1:8080
-```
-
-See [Deployment](/getting-started/deployment) to set up CI and run proxies in production.
+<CardGroup cols={2}>
+  <Card title="Deployment" icon="server" href="/getting-started/deployment">
+    Record builds from CI, and run the proxy in production.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Run your first arm from a pull request.
+  </Card>
+</CardGroup>

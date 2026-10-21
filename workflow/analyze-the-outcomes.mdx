@@ -1,11 +1,13 @@
 ---
 title: Analyze the outcomes
-description: Query runs, lines, and requests, then record a decision.
+description: Check delivery and health, compare each arm with its control in SQL, and record a decision.
 ---
 
-Start with allocation and delivery checks. Then compare each arm with its control within one experiment version.
+Check delivery and health first. Then compare each arm with its control, in one experiment version.
 
-Analysis runs against your own PostgreSQL database. Create a token that reads the app once, and connect any SQL client to its database URL.
+## Connect to the database
+
+Each account has its own PostgreSQL database. Create a token that reads the app. Its output shows the database URL for your SQL client.
 
 ```shell
 ssp token create --name analyst --preset analyst --app atlas
@@ -22,7 +24,7 @@ WHERE experiment = 'ranking'
 GROUP BY reason;
 ```
 
-Check that subjects split as the experiment's shares say.
+Make sure that subjects split as the experiment's shares say.
 
 ```sql
 SELECT arm, commit, subjects, expected, p_value, mismatch
@@ -30,11 +32,13 @@ FROM atlas.sample_ratio
 WHERE experiment = 'ranking' AND experiment_version = 1;
 ```
 
-A `mismatch` means assignment or recording is broken, and the comparison cannot be trusted. It is tested once 100 subjects ran. The most common cause is an arm that fails for some subjects. Their runs have `reason = 'arm-unavailable'`: the default served them.
+<Warning>
+  A `mismatch` means that assignment or recording is broken, so do not trust the comparison. Statespace tests it after 100 subjects. The usual cause is an arm that fails for some subjects. Their runs have `reason = 'arm-unavailable'`.
+</Warning>
 
 ## Check the arms' health
 
-Compare errors and latency of the arms before you trust outcomes. Divide by requests, so arms of different sizes compare fairly.
+Compare the errors and latency of the arms before you trust outcomes. Divide by requests, so arms of different sizes compare fairly.
 
 ```sql
 SELECT arm, commit,
@@ -59,7 +63,7 @@ LIMIT 50;
 
 ## Compare the arms
 
-List the events the arms printed.
+List the events that the arms printed.
 
 ```sql
 SELECT data->>'event' AS event, count(*)
@@ -69,7 +73,7 @@ GROUP BY 1
 ORDER BY 2 DESC;
 ```
 
-Count subjects in the arm they were assigned to, including runs the default served because the arm was unavailable. Leaving those runs out hides failures. Extract numeric values from the JSONB `data` column.
+Count each subject in its assigned arm. Include the runs that the default served because the arm was not available. Read numbers from the JSONB `data` column.
 
 ```sql
 SELECT
@@ -87,17 +91,17 @@ WHERE experiment = 'ranking'
 GROUP BY arm, commit;
 ```
 
-Compare `recent-clicks` with the control whose `commit` is the arm's base, never with the default. In `atlas.arms`, that is the arm's `base_commit`. Both are new containers with the same share of subjects; the default serves everyone else.
+Compare `recent-clicks` with the control whose `commit` is the arm's base. Do not compare it with the default. In `atlas.arms`, the arm's base is `base_commit`.
 
 ## Connect another tool
 
-Create a token for a BI tool, notebook, or coding agent. Omit `--app` to read every app, and the account's audit log.
+Create a token for a BI tool, a notebook, or a coding agent. Without `--app`, the token reads every app and the account's audit log.
 
 ```shell
 ssp token create --name notebook --preset analyst
 ```
 
-Revoke the token when the integration no longer needs access. Revoking it also ends its database sessions.
+Revoke the token when the tool no longer needs access. This also ends its database sessions.
 
 ```shell
 ssp token revoke tok_123
@@ -105,23 +109,28 @@ ssp token revoke tok_123
 
 ## Make a decision
 
-Decide on the primary outcome you chose before the experiment, with its uncertainty. Then check every guardrail: a better primary outcome does not cancel harm to a guardrail. Finally, weigh the effect against the cost and risk of shipping it. A precise effect can still be too small to be worth it.
+Decide on the primary outcome that you chose before the experiment, with its uncertainty. Then check each guardrail. A better primary outcome does not cancel harm to a guardrail. Compare the effect with the cost and risk of the change.
 
-Choose one action:
+| Decision | When | Then |
+| --- | --- | --- |
+| Ship | The benefit holds, and the guardrails pass | Merge the pull request, and deploy as usual |
+| Reject | The arm is not worth it | Close the pull request. Statespace removes its arm |
+| Revise | The evidence shows a problem that you can fix | Push a fix. It runs when it can merge |
+| Repeat | The uncertainty is still too large | Run a confirmatory experiment |
 
-- **Ship** when the benefit holds and the guardrails pass.
-- **Reject** when the arm is not worth it.
-- **Revise** when the evidence points to a fixable problem.
-- **Repeat** with a confirmatory experiment when uncertainty is still material.
+Write the decision and its evidence in the pull request, where the next person or agent looks.
 
-Record the decision in the pull request, where the next person or agent will look. Then act on it:
+<Note>
+  A merge ends the experiment, and Statespace does not deploy the default. The evidence stays in the database, with its version and commit. For new questions, start a new experiment.
+</Note>
 
-- To ship, merge the pull request and deploy it as usual. Merging ends the experiment. Statespace does not deploy the default.
-- To reject, close the pull request. Its arm is removed.
-- To revise, push a fix. It runs once it is approved and can merge.
+## Next steps
 
-The evidence stays queryable with its version and commit. Turn open questions into a new experiment rather than editing a finished one.
-
-<Tip>
-  The [full analysis walkthrough](/examples/full-analysis-walkthrough) goes from raw events to a recorded decision.
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Analysis walkthrough" icon="list-checks" href="/examples/full-analysis-walkthrough">
+    Go from raw events to a recorded decision.
+  </Card>
+  <Card title="PostgreSQL schema" icon="database" href="/reference/database-schema">
+    See every view and column.
+  </Card>
+</CardGroup>

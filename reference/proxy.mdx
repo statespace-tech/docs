@@ -1,9 +1,9 @@
 ---
 title: Proxy
-description: Review how ssp proxy routes requests, runs containers, and records events.
+description: Every flag of ssp proxy, and how it routes requests, runs containers, and records events.
 ---
 
-`ssp proxy` is a reverse proxy in front of an app. For each request, it assigns the subject and forwards the request to the app's default or to an arm of the subject's experiment.
+`ssp proxy` is a reverse proxy in front of an app. For each request, it finds the subject. Then it sends the request to the app's default, or to the arm of the subject's experiment.
 
 ```text
 load balancer → ssp proxy :8080
@@ -12,85 +12,136 @@ load balancer → ssp proxy :8080
   └→ recent-clicks@4be1f0c  (branch image)
 ```
 
+The proxy needs a token with the `runtime` preset in `SSP_TOKEN`.
+
 ## Two ways to run
 
 | Flags | The proxy | The default | The arms |
 | --- | --- | --- | --- |
-| `--image` or `--image-file` | Runs on a machine with Docker | A container the proxy runs | Containers the proxy runs |
-| `--default` | Only routes, such as beside the default in its pod | Runs at `--default` | Pods that a controller runs |
+| `--image` or `--image-file` | Runs on a machine with Docker | A container that the proxy runs | Containers that the proxy runs |
+| `--default` | Only routes, such as beside the default in its pod | Runs at the `--default` address | Pods that a [controller](/reference/controller) runs |
 
-## Flags
+<CodeGroup>
 
-Run the proxy on a machine with Docker.
-
-```shell
+```shell Docker
 ssp proxy --app atlas \
-  --listen 0.0.0.0:8080 \
   --image-file /etc/atlas/image \
   --health /health \
   --arm-env DATABASE_URL="$ARM_DATABASE_URL" \
   --redact 'sk_live_\w+'
 ```
 
-| Flag | Meaning |
-| --- | --- |
-| `--app` | The app whose experiments to serve, or `STATESPACE_APP` |
-| `--listen` | The public address. Defaults to `0.0.0.0:8080`, or `STATESPACE_LISTEN` |
-| `--image` | The default's image. The proxy runs it and the arms as Docker containers. Or `STATESPACE_IMAGE` |
-| `--image-file` | A file that holds the default's image. On SIGHUP, the proxy reads it again and swaps the default once the new container is ready |
-| `--default` | Where the default listens, such as `http://localhost:8000`. The proxy only routes |
-| `--health` | A path that must answer 200 before a container gets traffic. Without it, a container is ready once its port accepts connections |
-| `--max-arms` | How many arms run at once, controls included, 1 to 64. Defaults to 5 |
-| `--stale-after` | Seconds to keep routing with the last configuration while Statespace is unreachable. Defaults to 300 |
-| `--arm-env NAME=VALUE` | An environment variable every arm gets and the default does not. Repeatable |
-| `--redact REGEX` | Replace matches in recorded lines before they leave the machine. Repeatable |
-| `--port` | The port the app listens on in its container. Defaults to the image's first exposed TCP port. With `--image` |
-| `--volume`, `--memory`, `--cpus` | Docker settings for every container. `--volume` is repeatable. With `--image` |
+```shell Routing only
+ssp proxy --app atlas \
+  --default http://localhost:8000
+```
 
-The proxy needs a token with the `runtime` preset in `SSP_TOKEN`.
+</CodeGroup>
 
-## Containers
+## Flags
 
-With `--image`, the proxy runs every container with `docker run` on a private port of `127.0.0.1`, with an init process that forwards stop signals. Each container gets the proxy's environment, then `--arm-env` for arms, then these variables.
+Give one of `--image`, `--image-file`, or `--default`.
 
-| Variable | Value |
-| --- | --- |
-| `PORT` | The port the app listens on in its container |
-| `STATESPACE_APP` | The app |
-| `STATESPACE_ARM` | `default`, `control`, or the arm's name |
-| `STATESPACE_COMMIT` | The arm's commit, or a control's base commit; unset for the default |
-| `STATESPACE_EXPERIMENT` | The arm's experiment; unset for the default |
+<ParamField body="--app" type="string" required>
+  The app whose experiments the proxy serves. Environment variable: `STATESPACE_APP`.
+</ParamField>
 
-Containers do not inherit the proxy's own settings (`SSP_*` and `STATESPACE_*`) or what describes the machine or session, such as `PATH`, `HOME`, and systemd's variables.
+<ParamField body="--image" type="string">
+  The app's default image. The proxy runs it and every arm as Docker containers on this machine. Environment variable: `STATESPACE_IMAGE`.
+</ParamField>
 
-Statespace names each arm's image by digest: an image that CI recorded with its OIDC token, and for a control, a default build that a proxy or controller of the app ran. The proxy reports the digest of its default, so Statespace knows which commit is deployed. A container that exits restarts with backoff, up to one minute.
+<ParamField body="--image-file" type="string">
+  A file that holds the default image. On `SIGHUP`, the proxy reads the file again. It replaces the default when the new container is ready, and drops no requests. Environment variable: `STATESPACE_IMAGE_FILE`.
+</ParamField>
 
-Containers carry the labels `statespace.com/app`, `statespace.com/proxy`, and `statespace.com/target`. After a crash, a new proxy with the same `--app` and `--listen` adopts the containers that still run, and removes the rest. On `SIGTERM`, the proxy stops accepting connections, lets requests finish for up to 10 seconds, and removes every container it ran.
+<ParamField body="--default" type="string">
+  The address of the default, such as `http://localhost:8000`. The proxy only routes, and a controller runs the arms. Environment variable: `STATESPACE_DEFAULT`.
+</ParamField>
+
+<ParamField body="--listen" type="string" default="0.0.0.0:8080">
+  The public address. Environment variable: `STATESPACE_LISTEN`.
+</ParamField>
+
+<ParamField body="--health" type="string">
+  A path that must answer 200 before an arm gets traffic. Without it, an arm is ready when its port accepts connections. Environment variable: `STATESPACE_HEALTH`.
+</ParamField>
+
+<ParamField body="--max-arms" type="integer" default={5}>
+  How many arms run at the same time, controls included, 1 to 64.
+</ParamField>
+
+<ParamField body="--stale-after" type="integer" default={300}>
+  The seconds that the proxy uses its last configuration while Statespace is unreachable. After that time, every subject gets the default.
+</ParamField>
+
+<ParamField body="--arm-env" type="NAME=VALUE">
+  An environment variable that every arm gets and the default does not, such as a database URL without schema permissions. Repeat it for each variable.
+</ParamField>
+
+<ParamField body="--redact" type="regex">
+  A regular expression. The proxy replaces its matches in recorded lines before the lines leave this machine. Repeat it for each expression.
+</ParamField>
+
+<ParamField body="--port" type="integer">
+  The port that the app listens on in its container. Defaults to the image's `EXPOSE` port. With `--image` only. Environment variable: `STATESPACE_PORT`.
+</ParamField>
+
+<ParamField body="--volume" type="SOURCE:TARGET">
+  A volume, as `docker run --volume` takes it. Repeat it for each volume. With `--image` only.
+</ParamField>
+
+<ParamField body="--memory" type="string">
+  A memory limit for each container, such as `1g`. With `--image` only.
+</ParamField>
+
+<ParamField body="--cpus" type="number">
+  A CPU limit for each container, such as `1.5`. With `--image` only.
+</ParamField>
 
 ## Requests
 
-For each request, the proxy hashes each experiment's subject and finds the arm whose ranges contain it. Arms of an app hold disjoint ranges, so a subject is in one experiment at most. Then the proxy checks eligibility. It forwards the request with these headers, and removes any a client sent.
+For each request, the proxy hashes the subject of each experiment, and finds the arm whose ranges contain it. The arms of an app hold ranges that do not overlap, so a subject is in one experiment at most. Then the proxy checks eligibility. See [Random assignment](/concepts/random-assignment).
+
+The proxy sends these headers to the app. It removes the same headers from client requests.
 
 | Header | Value |
 | --- | --- |
 | `x-statespace-subject` | The subject ID, or the `ssp_sid` cookie |
-| `x-statespace-arm` | `default`, `control`, or the arm serving the request |
+| `x-statespace-arm` | `default`, `control`, or the arm that serves the request |
 | `x-statespace-experiment` | The experiment, when the subject is in one |
 
-The proxy sets an `ssp_sid` cookie on a new visitor's first response. It accepts HTTP/1.1 and HTTP/2, streams request and response bodies, and passes WebSocket and other upgrades through. A request without a body that an arm fails to answer is retried on the default.
+The proxy sets the `ssp_sid` cookie on the first response to a new visitor. It accepts HTTP/1.1 and HTTP/2, streams request and response bodies, and passes WebSocket and other upgrades through. If an arm does not answer a request without a body, the proxy sends that request to the default again.
 
-A subject gets the default, recorded as `arm-unavailable`, when its arm is starting, failing, or over `--max-arms`. Every subject gets the default when the proxy has no configuration newer than `--stale-after`.
+A subject gets the default when its arm starts, fails, or is over `--max-arms`. Its run records `reason = 'arm-unavailable'`. Every subject gets the default when the proxy has no configuration newer than `--stale-after`.
+
+## Containers
+
+With `--image`, the proxy runs each container with `docker run` on a private port of `127.0.0.1`. An init process sends stop signals to the app. Each container gets the proxy's environment, then `--arm-env` for arms and controls, then these variables.
+
+| Variable | Value |
+| --- | --- |
+| `PORT` | The port that the app listens on in its container |
+| `STATESPACE_APP` | The app |
+| `STATESPACE_ARM` | `default`, `control`, or the arm's name |
+| `STATESPACE_COMMIT` | The arm's commit, or a control's base commit. Not set for the default |
+| `STATESPACE_EXPERIMENT` | The arm's experiment. Not set for the default |
+
+Containers do not get the proxy's own settings (`SSP_*` and `STATESPACE_*`). They also do not get the variables that describe the machine or the session, such as `PATH`, `HOME`, and the variables of systemd.
+
+Statespace names the image of each arm by digest. An arm runs an image that CI recorded with its OIDC token. A control runs a default build that a proxy or controller of the app ran. The proxy reports the digest of its default, so Statespace knows which commit is deployed. A container that stops starts again, with a delay of up to one minute.
+
+Containers have the labels `statespace.com/app`, `statespace.com/proxy`, and `statespace.com/target`. After a crash, a new proxy with the same `--app` and `--listen` adopts the containers that still run, and removes the others. On `SIGTERM`, the proxy stops new connections and lets requests finish for up to 10 seconds. Then it removes every container that it ran.
 
 ## Events
 
-Arms are recorded; the default never is.
+The proxy records the arms. It never records the default.
 
-| Event | Sent |
+| Event | What it has |
 | --- | --- |
-| Runs: a subject's first routing, per experiment version and reason, every 30 minutes at most | Always |
-| Every line an arm prints, on standard output or standard error | Always |
-| One row per request an arm serves: method, path, status, timing, and sizes | Always |
-| Lifecycle: started, ready, exited, stopped, failed | Always |
-| Per-minute HTTP summaries, and on Docker CPU and memory, per arm | Always |
+| Run | The first time the proxy routes a subject in an experiment version, with the reason. Again every 30 minutes at most |
+| Output | Each line that an arm prints, on standard output or standard error |
+| Request | Each request that an arm serves: method, path, status, times, and sizes |
+| Lifecycle | `started`, `ready`, `exited`, `stopped`, and `failed` |
+| Metrics | HTTP summaries for each minute and arm. On Docker, also CPU and memory |
 
-Request headers and bodies are never sent. Events are buffered and sent in batches. When Statespace is slow or unreachable, the proxy drops events rather than delay the app.
+The proxy never sends request headers or bodies. It sends events in batches. When Statespace is slow or unreachable, the proxy drops events. It does not make the app wait. The [SQL views](/reference/database-schema) show the events.

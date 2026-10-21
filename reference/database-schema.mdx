@@ -1,71 +1,56 @@
 ---
 title: PostgreSQL schema
-description: Review each app's analysis views, the account's audit log, and what they hold.
+sidebarTitle: SQL views
+description: The columns of each app's views and of the account's audit log.
 ---
 
-Each account has one isolated PostgreSQL database. Each app has a schema of the same name, with views that show only that app's rows. Tokens with `query:read` can read these views and nothing else.
+Each account has one isolated PostgreSQL database. Each app has a schema with the app's name, and its views show only that app's rows. A token with `query:read` can read these views, and nothing else.
 
 | View | Has |
 | --- | --- |
-| `atlas.logs` | One row per run, with the lines its subject's arm printed after it |
-| `atlas.runs` | Each subject's routing by a proxy |
-| `atlas.output` | Every line the arms printed |
-| `atlas.requests` | One row per request an arm served |
-| `atlas.metrics` | Per-minute HTTP summaries and resource use of each arm |
-| `atlas.lifecycle` | Arm events: started, ready, exited, stopped, failed |
-| `atlas.hosts` | Proxies and controllers that reported in the last day |
-| `atlas.arms` | Every arm and control of every version, and where it runs |
-| `atlas.pull_requests` | What the pull requests of experiment branches run, and why they wait |
-| `atlas.sample_ratio` | Whether each version's subjects split as its shares say |
-| `account.audit` | Every change to the account and its apps |
+| [`atlas.logs`](#logs) | One row per run, with the lines that its subject's arm printed after it |
+| [`atlas.runs`](#runs) | Each time a proxy routes a subject |
+| [`atlas.output`](#output) | Each line that the arms printed |
+| [`atlas.requests`](#requests) | One row per request that an arm served |
+| [`atlas.metrics`](#metrics) | HTTP summaries and resource use of each arm, per minute |
+| [`atlas.lifecycle`](#lifecycle) | Arm events: started, ready, exited, stopped, failed |
+| [`atlas.hosts`](#hosts) | The newest report of each proxy and controller |
+| [`atlas.arms`](#arms) | Each arm and control of each version, and where it runs |
+| [`atlas.pull_requests`](#pull_requests) | The pull requests of the app's `exp/` branches, and why they wait |
+| [`atlas.sample_ratio`](#sample_ratio) | Whether the subjects of each version split as its shares say |
+| [`account.audit`](#audit) | Each change to the account and its apps |
 
-The API commits events to an account outbox. The worker writes the final rows into tables in the `statespace` schema, which tokens cannot read. The default is never recorded.
+The API writes events to an account outbox. The worker writes the rows into tables in the `statespace` schema, which tokens cannot read. Statespace never records the default.
 
-## Runs
+Create a token for a SQL client. Statespace shows its database URL only once.
 
-A proxy records a run the first time it routes a subject in an experiment version, and again at most every 30 minutes.
+```shell
+ssp token create --name analyst \
+  --preset analyst --app atlas
+```
 
-| Column | Type |
-| --- | --- |
-| `id` | `TEXT` |
-| `timestamp` | `TIMESTAMPTZ` |
-| `experiment` | `TEXT` |
-| `experiment_version` | `INTEGER` |
-| `subject_id` | `TEXT` |
-| `arm` | `control` or an arm; `NULL` when ineligible |
-| `commit` | The arm's commit, or a control's base commit; `NULL` when ineligible |
-| `reason` | `assigned`, `ineligible`, `eligibility-error`, or `arm-unavailable` |
-| `context` | `JSONB`: the request's `method` and `path` |
-| `host` | `TEXT` |
+## logs
 
-An `arm-unavailable` run names the arm the subject was assigned. The default served it.
+`logs` has one row for each run and each line with a subject that came after it. A line joins the latest run of its subject in the app that started at or before the line. A run without lines has `NULL` line columns.
 
-## Output
+| Column | Type | Description |
+| --- | --- | --- |
+| `run_id` | `TEXT` | The run |
+| `run_timestamp` | `TIMESTAMPTZ` | When the run started |
+| `experiment` | `TEXT` | The experiment |
+| `experiment_version` | `INTEGER` | The experiment version |
+| `subject_id` | `TEXT` | The subject |
+| `arm` | `TEXT` | `control` or an arm. `NULL` when ineligible |
+| `commit` | `TEXT` | The arm's commit, or a control's base commit |
+| `reason` | `TEXT` | See [runs](#runs) |
+| `context` | `JSONB` | The request's `method` and `path` |
+| `output_id` | `TEXT` | The line |
+| `output_timestamp` | `TIMESTAMPTZ` | When the arm printed the line |
+| `stream` | `TEXT` | `stdout` or `stderr` |
+| `line` | `TEXT` | The line, after `--redact` |
+| `data` | `JSONB` | The fields of a JSON line |
 
-Each line an arm printed is one row. It is kept for the app's output retention.
-
-| Column | Type |
-| --- | --- |
-| `id` | `TEXT` |
-| `timestamp` | `TIMESTAMPTZ` |
-| `experiment`, `experiment_version` | The arm's experiment |
-| `arm`, `commit` | The arm: `control` or an arm, and its commit |
-| `stream` | `stdout` or `stderr` |
-| `line` | `TEXT`, after `--redact` |
-| `data` | `JSONB`: the line's fields, when it is a JSON object |
-| `subject_id` | The line's `subject` field, when it has one |
-| `host` | `TEXT` |
-
-## Logs view
-
-`logs` has one row for each run and each line with a subject that followed it. Each line joins the latest run of its subject in the app that started at or before it. Runs without lines have `NULL` line columns.
-
-| Column | Source |
-| --- | --- |
-| `run_id`, `run_timestamp`, `experiment`, `experiment_version`, `subject_id`, `arm`, `commit`, `reason`, `context` | The run |
-| `output_id`, `output_timestamp`, `stream`, `line`, `data` | The line |
-
-Compare arms with a SQL client.
+Compare the arms of each version:
 
 ```sql
 SELECT
@@ -81,34 +66,169 @@ WHERE experiment = 'ranking'
 GROUP BY experiment_version, arm, commit;
 ```
 
-## Sample ratio
+## runs
 
-`sample_ratio` has one row per arm and control of each experiment version: `arm`, `commit`, `share`, `subjects`, `expected`, the version's chi-square `statistic` and `p_value`, and `mismatch`. A mismatch is a p-value below 0.001 once 100 subjects ran. It means assignment or recording is broken, and comparisons between the arms cannot be trusted.
+A proxy records a run when it routes a subject in an experiment version for the first time. It records a run again every 30 minutes at most.
 
-## Arm measurements
+| Column | Type | Description |
+| --- | --- | --- |
+| `id` | `TEXT` | The run |
+| `timestamp` | `TIMESTAMPTZ` | When the proxy routed the subject |
+| `experiment` | `TEXT` | The experiment |
+| `experiment_version` | `INTEGER` | The experiment version |
+| `subject_id` | `TEXT` | The subject |
+| `arm` | `TEXT` | `control` or an arm. `NULL` when ineligible |
+| `commit` | `TEXT` | The arm's commit, or a control's base commit. `NULL` when ineligible |
+| `reason` | `TEXT` | `assigned`, `ineligible`, `eligibility-error`, or `arm-unavailable` |
+| `context` | `JSONB` | The request's `method` and `path` |
+| `host` | `TEXT` | The proxy |
 
-`requests` has one row per request an arm served: `subject_id`, `experiment`, `experiment_version`, `arm`, `commit`, `method`, `path`, `status`, `duration_ms`, `first_byte_ms`, `request_bytes`, and `response_bytes`. `duration_ms` runs to the response's last byte.
+An `arm-unavailable` run names the arm that the subject was assigned to. The default served the subject.
 
-`metrics` has one row per arm and minute. `kind = 'http'` rows hold `requests`, `errors`, `statuses`, `p50_ms`, `p90_ms`, `p99_ms`, and `max_ms`. `kind = 'resources'` rows hold `cpu_percent` and `memory_bytes`, on Docker.
+## output
 
-`lifecycle` has arm events with their `data`, such as an exit's `code`.
+Each line that an arm printed is one row. Statespace keeps it for the app's `output_retention_days`.
 
-## Hosts and arms
+| Column | Type | Description |
+| --- | --- | --- |
+| `id` | `TEXT` | The line |
+| `timestamp` | `TIMESTAMPTZ` | When the arm printed the line |
+| `experiment` | `TEXT` | The arm's experiment |
+| `experiment_version` | `INTEGER` | The experiment version |
+| `arm` | `TEXT` | `control` or an arm |
+| `commit` | `TEXT` | The arm's commit |
+| `stream` | `TEXT` | `stdout` or `stderr` |
+| `line` | `TEXT` | The line, after `--redact` |
+| `data` | `JSONB` | The fields of the line, when it is a JSON object |
+| `subject_id` | `TEXT` | The line's `subject` field, when it has one |
+| `host` | `TEXT` | The proxy or controller |
 
-`hosts` has the newest report of each proxy and controller: `id`, `kind` (`proxy` or `controller`), `version`, `seen_at`, `max_arms`, and `report`, what it runs.
+## requests
 
-`arms` has every arm and control of every experiment version: `experiment`, `experiment_version`, `kind` (`variant` or `control`), `arm`, `commit`, `base_commit`, `share`, `image`, the version's `status`, `started_at`, and `stopped_at`, and where a controller runs it: `address`, `ready`, and `replicas`. Compare a variant with the control whose `commit` is the variant's `base_commit`.
+Each request that an arm served is one row.
 
-## Pull requests
+| Column | Type | Description |
+| --- | --- | --- |
+| `id` | `TEXT` | The request |
+| `timestamp` | `TIMESTAMPTZ` | When the request arrived |
+| `subject_id` | `TEXT` | The subject |
+| `experiment` | `TEXT` | The experiment |
+| `experiment_version` | `INTEGER` | The experiment version |
+| `arm` | `TEXT` | `control` or an arm |
+| `commit` | `TEXT` | The arm's commit |
+| `method` | `TEXT` | The HTTP method |
+| `path` | `TEXT` | The path |
+| `status` | `INTEGER` | The HTTP status |
+| `duration_ms` | `DOUBLE PRECISION` | Time to the last byte of the response |
+| `first_byte_ms` | `DOUBLE PRECISION` | Time to the first byte of the response |
+| `request_bytes` | `BIGINT` | The size of the request body |
+| `response_bytes` | `BIGINT` | The size of the response body |
+| `host` | `TEXT` | The proxy |
 
-`pull_requests` has the pull requests of the app's experiment branches: `repo`, `number`, `branch`, `head_commit`, `state`, `draft` (a stop makes the pull request a draft), `review_decision`, `merge_state`, `merged_at`, `running_commit`, `waiting` (why the head commit does not run), and `waiting_since`.
+## metrics
 
-## Audit
+`metrics` has one row per arm, kind, and minute. It has the columns `id`, `timestamp`, `experiment`, `experiment_version`, `arm`, `commit`, and `host`, as in [requests](#requests), and these columns.
 
-`account.audit` has every change to the account and its apps: `id`, `occurred_at`, `source`, `actor`, `action`, `target`, and `detail`. Records of the account itself, such as new tokens and sign-ins, have the source `control`. Only tokens that read every app can read it.
+| Column | Type | Description |
+| --- | --- | --- |
+| `kind` | `TEXT` | `http` or `resources` |
+| `data` | `JSONB` | For `http`: `requests`, `errors`, `statuses`, `p50_ms`, `p90_ms`, `p99_ms`, and `max_ms`. For `resources`, on Docker: `cpu_percent` and `memory_bytes` |
 
-Create a token for a SQL client. Statespace shows its database URL only once.
+## lifecycle
 
-```shell
-ssp token create --name analyst --preset analyst --app atlas
-```
+`lifecycle` has the events of arms. It has the columns `id`, `timestamp`, `experiment`, `experiment_version`, `arm`, `commit`, and `host`, and these columns.
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `event` | `TEXT` | `started`, `ready`, `exited`, `stopped`, or `failed` |
+| `data` | `JSONB` | Details, such as the `code` of an exit |
+
+## hosts
+
+`hosts` has the newest report of each proxy and controller.
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `id` | `TEXT` | The proxy or controller |
+| `kind` | `TEXT` | `proxy` or `controller` |
+| `version` | `TEXT` | The `ssp` version |
+| `seen_at` | `TIMESTAMPTZ` | The time of the newest report |
+| `max_arms` | `INTEGER` | Its `--max-arms` |
+| `report` | `JSONB` | What it runs |
+
+## arms
+
+`arms` has each arm and control of each experiment version.
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `experiment` | `TEXT` | The experiment |
+| `experiment_version` | `INTEGER` | The experiment version |
+| `kind` | `TEXT` | `variant` for an arm, or `control` |
+| `arm` | `TEXT` | The arm's name, or `control` |
+| `commit` | `TEXT` | The arm's commit, or the control's base commit |
+| `base_commit` | `TEXT` | The commit where the arm's branch left the default branch |
+| `share` | `DOUBLE PRECISION` | The share of the app's subjects |
+| `image` | `TEXT` | The image, by digest |
+| `status` | `TEXT` | The version's status: `running` or `stopped` |
+| `started_at` | `TIMESTAMPTZ` | When the version started |
+| `stopped_at` | `TIMESTAMPTZ` | When the version stopped |
+| `address` | `TEXT` | Where a controller runs the arm |
+| `ready` | `BOOLEAN` | Whether the controller's arm is ready |
+| `replicas` | `INTEGER` | The replicas that the controller runs |
+
+Compare an arm with the control whose `commit` is the arm's `base_commit`.
+
+## pull_requests
+
+`pull_requests` has the pull requests of the app's `exp/` branches.
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `repo` | `TEXT` | The repository, such as `acme/atlas` |
+| `number` | `INTEGER` | The pull request number |
+| `branch` | `TEXT` | The `exp/` branch |
+| `head_commit` | `TEXT` | The newest commit of the branch |
+| `state` | `TEXT` | `open`, `closed`, or `merged` |
+| `draft` | `BOOLEAN` | Whether it is a draft. A stop makes it a draft |
+| `review_decision` | `TEXT` | GitHub's review decision, such as `approved` |
+| `merge_state` | `TEXT` | GitHub's merge state, such as `clean` or `blocked` |
+| `merged_at` | `TIMESTAMPTZ` | When it merged |
+| `running_commit` | `TEXT` | The commit that the arm runs. `NULL` when the arm does not run |
+| `waiting` | `TEXT` | Why the head commit does not run |
+| `waiting_since` | `TIMESTAMPTZ` | When the wait started |
+
+## sample_ratio
+
+`sample_ratio` has one row per arm and control of each experiment version.
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `experiment` | `TEXT` | The experiment |
+| `experiment_version` | `INTEGER` | The experiment version |
+| `arm` | `TEXT` | The arm, or `control` |
+| `commit` | `TEXT` | The arm's commit |
+| `share` | `DOUBLE PRECISION` | The arm's share |
+| `subjects` | `BIGINT` | Subjects assigned to the arm |
+| `expected` | `DOUBLE PRECISION` | Subjects that the share expects |
+| `statistic` | `DOUBLE PRECISION` | The version's chi-square statistic |
+| `p_value` | `DOUBLE PRECISION` | The version's p-value |
+| `mismatch` | `BOOLEAN` | `true` when the p-value is below 0.001 and 100 subjects or more ran |
+
+<Warning>
+  A mismatch means that assignment or the record of events is broken. Do not trust a comparison of the arms of that version.
+</Warning>
+
+## audit
+
+`account.audit` has each change to the account and its apps. Only a token that reads every app can read it.
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `id` | `BIGINT` | The record |
+| `occurred_at` | `TIMESTAMPTZ` | When the change occurred |
+| `source` | `TEXT` | `account`, or `control` for records of the account itself, such as new tokens and sign-ins |
+| `actor` | `TEXT` | Who made the change |
+| `action` | `TEXT` | The change, such as `account.workspace` |
+| `target` | `TEXT` | What changed |
+| `detail` | `JSONB` | Details of the change |

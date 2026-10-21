@@ -1,74 +1,99 @@
 ---
 title: Define the experiment
-description: Name the experiment and arm with a branch, then choose its subjects, eligibility, and share.
+description: Name the experiment and arm with a branch, then set the arm's subjects, eligibility, and share.
 ---
 
-Start with one decision. Choose the randomization unit, eligible population, arms, and outcome before you start.
+Start with one decision. Before you push, choose the subject, the eligible population, the arms, and the outcome.
 
-## Choose the randomization unit
+<Steps titleSize="h3">
+  <Step title="Choose the subject">
+    Use a stable identifier at the level where the treatment can vary independently. Read it from the request with a CEL rule.
 
-Use a stable identifier at the level where treatment can vary independently. Read it from the request with a CEL subject rule, such as `request.headers["x-user-id"]` for users or `request.headers["x-account-id"]` for accounts. Without a rule, each browser is a subject.
+    | Unit | Subject rule |
+    | --- | --- |
+    | User | `request.headers["x-user-id"]` |
+    | Account | `request.headers["x-account-id"]` |
+    | Browser | No rule. The proxy sets the `ssp_sid` cookie |
 
-## Print the outcome
+    For how subjects keep their arm, see [Random assignment](/concepts/random-assignment).
+  </Step>
 
-Statespace records each line that an arm prints, with its arm. Thus, your current logs are also evidence. Print a JSON line where the outcome occurs. To compare subjects, add a `subject` field.
+  <Step title="Print the outcome">
+    Statespace records each line that an arm prints, with its arm. Print a JSON line where the outcome occurs. Add a `subject` field to compare subjects.
 
-```python
-subject = request.headers["x-statespace-subject"]
-print(json.dumps({
-    "event": "click",
-    "subject": subject,
-    "position": position,
-}))
-```
+    ```python
+    subject = request.headers["x-statespace-subject"]
+    print(json.dumps({
+        "event": "click",
+        "subject": subject,
+        "position": position,
+    }))
+    ```
 
-The proxy calculates the subject with your subject rule. It sends the result in the `x-statespace-subject` header. The app reads the subject from this header.
+    The proxy calculates the subject with your rule. It sends the result in the `x-statespace-subject` header.
 
-Deploy this change to production first. Then the default and each arm print the same lines.
+    <Note>
+      Deploy this change to production first. Then the default and each arm print the same lines.
+    </Note>
+  </Step>
 
-## Name the branch
+  <Step title="Name the branch">
+    The branch name gives the experiment and the arm. For one change, name the branch `exp/<name>`. To compare more changes, name each branch `exp/<experiment>/<arm>`.
 
-The branch name gives the experiment and the arm. For one change, name the branch `exp/<name>`. To compare more than one change, name each branch `exp/<experiment>/<arm>`.
+    | Branch | Experiment | Arm |
+    | --- | --- | --- |
+    | `exp/recent-clicks` | `recent-clicks` | `recent-clicks` |
+    | `exp/ranking/recent-clicks` | `ranking` | `recent-clicks` |
+    | `exp/ranking/bm25` | `ranking` | `bm25` |
 
-| Branch | Experiment | Arm |
-| --- | --- | --- |
-| `exp/ranking` | `ranking` | `ranking` |
-| `exp/ranking/recent-clicks` | `ranking` | `recent-clicks` |
-| `exp/ranking/bm25` | `ranking` | `bm25` |
+    The arms of one experiment share its subjects and its control. Start the branch from the latest default branch, so that its base is a deployed commit.
 
-Branches under one experiment are arms of that experiment. They share its subjects and are compared with the same control. Start the branch from the latest default branch, so that its base is a deployed commit.
+    ```shell
+    git switch -c exp/ranking/recent-clicks origin/main
+    ```
+  </Step>
 
-```shell
-git switch -c exp/ranking/recent-clicks origin/main
-```
+  <Step title="Set the arm's settings">
+    Set the arm's share and rules in `statespace.toml` on the branch.
 
-## Set the arm's settings
+    ```toml statespace.toml
+    app = "atlas"
+    share = 0.05
+    subject = 'request.headers["x-user-id"]'
+    eligibility = 'request.headers["cf-ipcountry"] == "US"'
+    ```
 
-`statespace.toml` on the branch gives the arm's share and rules.
+    The arm gets 5% of the app's subjects, and its control gets another 5%. Every other subject gets the default. All arms of an experiment must use the same `subject` and `eligibility`.
+  </Step>
 
-```toml
-app = "atlas"
-share = 0.05
-subject = 'request.headers["x-user-id"]'
-eligibility = 'request.headers["cf-ipcountry"] == "US"'
-```
+  <Step title="Check the plan">
+    Check the file, and see the plan before you push. `--dry-run` records nothing, and works outside CI. Give it an image that is in the registry, such as the production image.
 
-The arm gets 5% of the app's subjects, and its control gets another 5%. Every other subject gets the default. All arms of an experiment must use the same `subject` and `eligibility`.
+    ```shell
+    ssp apply --image ghcr.io/acme/atlas:main --dry-run
+    ```
+  </Step>
 
-Check the file and see the plan before you push. `--dry-run` records nothing, and works outside CI. Give it any pushed image of the app, such as the production image.
+  <Step title="Build the arm">
+    Make one change on the branch. Make sure that its image starts and answers requests.
 
-```shell
-ssp apply --image ghcr.io/acme/atlas:main --dry-run
-```
+    ```shell
+    docker build -t atlas:mine .
+    docker run --rm -p 8000:8000 atlas:mine
+    curl localhost:8000/search?q=maps
+    ```
 
-## Build the arm
+    Commit and push. CI builds the image, and `ssp apply` records it as a version of the arm.
+  </Step>
+</Steps>
 
-Make one change on the branch. Check that its image starts and answers.
+## Next steps
 
-```shell
-docker build -t atlas:mine .
-docker run --rm -p 8000:8000 atlas:mine
-curl localhost:8000/search?q=maps
-```
-
-Then commit and push. CI builds the image the way you build production, and `ssp apply` records it as a version of the arm.
+<CardGroup cols={2}>
+  <Card title="Apply the treatments" icon="git-pull-request" href="/workflow/apply-the-treatments">
+    Open the pull request, and run the arm.
+  </Card>
+  <Card title="statespace.toml" icon="file-cog" href="/reference/experiment-definition">
+    See every setting, and the request fields that rules read.
+  </Card>
+</CardGroup>

@@ -1,40 +1,62 @@
 ---
 title: Account-level experiment
-description: Keep users in one account in the same arm.
+description: Keep all users of one account in the same arm, and count accounts, not requests.
 ---
 
-Use account-level randomization when users share data or can affect each other. The randomization unit is the account, not each user or request.
+Use the account as the subject when users of an account share data, or can affect each other. In this example, a gateway in front of `atlas` sets the `x-account-id` header.
 
-Read the account from the request in the subject rule of the branch's `statespace.toml`. Here a gateway in front of the app sets `x-account-id`.
+<Steps titleSize="h3">
+  <Step title="Use the account as the subject">
+    Read the account from the request in the arm's `statespace.toml`.
 
-```toml
-app = "atlas"
-share = 0.1
-subject = 'request.headers["x-account-id"]'
-```
+    ```toml statespace.toml
+    app = "atlas"
+    share = 0.1
+    subject = 'request.headers["x-account-id"]'
+    ```
 
-Every user in an account gets the same arm on every proxy. The app receives the account ID as `x-statespace-subject`. All arms of the experiment must use this subject rule.
+    Each user of an account gets the same arm on every proxy. All arms of the experiment must use this subject rule.
+  </Step>
 
-Print lines with the account ID as the subject.
+  <Step title="Print the outcome">
+    The app gets the account ID in the `x-statespace-subject` header. Print it as the subject, and print the user as a field.
 
-```python
-subject = request.headers["x-statespace-subject"]
-print(json.dumps({
-    "event": "click",
-    "subject": subject,
-    "user": user_id,
-}))
-```
+    ```python
+    subject = request.headers["x-statespace-subject"]
+    print(json.dumps({
+        "event": "click",
+        "subject": subject,
+        "user": user_id,
+    }))
+    ```
+  </Step>
 
-Count independent accounts rather than requests.
+  <Step title="Count accounts">
+    Count independent accounts, not requests.
 
-```sql
-SELECT arm, commit, count(DISTINCT subject_id) AS accounts
-FROM atlas.runs
-WHERE experiment = 'ranking'
-  AND experiment_version = 1
-  AND reason IN ('assigned', 'arm-unavailable')
-GROUP BY arm, commit;
-```
+    ```sql
+    SELECT arm, commit,
+           count(DISTINCT subject_id) AS accounts
+    FROM atlas.runs
+    WHERE experiment = 'ranking'
+      AND experiment_version = 1
+      AND reason IN ('assigned', 'arm-unavailable')
+    GROUP BY arm, commit;
+    ```
+  </Step>
+</Steps>
 
-Aggregate outcomes at the account level before a simple independent-unit analysis. Request-level standard errors can understate uncertainty when requests in an account are related.
+<Warning>
+  Requests of one account are related. Aggregate outcomes for each account before an analysis that assumes independent units. Otherwise the uncertainty looks smaller than it is.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Outcome measures" icon="ruler" href="/concepts/outcome-measures#repeated-observations">
+    Aggregate repeated observations for each subject.
+  </Card>
+  <Card title="Random assignment" icon="shuffle" href="/concepts/random-assignment">
+    See how a subject keeps its arm.
+  </Card>
+</CardGroup>

@@ -1,81 +1,101 @@
 ---
 title: Analysis walkthrough
-description: Check delivery and health, then compare one field of the lines arms print.
+description: Check delivery, allocation, and health, then compare one field of the lines that arms print, and record the decision.
 ---
 
-Analyze one immutable version at a time.
+This walkthrough analyzes version 1 of the experiment `ranking`. Analyze one version at a time: a version does not change after it stops.
 
-## Check delivery
+<Steps titleSize="h3">
+  <Step title="Check delivery">
+    Count runs by assignment reason.
 
-Count runs by assignment reason.
+    ```sql
+    SELECT reason, count(*)
+    FROM atlas.runs
+    WHERE experiment = 'ranking'
+      AND experiment_version = 1
+    GROUP BY reason;
+    ```
 
-```sql
-SELECT reason, count(*)
-FROM atlas.runs
-WHERE experiment = 'ranking'
-  AND experiment_version = 1
-GROUP BY reason;
-```
+    A large share of `arm-unavailable` means that an arm often could not serve its subjects. Read its lifecycle events and errors before you continue.
 
-A large share of `arm-unavailable` means an arm often could not serve its subjects. Read its lifecycle events and errors before you go on.
+    ```sql
+    SELECT timestamp, arm, commit, event, data
+    FROM atlas.lifecycle
+    WHERE experiment = 'ranking'
+    ORDER BY timestamp DESC
+    LIMIT 20;
+    ```
+  </Step>
 
-```sql
-SELECT timestamp, arm, commit, event, data
-FROM atlas.lifecycle
-WHERE experiment = 'ranking'
-ORDER BY timestamp DESC
-LIMIT 20;
-```
+  <Step title="Check allocation">
+    Compare each arm's subjects with the number that its share predicts.
 
-## Check allocation
+    ```sql
+    SELECT arm, commit, subjects, expected,
+           p_value, mismatch
+    FROM atlas.sample_ratio
+    WHERE experiment = 'ranking'
+      AND experiment_version = 1;
+    ```
 
-Compare each arm's subjects with the number its share predicts.
+    If `mismatch` is true, stop here. Find the cause before you compare outcomes.
+  </Step>
 
-```sql
-SELECT arm, commit, subjects, expected, p_value, mismatch
-FROM atlas.sample_ratio
-WHERE experiment = 'ranking' AND experiment_version = 1;
-```
+  <Step title="Check health">
+    Compare the error rate and latency of each arm.
 
-## Check health
+    ```sql
+    SELECT
+      arm,
+      commit,
+      avg((status >= 500)::int) AS error_rate,
+      percentile_cont(0.9)
+        WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
+    FROM atlas.requests
+    WHERE experiment = 'ranking'
+      AND experiment_version = 1
+    GROUP BY arm, commit;
+    ```
+  </Step>
 
-Compare error rates and latency of each arm.
+  <Step title="Compare the outcome">
+    Read the planned field from each JSON line.
 
-```sql
-SELECT
-  arm,
-  commit,
-  avg((status >= 500)::int) AS error_rate,
-  percentile_cont(0.9)
-    WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
-FROM atlas.requests
-WHERE experiment = 'ranking' AND experiment_version = 1
-GROUP BY arm, commit;
-```
+    ```sql
+    SELECT
+      arm,
+      commit,
+      count(*) AS observations,
+      avg((data->>'position')::float) AS mean_position,
+      stddev_samp((data->>'position')::float)
+        AS sd_position
+    FROM atlas.logs
+    WHERE experiment = 'ranking'
+      AND experiment_version = 1
+      AND reason IN ('assigned', 'arm-unavailable')
+      AND data->>'event' = 'click'
+    GROUP BY arm, commit;
+    ```
+  </Step>
 
-## Compare the outcome
+  <Step title="Record the decision">
+    Write the decision and its evidence in the pull request. Close it to remove the arm, or merge it to ship.
 
-Read the planned field from each JSON line.
+    ```shell
+    gh pr close 418 --comment "Keep the default:
+    no change in click position, p90 latency +40 ms."
+    ```
+  </Step>
+</Steps>
 
-```sql
-SELECT
-  arm,
-  commit,
-  count(*) AS observations,
-  avg((data->>'position')::float) AS mean_position,
-  stddev_samp((data->>'position')::float) AS sd_position
-FROM atlas.logs
-WHERE experiment = 'ranking'
-  AND experiment_version = 1
-  AND data->>'event' = 'click'
-GROUP BY arm, commit;
-```
+## Next steps
 
-## Record the decision
-
-Write the decision and its evidence in the pull request. Then close it to drop the arm, or merge it to ship.
-
-```shell
-gh pr close 412 --comment "Keep the default:
-no change in click position, p90 latency +40 ms."
-```
+<CardGroup cols={2}>
+  <Card title="Statistical inference" icon="sigma" href="/concepts/statistical-inference">
+    Add uncertainty to the estimate.
+  </Card>
+  <Card title="Analyze the outcomes" icon="chart-column" href="/workflow/analyze-the-outcomes">
+    See every check and the decision table.
+  </Card>
+</CardGroup>

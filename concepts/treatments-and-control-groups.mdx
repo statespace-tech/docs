@@ -1,49 +1,47 @@
 ---
 title: Treatments and control groups
-description: Compare arms of an app with a control of the version their branch started from.
+description: What an arm is compared with, and why that comparison isolates the branch's change.
 ---
 
-A treatment is the behavior being tested. An arm is a branch of your app that defines one treatment. Its control supplies the comparison baseline.
+What does an experiment compare? Each arm is a treatment: one branch of your app. Its control is the baseline: the version that the branch started from.
 
 ## Interventions, treatments, and arms
 
-This example changes search ranking with the arm `recent-clicks`, the branch `exp/ranking/recent-clicks`.
+This example changes search ranking with the arm `recent-clicks`, on the branch `exp/ranking/recent-clicks`.
 
 | Term | In this example |
 | --- | --- |
 | Intervention | Change search ranking |
 | Treatment | `recent-clicks`, an image of a commit of `exp/ranking/recent-clicks` |
 | Control | The default build of the commit where the branch left `main` |
-| Default | The image of `atlas` you deployed, for everyone outside the experiment |
+| Default | The image of `atlas` that you deployed, for everyone outside the experiment |
 
-An arm can change anything in your app's image: code, dependencies, the operating system, or how it starts. Each commit is a version of the arm, and an experiment version records the commit of each of its arms.
+An arm can change anything in your app's image: code, dependencies, the operating system, or how it starts. Each commit is a version of the arm. An experiment version records the commit of each of its arms.
 
 ## Control group
 
-Each arm is compared with a control: the default build of the arm's base, the commit where its branch left the default branch. The base must have run as the default. So the arm and its control differ only by the branch's change.
+The control runs the default build of the arm's base: the commit where the branch left the default branch. The base must have run as the default, so the arm and its control differ only by the branch's change.
 
-A control gets the share of the largest arm on its base and runs in new containers, as the arm does. Comparing an arm with its control, rather than with the default, compares two equally new, equally loaded copies that differ only in the treatment.
+The control runs in new containers, as the arm does, with the same share of subjects. So the comparison is between two equally new, equally loaded copies. The default serves everyone else, and is not a fair baseline.
 
 Deploying a new default does not change a running control. When you update an arm with the default branch, the arm gets a control of its new base.
 
 ## Arm shares
 
-`share` in the branch's `statespace.toml` gives the arm its share of all the app's subjects. Its control gets the same share.
+`share` gives the arm its share of all the app's subjects. Its control gets the same share.
 
-```toml
+```toml statespace.toml
 share = 0.05
 ```
 
-Here 5% of subjects get `recent-clicks` and 5% get control. Ineligible subjects get the default; their runs are not randomized control and must not be counted as control.
+Here 5% of subjects get `recent-clicks`, and 5% get the control. Arms of one experiment on the same base share one control, with the largest share among them. Unequal shares change the sample size and the statistical power of each comparison. For how shares become stable ranges, see [Arm allocation](/concepts/random-assignment#arm-allocation).
 
-Arms of one experiment with the same base share one control, with the largest share among them. Unequal shares change the sample size and statistical power of each comparison. See [Arm allocation](/concepts/random-assignment#arm-allocation) for stable assignment ranges.
+Ineligible subjects get the default. Their runs are not part of the randomized control, so do not count them as control.
 
 ## Shared state
 
-Arms share your database, cache, and queues with the default. Keep an arm's changes inside the code that handles requests.
+Arms share your database, cache, and queues with the default. A change that writes shared state can affect subjects outside the experiment, and the control. Keep an arm's change inside the code that handles requests. To set this up, see [Keep arms apart from shared state](/workflow/apply-the-treatments#keep-arms-apart-from-shared-state).
 
-- Land schema changes in the deployed code first. Give arms a database user without schema permissions with `--arm-env`.
-- Turn off schedulers and workers that run inside your web process in arms, so nothing runs twice.
-- Prefix cache keys in arms, so the default never serves a response an arm cached.
+## Combined changes
 
-To test two changes and their interaction, build each combination as its own arm and analyze the full grid.
+To test two changes and their interaction, build each combination as its own arm, and analyze the full grid.

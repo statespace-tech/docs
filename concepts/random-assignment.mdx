@@ -1,19 +1,19 @@
 ---
 title: Random assignment
-description: Keep each subject in one arm, and each experiment's subjects apart.
+description: How each subject keeps one arm across requests and proxies, and how experiments of an app stay apart.
 ---
 
-Random assignment gives each eligible subject one arm: an arm of a branch, or a control. Each experiment version records its arms, their commits, their shares, and their allocation ranges.
+How does a subject get its arm, and keep it? Each experiment version records its arms, their commits, their shares, and their ranges of buckets. The proxy maps each subject to a bucket, and the bucket to an arm.
 
 ## Stable identity
 
-Choose an identifier at the level where treatment can vary independently. The `subject` rule in `statespace.toml` is a CEL expression that reads it from the request.
+The subject is the unit of randomization. Choose an identifier at the level where the treatment can vary independently. The `subject` rule is a CEL expression that reads it from the request.
 
-```toml
+```toml statespace.toml
 subject = 'request.headers["x-user-id"]'
 ```
 
-Without a `subject`, the subject is `request.cookies.ssp_sid`. `ssp proxy` sets that cookie for every new visitor, so a browser keeps its arm. A request whose rule yields no subject gets the default and is not recorded.
+Without a `subject` rule, the subject is `request.cookies.ssp_sid`. `ssp proxy` sets that cookie for each new visitor, so a browser keeps its arm. A request whose rule gives no subject gets the default, and is not recorded.
 
 All arms of an experiment use the same subject rule. A commit with another rule does not run in that experiment.
 
@@ -26,13 +26,11 @@ hash   = SHA-256(salt + ":" + subject_id)
 bucket = first 53 bits of hash / 2^53
 ```
 
-The same subject, salt, and allocation ranges produce the same arm on every proxy and every request.
+The same subject, salt, and ranges give the same arm on every proxy and every request.
 
 ## Arm allocation
 
-Each arm and control holds ranges of the app's buckets. The size of the ranges is the arm's share. Running experiments of an app never share a subject, because their ranges never overlap. A subject outside every range gets the default and belongs to no experiment.
-
-For an arm and its control at 10% each, the allocation can look like this.
+Each arm and control holds ranges of the app's buckets. The size of its ranges is its share. For an arm and its control at 10% each, the allocation can look like this:
 
 ```text
 recent-clicks: [0.0, 0.1)
@@ -40,18 +38,24 @@ control:       [0.1, 0.2)
 default:       every other bucket
 ```
 
-The app's traffic limit caps the total. An arm that does not fit waits, first come, first served.
+Running experiments of an app never share a subject, because their ranges never overlap. A subject outside every range gets the default, and is in no experiment. The app's traffic limit caps the total; an arm that does not fit waits, first come, first served.
 
 ## New versions
 
-An arm keeps its ranges across versions. A new commit of the arm, or a new arm in the experiment, starts a new version, and the subjects of the other arms stay where they are. A control of a new base takes over the ranges of a control that went. When an arm's share grows, it takes free ranges; when it shrinks, it keeps the start of its ranges.
+A new commit of an arm, or a new arm in the experiment, starts a new version. An arm keeps its ranges across versions, so the subjects of the other arms stay where they are.
 
-Share changes can still move subjects between arms. Analyze each experiment version separately. Starting a new version stops assignments to the previous one.
+- A control of a new base takes the ranges of a control that went.
+- An arm whose share grows takes free ranges.
+- An arm whose share shrinks keeps the start of its ranges.
+
+Share changes can still move subjects between arms, and a new version stops assignment to the previous one. So analyze each experiment version separately.
 
 ## Unavailable arms
 
-An arm that is starting, failing, or over a proxy's `--max-arms` cannot serve its subjects. They get the default, and their runs record `reason = 'arm-unavailable'` with the arm they were assigned. Count them in the arm they were assigned. Excluding them biases the comparison when an arm fails only for some subjects.
+An arm that is starting, failing, or over a proxy's `--max-arms` cannot serve its subjects. They get the default, and their runs record `reason = 'arm-unavailable'`, with the arm they were assigned.
+
+Count these runs in the assigned arm. If you leave them out, an arm that fails only for some subjects looks better than it is.
 
 ## Forced assignment
 
-Statespace does not force a subject into an arm. Clients cannot choose one: the proxy removes any `x-statespace-*` header a client sends. Keep manual overrides out of a randomized comparison.
+Statespace does not force a subject into an arm, and clients cannot choose one. The proxy removes each `x-statespace-*` header that a client sends. Keep manual overrides out of a randomized comparison.

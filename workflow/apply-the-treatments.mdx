@@ -1,83 +1,78 @@
 ---
 title: Apply the treatments
-description: Open a pull request, run the arm when it can merge, and record what the arms print.
+description: Open a pull request, run the arm when it can merge, and stop or resume it.
 ---
 
-Open a pull request when the outcome is deployed and the branch is pushed. In its description, state the hypothesis.
+import WhatRuns from "/snippets/what-runs.mdx";
+
+Open a pull request when the outcome is in production and the branch is pushed. Write the hypothesis in its description.
 
 ```shell
 gh pr create --title "Rank results by recent clicks" \
-  --body "Sorted results should get more clicks."
+  --body "Sorted results get more clicks."
 ```
 
 ## What runs
 
-GitHub decides whether the arm may run. The arm runs the latest commit while the pull request can merge: approved, with its required checks, and without conflicts.
+GitHub decides whether the arm may run. The arm runs while its pull request can merge.
 
-| The pull request | The arm |
-| --- | --- |
-| Can merge | Runs the latest commit |
-| Never could merge | Does not run |
-| Could merge, and then could not | Runs the last commit that could merge, and warns after 7 days |
-| Is a draft, or a reviewer requested changes | Stops |
-| Merged | The experiment ends |
-| Closed | The arm is removed |
+<WhatRuns />
 
-The `statespace/arm` check on each commit tells what runs, and why the arm waits. It never fails, so it never blocks a merge. `statespace/apply` tells whether CI recorded the commit.
+The `statespace/arm` check on each commit tells what runs, and why the arm waits. It never fails, so it never blocks a merge. The `statespace/apply` check tells whether CI recorded the commit.
 
-Statespace also checks that the comparison is fair:
+Statespace also makes sure that the comparison is fair:
 
-- The arm's base, where the branch left the default branch, must have run as the default. Until a proxy runs it, the arm waits.
+- The arm's base must have run as the default. Until a proxy runs it, the arm waits.
 - Each base has its own control, which runs the default build of that base.
 - The arms fit in the app's traffic limit, first come, first served.
 
 ## Run the proxy
 
-Run the app behind `ssp proxy`. Give it a runtime token as `SSP_TOKEN`.
+Run the app behind `ssp proxy`, with a runtime token as `SSP_TOKEN`.
 
 ```shell
 ssp proxy --app atlas --health /health \
   --image ghcr.io/acme/atlas:main
 ```
 
-The proxy runs the default image as a container, and a container for each arm and control. A container gets traffic once `--health` answers 200. The proxy reports the digest of its default, so that Statespace knows which commit is deployed.
+The proxy runs the default image as a container, and a container for each arm and control. A container gets traffic when `--health` answers 200. The proxy reports the digest of its default, so Statespace knows the deployed commit.
 
-On Kubernetes, the proxy runs beside the default in each pod and `ssp controller kubernetes` runs the arms. See [Deployment](/getting-started/deployment).
+On Kubernetes, the proxy runs beside the default in each pod, and `ssp controller kubernetes` runs the arms. See [Deployment](/getting-started/deployment).
 
 ## Keep arms apart from shared state
 
-Arms share the database, cache, and queues with the default. Give them their own environment with `--arm-env`. Controls get it too, so both sides of a comparison run alike.
+Give arms their own environment with `--arm-env`. Controls get it too, so both sides of the comparison run the same way.
 
 ```shell
 ssp proxy --app atlas --image ghcr.io/acme/atlas:main \
   --arm-env DATABASE_URL="$ARM_DATABASE_URL" \
   --arm-env SCHEDULER_ENABLED=false \
-  --arm-env CACHE_PREFIX=variant
+  --arm-env CACHE_PREFIX=arm
 ```
 
-Use a database user without schema permissions for arms. Land migrations in the deployed code first.
+<Warning>
+  Arms use the same database, cache, and queues as the default. Give arms a database user without schema permissions. Put migrations in the deployed code first. Turn off schedulers in arms, so nothing runs twice.
+</Warning>
 
 ## Record what arms print
 
-Arms record every line they print on standard output and standard error. The proxy passes each line through to its own output, so existing log collection keeps working. `--redact` replaces matches before lines leave the machine.
+Arms record each line that they print on standard output and standard error. The proxy also writes each line to its own output, so your log collection keeps working. `--redact` replaces matches before lines leave the machine.
 
 ```shell
 ssp proxy ... --redact 'sk_live_\w+'
 ```
 
-JSON lines keep their fields. A `subject` field ties a line to that subject's arm.
-
-Arms also record every request, lifecycle events, CPU and memory, and per-minute HTTP summaries. The default is never recorded.
+JSON lines keep their fields. A `subject` field ties a line to that subject's arm. Arms also record each request, lifecycle events, CPU and memory, and HTTP summaries for each minute. Statespace never records the default.
 
 ## Check the arms
 
-Check that the arms run before you wait for outcomes.
+Make sure that the arms run before you wait for outcomes.
 
 ```shell
 ssp status https://github.com/acme/atlas/pull/418
 ```
 
-Without a target, `ssp status` shows the arm of the `exp/` branch that you checked out, else the app or repository that you are in.
+Without a target, `ssp status` shows the arm of the `exp/` branch that you are on. Outside an `exp/` branch, it shows the app or repository that you are in. For the proxies and the arm events, query the app's views.
 
 ```sql
 SELECT id, kind, version, report FROM atlas.hosts;
@@ -87,15 +82,15 @@ FROM atlas.lifecycle ORDER BY timestamp DESC LIMIT 20;
 
 ## Change the arm
 
-Push a new commit. When it is approved and can merge, it replaces the running commit. The arm keeps its subjects, and the experiment gets a new version. Evidence keeps its version and commit.
+Push a new commit. When it can merge, it replaces the running commit. The arm keeps its subjects, and the experiment gets a new version. The evidence keeps its version and commit.
 
-To change the share or the rules, change `statespace.toml` on the branch and push. To change only the share, use **Edit** on the arm in the dashboard: the Statespace App commits the change to the branch, with you as co-author.
+To change the share or the rules, change `statespace.toml` on the branch, and push. To change only the share, use **Edit** on the arm in the dashboard. The Statespace App commits the change to the branch, with you as co-author.
 
 ## Stop and resume
 
-To stop an arm, make its pull request a draft. Mark it ready for review to run it again.
+To stop an arm, make its pull request a draft. To run it again, mark the pull request ready for review.
 
-In an emergency, stop arms at once with `ssp stop`, or with **Stop** in the dashboard. The Statespace App makes the pull requests drafts, and comments who stopped them. Their subjects get the default within seconds.
+In an emergency, use `ssp stop`, or **Stop** in the dashboard. The Statespace App makes the pull requests drafts, and comments who stopped them. Their subjects get the default within seconds.
 
 ```shell
 ssp stop https://github.com/acme/atlas/pull/418
@@ -105,18 +100,86 @@ ssp stop .
 
 | Target | Stops |
 | --- | --- |
-| A pull request URL | Its arm, in every app it runs in |
-| A repository URL | Every arm of the repository's apps |
-| A path, such as `.` | The arms of the app of the nearest `statespace.toml`; without one, of the repository |
+| A pull request URL | Its arm, in each app that it runs in |
+| A repository URL | Each arm of the repository's apps |
+| A path, such as `.` | The arms of the app of the nearest `statespace.toml`. Without one, the arms of the repository |
 
-The dashboard also stops every arm of one experiment or one app.
+The dashboard can also stop each arm of one experiment or of one app.
 
-To run the arms again, run `ssp resume` with the same targets, or mark the pull requests ready for review on GitHub. `ssp resume` marks ready only the drafts that a stop made. A draft that a person made stays a draft. Each arm runs again while its pull request can merge.
+To run the arms again, use `ssp resume` with the same targets. You can also mark the pull requests ready for review on GitHub.
 
 ```shell
 ssp resume https://github.com/acme/atlas/pull/418
 ```
 
-If a stop or a resume cannot change some pull requests, it lists them and exits with status 1. While GitHub is unavailable, a stop is not possible. Proxies keep their last plan.
+`ssp resume` marks ready only the drafts that a stop made. A draft that a person made stays a draft. Each arm runs again while its pull request can merge. If a stop or a resume cannot change a pull request, it shows the pull request and exits with status 1.
 
-To ship an arm, merge its pull request and deploy as usual. Merging ends the experiment. Its other arms run again after you update them with the default branch.
+<Warning>
+  A stop needs GitHub. While GitHub is not available, you cannot stop an arm. Proxies keep their last plan.
+</Warning>
+
+## Ship the arm
+
+To ship an arm, merge its pull request, and deploy as usual.
+
+<Note>
+  A merge ends the experiment. Its other arms run again after you update them with the default branch.
+</Note>
+
+## Troubleshooting
+
+The `statespace/arm` check and `ssp status` show why an arm waits. Find the reason below.
+
+<AccordionGroup>
+  <Accordion title="The pull request cannot merge">
+    The arm runs only while GitHub says that the pull request can merge.
+
+    | Reason | Do this |
+    | --- | --- |
+    | it needs approval | Get the approval that branch protection requires |
+    | a required check or rule blocks the merge | Fix the failed check, or meet the rule |
+    | it is behind the default branch; update it | Update the branch with the default branch |
+    | it has conflicts with the default branch | Resolve the conflicts, and push |
+    | GitHub is checking whether it can merge | Wait until GitHub finishes the check |
+
+    While it waits, the arm runs the last commit that could merge, if there is one.
+  </Accordion>
+
+  <Accordion title="The pull request is stopped">
+    | Reason | Do this |
+    | --- | --- |
+    | the pull request is a draft; mark it ready for review to run it | Mark it ready for review, or run `ssp resume` with its URL |
+    | a reviewer requested changes | Make the changes, and get a new review |
+  </Accordion>
+
+  <Accordion title="The commit has no build">
+    The reason is `<commit> has no build yet`. CI did not record the head commit yet. Look at the `statespace/apply` check, and at the workflow run of the commit.
+  </Accordion>
+
+  <Accordion title="The base did not run as the default">
+    The reason is `its base <commit> has not run as the default yet`. Deploy the default branch at that commit or later. Make sure that a proxy runs it. With continuous deployment, this takes some minutes at most.
+  </Accordion>
+
+  <Accordion title="Another arm of the experiment merged">
+    The reason is `an arm of <experiment> merged; update this branch with the default branch`. The merge ended the experiment version. Update the branch with the default branch, and push.
+  </Accordion>
+
+  <Accordion title="The rules differ from the other arms">
+    The reason is `its subject or eligibility rule differs from the other arms of <experiment>`. Use the same `subject` and `eligibility` in each arm of the experiment. To test another audience, use another experiment name.
+  </Accordion>
+
+  <Accordion title="The app has no free traffic">
+    The reason is `experiments would hold X of the app's subjects, over its Y limit`. The arm waits until it fits, first come, first served. Lower its share, stop another arm, or raise `max_traffic` on the default branch.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Analyze the outcomes" icon="chart-column" href="/workflow/analyze-the-outcomes">
+    Check delivery and health, then compare the arms in SQL.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/reference/cli">
+    See every flag of `ssp status`, `stop`, and `resume`.
+  </Card>
+</CardGroup>

@@ -38,6 +38,7 @@
         "pages": [
           "index",
           "quickstart",
+          "getting-started/how-it-works",
           "getting-started/installation",
           "getting-started/deployment"
         ]
