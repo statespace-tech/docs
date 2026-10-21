@@ -26,7 +26,21 @@ In this tutorial, you test a change to the search app `atlas` on live traffic. Y
   </Step>
 
   <Step title="Merge the setup pull request">
-    The App opens a pull request named "Set up Statespace". It adds `statespace.toml` and `.github/workflows/statespace.yml`. The workflow builds each push to an `exp/` branch from your `Dockerfile`, and records the image.
+    The App opens a pull request named "Set up Statespace". It adds `.github/workflows/statespace.yml` and this `statespace.toml`. The workflow builds each push to an `exp/` branch from your `Dockerfile`, and records the image.
+
+    ```toml statespace.toml
+    # Statespace runs a branch named exp/<name> as an
+    # experiment while its pull request can merge.
+    # Settings:
+    # https://docs.statespace.com/reference/experiment-definition
+    app = "atlas"
+    # The share of the app's subjects that an arm gets.
+    # Its control gets as many.
+    share = 0.05
+    # The most of the app's subjects that experiments
+    # may hold together.
+    max_traffic = 0.2
+    ```
 
     In the workflow that builds production, add this step after the build. Statespace then knows the commit of each production image.
 
@@ -40,7 +54,7 @@ In this tutorial, you test a change to the search app `atlas` on live traffic. Y
     Merge the pull request. In branch protection for `main`, require one approval.
 
     <Tip>
-      If the App did not open the pull request, open it from the checklist on the **Apps** page.
+      If the App did not open the pull request, open it from the checklist on the **Apps** page. Each step of the checklist shows the snippet that you need for it.
     </Tip>
   </Step>
 
@@ -60,16 +74,17 @@ In this tutorial, you test a change to the search app `atlas` on live traffic. Y
   </Step>
 
   <Step title="Run the proxy">
-    Create a runtime token, and store it as `SSP_TOKEN` where the app runs.
+    Create a runtime token for the app, and store it as `SSP_TOKEN` where the app runs.
 
     ```shell
-    ssp token create --name production --preset runtime
+    ssp token create --name production \
+      --preset runtime --app atlas
     ```
 
-    Run the app behind `ssp proxy`. It runs your deployed image and each arm as containers, and routes each subject.
+    Run the app behind `ssp proxy`. It takes the app from the token. It runs your deployed image and each arm as containers, and routes each subject.
 
     ```shell
-    ssp proxy --app atlas --health /health \
+    ssp proxy --health /health \
       --image ghcr.io/acme/atlas:main
     ```
 
@@ -83,6 +98,7 @@ In this tutorial, you test a change to the search app `atlas` on live traffic. Y
     app = "atlas"
     share = 0.1
     subject = 'request.headers["x-user-id"]'
+    max_traffic = 0.2
     ```
 
     Push the branch, and open a pull request.
@@ -104,7 +120,9 @@ In this tutorial, you test a change to the search app `atlas` on live traffic. Y
     ssp status
     ```
 
-    Make sure that the status is `running`, with a share of 10%. If the status is `waiting`, it tells you why. The `statespace/arm` check on the pull request shows the same status.
+    Make sure that the status is `running`, with a share of 10%. `ssp status` also says that `recent-clicks` holds 20% of atlas's subjects: 10% for the arm, and 10% for its control. If the status is `waiting`, it tells you why.
+
+    The `Statespace` check on the pull request shows the same status. While the arm runs, the check also shows the subjects, requests, errors, latency, and events of the arm and its control.
   </Step>
 
   <Step title="Read the results">

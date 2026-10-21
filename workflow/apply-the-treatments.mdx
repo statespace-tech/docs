@@ -18,7 +18,26 @@ GitHub decides whether the arm may run. The arm runs while its pull request can 
 
 <WhatRuns />
 
-The `statespace/arm` check on each commit tells what runs, and why the arm waits. It never fails, so it never blocks a merge. The `statespace/apply` check tells whether CI recorded the commit.
+## The Statespace check
+
+The `Statespace` check on each commit of the branch tells what runs, and why the arm waits. Its title also gives the experiment's share of the app's subjects, such as `Running at 10% (+10% control), 20% in the experiment`.
+
+The check fails only when CI could not record the commit, such as for an invalid `statespace.toml`. A wait never fails it, so a wait never blocks a merge.
+
+While a version runs, the check shows the evidence of each arm and control. It is not a verdict. Compare the arms in SQL before you decide.
+
+| Row | Shows |
+| --- | --- |
+| Share | The share of the app's subjects |
+| Subjects | The subjects that the proxies assigned to it |
+| Requests | The requests that it served |
+| Errors (5xx) | The share of its requests with a 5xx status |
+| p90 latency | The 90th percentile of its request duration |
+| Events | The five `event` values that the arms printed most |
+
+From 100 subjects, the check also tests whether the subjects split as the shares say. A mismatch, at p < 0.001, means that you cannot trust the comparison until you find the cause. Statespace updates the check about every 5 minutes.
+
+## Fair comparisons
 
 Statespace also makes sure that the comparison is fair:
 
@@ -28,10 +47,10 @@ Statespace also makes sure that the comparison is fair:
 
 ## Run the proxy
 
-Run the app behind `ssp proxy`, with a runtime token as `SSP_TOKEN`.
+Run the app behind `ssp proxy`, with a runtime token as `SSP_TOKEN`. A token for one app, from `--preset runtime --app atlas`, gives the proxy its app.
 
 ```shell
-ssp proxy --app atlas --health /health \
+ssp proxy --health /health \
   --image ghcr.io/acme/atlas:main
 ```
 
@@ -44,7 +63,7 @@ On Kubernetes, the proxy runs beside the default in each pod, and `ssp controlle
 Give arms their own environment with `--arm-env`. Controls get it too, so both sides of the comparison run the same way.
 
 ```shell
-ssp proxy --app atlas --image ghcr.io/acme/atlas:main \
+ssp proxy --image ghcr.io/acme/atlas:main \
   --arm-env DATABASE_URL="$ARM_DATABASE_URL" \
   --arm-env SCHEDULER_ENABLED=false \
   --arm-env CACHE_PREFIX=arm
@@ -72,7 +91,7 @@ Make sure that the arms run before you wait for outcomes.
 ssp status https://github.com/acme/atlas/pull/418
 ```
 
-Without a target, `ssp status` shows the arm of the `exp/` branch that you are on. Outside an `exp/` branch, it shows the app or repository that you are in. For the proxies and the arm events, query the app's views.
+Without a target, `ssp status` shows the arm of the `exp/` branch that you are on. Outside an `exp/` branch, it shows the app or repository that you are in. Below the table, it gives each experiment's share of the app's subjects, such as `recent-clicks holds 20% of atlas's subjects.` For the proxies and the arm events, query the app's views.
 
 ```sql
 SELECT id, kind, version, report FROM atlas.hosts;
@@ -84,13 +103,13 @@ FROM atlas.lifecycle ORDER BY timestamp DESC LIMIT 20;
 
 Push a new commit. When it can merge, it replaces the running commit. The arm keeps its subjects, and the experiment gets a new version. The evidence keeps its version and commit.
 
-To change the share or the rules, change `statespace.toml` on the branch, and push. To change only the share, use **Edit** on the arm in the dashboard. The Statespace App commits the change to the branch, with you as co-author.
+To change the share or the rules, change `statespace.toml` on the branch, and push. To change only the share, use **Edit** on the arm in the dashboard. The Statespace App commits the change to the branch, with you as co-author. **Edit** needs the write role on the repository.
 
 ## Stop and resume
 
 To stop an arm, make its pull request a draft. To run it again, mark the pull request ready for review.
 
-In an emergency, use `ssp stop`, or **Stop** in the dashboard. The Statespace App makes the pull requests drafts, and comments who stopped them. Their subjects get the default within seconds.
+In an emergency, use `ssp stop`, or **Stop** in the dashboard. The Statespace App makes the pull requests drafts, and comments who stopped them. Their subjects get the default within seconds. A stop and a resume need the triage role on the repository. Statespace asks GitHub for your role at that moment.
 
 ```shell
 ssp stop https://github.com/acme/atlas/pull/418
@@ -128,7 +147,7 @@ To ship an arm, merge its pull request, and deploy as usual.
 
 ## Troubleshooting
 
-The `statespace/arm` check and `ssp status` show why an arm waits. Find the reason below.
+The `Statespace` check and `ssp status` show why an arm waits. Find the reason below.
 
 <AccordionGroup>
   <Accordion title="The pull request cannot merge">
@@ -153,7 +172,7 @@ The `statespace/arm` check and `ssp status` show why an arm waits. Find the reas
   </Accordion>
 
   <Accordion title="The commit has no build">
-    The reason is `<commit> has no build yet`. CI did not record the head commit yet. Look at the `statespace/apply` check, and at the workflow run of the commit.
+    The reason is `<commit> has no build yet`. CI did not record the head commit yet. Look at the `Statespace` check, and at the workflow run of the commit. If CI could not record the commit, the check failed and says why.
   </Accordion>
 
   <Accordion title="The base did not run as the default">

@@ -6,16 +6,15 @@ description: Every flag of ssp controller kubernetes, and how it runs arms on Ku
 `ssp controller kubernetes` runs the arms and controls of an app's experiments on Kubernetes. It runs as one pod in the app's namespace. It does not change the default's Deployment, and it does not handle requests. `ssp proxy --default` runs beside the default in each pod and routes the requests.
 
 ```shell
-ssp controller kubernetes \
-  --app atlas --deployment atlas
+ssp controller kubernetes --deployment atlas
 ```
 
-The controller needs a token with the `controller` preset in `SSP_TOKEN`. Set `STATESPACE_CONTROLLER` to the name of the controller's own Deployment. Then Kubernetes deletes its arms when you delete the controller.
+The controller needs a token with the `runtime` preset in `SSP_TOKEN`. The proxies and the controller can use the same token. A runtime token for one app gives the controller its app. Set `STATESPACE_CONTROLLER` to the name of the controller's own Deployment. Then Kubernetes deletes its arms when you delete the controller.
 
 ## Flags
 
-<ParamField body="--app" type="string" required>
-  The app whose experiments the controller serves. Environment variable: `STATESPACE_APP`.
+<ParamField body="--app" type="string">
+  The app whose experiments the controller serves. Defaults to the app of a token for one app. Without such a token, `--app` is required. Environment variable: `STATESPACE_APP`.
 </ParamField>
 
 <ParamField body="--deployment" type="string" required>

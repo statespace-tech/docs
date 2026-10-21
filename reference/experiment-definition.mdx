@@ -43,7 +43,7 @@ Arm settings come from each `exp/` branch. App settings come from the default br
 </ParamField>
 
 <ParamField path="max_traffic" type="number" default={1}>
-  App setting. The share of the app's subjects that experiments may hold, arms and controls together: greater than 0 and at most 1. Arms that do not fit wait, first come, first served. A lower limit stops no arm that runs.
+  App setting. The share of the app's subjects that experiments may hold, arms and controls together: greater than 0 and at most 1. Arms that do not fit wait, first come, first served. A lower limit stops no arm that runs. The setup pull request writes `max_traffic = 0.2`. Without the key, the limit is 1.
 </ParamField>
 
 <ParamField path="output_retention_days" type="integer" default={7}>
@@ -59,11 +59,11 @@ request.headers["cf-ipcountry"] == "US"
 '''
 ```
 
-`ssp apply` rejects a file with an unknown key, a value out of range, or a rule that does not compile. A commit whose rules differ from the other arms of its experiment fails the `statespace/apply` check.
+`ssp apply` rejects a file with an unknown key, a value out of range, or a rule that does not compile. A commit whose rules differ from the other arms of its experiment fails the `Statespace` check.
 
 ## Edit from the dashboard
 
-**Edit** in the dashboard changes `statespace.toml` for you. The Statespace App makes the commit, with you as co-author.
+**Edit** in the dashboard changes `statespace.toml` for you. The Statespace App makes the commit, with you as co-author. You need the write role on the repository.
 
 | Setting | Where the commit goes |
 | --- | --- |

@@ -11,11 +11,11 @@ Set up Statespace for your repositories, your terminal, and your servers.
   <Step title="Install the GitHub App">
     On [statespace.com](https://statespace.com), select **Connect GitHub**, and install the Statespace GitHub App on the repositories that run experiments. The same screen signs you in.
 
-    Your workspace takes the name of the GitHub organization or user. If that name is not available, choose a workspace name in the dashboard.
+    The GitHub organization or user that you install the App on becomes your workspace. See [Workspaces and roles](#workspaces-and-roles).
   </Step>
 
   <Step title="Merge the setup pull request">
-    For each repository that you selected, the App opens a "Set up Statespace" pull request. It adds `statespace.toml` and `.github/workflows/statespace.yml`. See [Deployment](/getting-started/deployment) for the step that you add to your production workflow.
+    For each repository that you selected, the App opens a "Set up Statespace" pull request. It adds `statespace.toml` and `.github/workflows/statespace.yml`. The workflow builds the `Dockerfile` nearest the root of the repository. See [Deployment](/getting-started/deployment) for the step that you add to your production workflow.
 
     <Note>
       If you gave the App access to all repositories, it opens no pull requests by itself. Open them from the checklist on the **Apps** page, for the repositories that you choose.
@@ -27,13 +27,32 @@ The App asks for these repository permissions. It writes only `statespace.toml` 
 
 | Permission | Access | Why |
 | --- | --- | --- |
-| Checks | Read and write | Post the `statespace/apply` and `statespace/arm` checks |
+| Checks | Read and write | Post the `Statespace` check |
 | Contents | Read and write | Find merge bases, open the setup pull request, and commit settings that you change in the dashboard |
 | Pull requests | Read and write | Read merge state, and make pull requests drafts when you stop arms |
 | Workflows | Read and write | Add `.github/workflows/statespace.yml` in the setup pull request |
 | Metadata | Read | Required by GitHub |
 
 The App receives the events check suite, pull request, pull request review, and push.
+
+## Workspaces and roles
+
+A workspace is the GitHub organization or user that installed the App. Statespace keys it by the account's numeric ID, so a rename keeps the workspace. The dashboard shows its login, such as "acme · GitHub". Nobody chooses a workspace name.
+
+The workspace's database and host come from the same ID, such as `gh_1234567` and `gh-1234567.statespace.app`.
+
+Teammates join when they sign in with GitHub. Each workspace whose installation they can access is theirs. There are no invites. In the dashboard, the switcher at the top opens the other workspaces.
+
+Each person can do what their role on the repository allows on GitHub:
+
+| Role on the repository | Can |
+| --- | --- |
+| Read | See its apps, experiments, proxies, and setup checklist |
+| Triage | Stop and resume its arms |
+| Write | Edit its settings, and open its setup pull request |
+| Admin of every repository, as organization owners are | Manage tokens, read the audit log, erase a subject, and delete an app |
+
+Stop, resume, and **Edit** ask GitHub for your role at that moment. A token belongs to one workspace, and its scopes decide what it can do.
 
 ## CLI
 
@@ -75,15 +94,18 @@ CI needs no token: `ssp apply` proves itself with the job's GitHub OIDC token. Y
 | --- | --- | --- |
 | Your terminal | `ssp login` | Show what runs, stop and resume arms, and manage tokens |
 | CI | None | Record images with `ssp apply` |
-| Your servers | `--preset runtime` | Run `ssp proxy` |
-| Kubernetes | `--preset controller` | Run `ssp controller kubernetes` |
+| Your servers | `--preset runtime` | Run `ssp proxy` and `ssp controller kubernetes` |
 | SQL clients | `--preset analyst` | Read runs, lines, and requests |
+| Agents | `--preset admin` | Run the whole loop |
 
-Create a runtime token for `ssp proxy`. Store the token in the output as `SSP_TOKEN` in a secret manager.
+Create a runtime token for one app. Store the token in the output as `SSP_TOKEN` in a secret manager. The proxy and the controller take the app from the token.
 
 ```shell
-ssp token create --name production --preset runtime
+ssp token create --name production \
+  --preset runtime --app atlas
 ```
+
+On the **Tokens** page of the dashboard, choose what the token is for: **Run Statespace**, **Read data in SQL**, or **Run an agent**.
 
 <Warning>
   Statespace shows a token only once. Keep the output out of recorded logs.

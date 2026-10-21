@@ -31,8 +31,8 @@ A stop from Statespace makes the pull request a draft, so GitHub stays the one r
 
 | Part | What it does |
 | --- | --- |
-| GitHub App | Opens the setup pull request. Reads the state of pull requests. Posts the `statespace/apply` and `statespace/arm` checks. Makes pull requests drafts when you stop arms |
-| Dashboard | Shows what runs, stops and resumes arms, and edits `statespace.toml` through the App |
+| GitHub App | Opens the setup pull request. Reads the state of pull requests. Posts the `Statespace` check. Makes pull requests drafts when you stop arms |
+| Dashboard | Shows what runs. Stops and resumes arms, and edits `statespace.toml` through the App. Shows a setup checklist for each repository, with the snippet of each step. Creates tokens by their job |
 | `ssp status`, `stop`, `resume` | Show and stop arms from a terminal or an agent, by pull request URL, repository URL, or path |
 | `ssp apply` | Runs in CI, and records the image of each commit with the job's GitHub OIDC token |
 | `ssp proxy` | Assigns each request's subject and forwards the request. With `--image`, it also runs the default and the arms on Docker |

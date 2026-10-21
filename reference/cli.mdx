@@ -25,13 +25,17 @@ Every command takes these options.
   Print one JSON document instead of text.
 </ParamField>
 
+<ParamField body="--workspace" type="string">
+  The workspace, by its GitHub login, such as `acme`. Environment variable: `STATESPACE_WORKSPACE`. `status`, `stop`, and `resume` use the owner of their target's repository: the owner in a URL, or the owner of the `origin` remote of a path. Other commands use your only workspace. A token belongs to one workspace, so it needs no `--workspace`.
+</ParamField>
+
 ## Output and exit codes
 
 Commands print text on standard output. Notes, warnings, and errors go to standard error. A command that fails exits with status 1. With `--json`, the result is one JSON document, and an error is `{"error": "..."}` on standard error.
 
 ## login
 
-Sign in with GitHub and save the session. The command opens a browser, and you approve the terminal's code there.
+Sign in with GitHub and save the session. The command opens a browser, and you approve the terminal's code there. Then it lists your workspaces: the GitHub accounts whose installation of the App you can access.
 
 ```shell
 ssp login
@@ -55,7 +59,7 @@ ssp logout
 
 ## whoami
 
-Show the account, the credential in use, its scopes, and storage use.
+Show who is signed in, the workspace, the credential in use, its scopes, and storage use.
 
 ```shell
 ssp whoami
@@ -95,6 +99,8 @@ ssp status https://github.com/acme/atlas/pull/418
   Pull request URLs, repository URLs, or paths. See [Targets](#targets). Without a target, `status` shows the arm of the `exp/` branch that you checked out. Else it shows the app of the nearest `statespace.toml`, else the repository you are in, else every app.
 </ParamField>
 
+Below the table, `status` gives each experiment's share of the app's subjects, arms and controls together, such as `recent-clicks holds 20% of atlas's subjects.` With `--json`, each row has `experiment_share`.
+
 ## stop
 
 Stop arms at once. The Statespace App makes their pull requests drafts and comments who stopped them. Their subjects get the default.
@@ -107,7 +113,7 @@ ssp stop https://github.com/acme/atlas/pull/418
   One or more pull request URLs, repository URLs, or paths. See [Targets](#targets).
 </ParamField>
 
-The command does not ask for confirmation, so agents can run it. If it cannot change some pull requests, it names them on standard error and exits with status 1. With `--json`, they are under `failed`.
+The command does not ask for confirmation, so agents can run it. A signed-in person needs the triage role on each repository. If the command cannot change some pull requests, it names them on standard error and exits with status 1. With `--json`, they are under `failed`.
 
 <Note>
   While GitHub is unavailable, a stop is not possible. Proxies keep their last plan.
@@ -139,7 +145,7 @@ ssp resume https://github.com/acme/atlas/pull/418
 
 ## token create
 
-Create a token. `ssp` prints its secret only once.
+Create a token. `ssp` prints its secret only once. A signed-in person needs the admin role on every repository of the workspace, as organization owners have.
 
 ```shell
 ssp token create --name production --preset runtime
@@ -150,7 +156,7 @@ ssp token create --name production --preset runtime
 </ParamField>
 
 <ParamField body="--preset" type="string">
-  The usual scopes for a job: `runtime`, `controller`, `analyst`, or `admin`. See [Presets](#presets).
+  The usual scopes for a job: `runtime`, `analyst`, or `admin`. See [Presets](#presets).
 </ParamField>
 
 <ParamField body="--scope" type="string">
@@ -158,14 +164,14 @@ ssp token create --name production --preset runtime
 </ParamField>
 
 <ParamField body="--app" type="string">
-  Limit what the token reads in SQL to the views of one app. Needs `query:read`. Environment variable: `STATESPACE_APP`.
+  Limit the token to one app. A runtime token for one app gives `ssp proxy` and `ssp controller` their app, so they need no `--app`. A token with `query:read` reads only that app's views. Only the scopes `runtime:read`, `events:write`, `arms:report`, and `query:read` can be limited to an app. Environment variable: `STATESPACE_APP`.
 </ParamField>
 
 <ParamField body="--expires-in-days" type="integer">
   Days until the token expires. Omit it for no expiration.
 </ParamField>
 
-A token with `query:read` also has a database URL. Its user is the token's ID, and its password is the token. Connect over TLS to your workspace host, such as `acme.statespace.app`, with `sslmode=verify-full`. A PostgreSQL 16 or newer client reads the URL's `sslrootcert=system`. With an older client, replace that parameter with the path of a trusted CA bundle.
+A token with `query:read` also has a database URL. Its user is the token's ID, and its password is the token. Connect over TLS to your workspace host, such as `gh-1234567.statespace.app`, with `sslmode=verify-full`. A PostgreSQL 16 or newer client reads the URL's `sslrootcert=system`. With an older client, replace that parameter with the path of a trusted CA bundle.
 
 <Warning>
   Keep the output of `ssp token create` out of logs. Statespace cannot show the secret again.
@@ -175,14 +181,13 @@ A token with `query:read` also has a database URL. Its user is the token's ID, a
 
 | Preset | Scopes | For |
 | --- | --- | --- |
-| `runtime` | `runtime:read`, `events:write` | `ssp proxy` |
-| `controller` | `runtime:read`, `events:write`, `arms:report` | `ssp controller kubernetes` |
+| `runtime` | `runtime:read`, `events:write`, `arms:report` | `ssp proxy` and `ssp controller kubernetes` |
 | `analyst` | `query:read` | SQL clients |
 | `admin` | Every scope, `tokens:manage` included | Agents that run the whole loop |
 
 ## token list
 
-List tokens and sign-in sessions, without their secrets.
+List the workspace's tokens and your sign-in sessions, without their secrets.
 
 ```shell
 ssp token list
@@ -201,7 +206,7 @@ ssp token revoke tok_123
 </ParamField>
 
 <ParamField body="--all" type="boolean">
-  Revoke every token and session of the account, and end their database sessions. Needs `--yes`.
+  Revoke every token of the workspace and every session of yours, and end their database sessions. Needs `--yes`.
 </ParamField>
 
 <ParamField body="--yes" type="boolean">
@@ -213,8 +218,7 @@ ssp token revoke tok_123
 Run the reverse proxy in front of an app. See [Proxy](/reference/proxy) for every flag.
 
 ```shell
-ssp proxy --app atlas \
-  --image ghcr.io/acme/atlas:main
+ssp proxy --image ghcr.io/acme/atlas:main
 ```
 
 ## controller kubernetes
@@ -222,8 +226,7 @@ ssp proxy --app atlas \
 Run the arms of an app on Kubernetes. See [Controller](/reference/controller) for every flag.
 
 ```shell
-ssp controller kubernetes \
-  --app atlas --deployment atlas
+ssp controller kubernetes --deployment atlas
 ```
 
 ## Not in the CLI

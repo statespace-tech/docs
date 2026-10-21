@@ -13,9 +13,11 @@ A deployment has three parts. CI records the image of each commit. Branch protec
 
 <Steps>
   <Step title="Merge the Statespace workflow">
-    The "Set up Statespace" pull request adds this workflow. It builds each commit of an `exp/` branch from the repository's `Dockerfile`. Then it pushes the image to GitHub Packages, and records it.
+    The "Set up Statespace" pull request adds this workflow. It builds each commit of an `exp/` branch from the `Dockerfile` nearest the root of the repository. Then it pushes the image to GitHub Packages, and records it.
 
     ```yaml .github/workflows/statespace.yml
+    # Build each commit of an exp/ branch, and record
+    # it as a version of its arm.
     name: Statespace
     on:
       push:
@@ -34,18 +36,25 @@ A deployment has three parts. CI records the image of each commit. Branch protec
               registry: ghcr.io
               username: ${{ github.actor }}
               password: ${{ secrets.GITHUB_TOKEN }}
+          # This step builds your Dockerfile. To build
+          # another way, such as with ko, Jib, or
+          # buildpacks, replace this step. Keep the id
+          # and the digest output, or give the image to
+          # the last step.
           - uses: docker/build-push-action@v6
             id: build
             with:
+              context: .
               push: true
               tags: ghcr.io/acme/atlas:${{ github.sha }}
+          # Record the image. Keep this step.
           - uses: statespace-tech/action@v1
             with:
               image: >-
                 ghcr.io/acme/atlas@${{ steps.build.outputs.digest }}
     ```
 
-    If the repository has no `Dockerfile`, the App leaves a comment above the build step. Change that step to build your image the way you build production, and keep its `id`.
+    When the `Dockerfile` is in a folder, such as `services/api/Dockerfile`, the build step sets `context: services/api` and `file: services/api/Dockerfile`. If the repository has no `Dockerfile`, the comment above the build step says so. Change that step to build your image the way you build production. Keep its `id`, or give the image to the last step.
   </Step>
 
   <Step title="Record production builds">
@@ -90,7 +99,6 @@ An arm runs only while GitHub says that its pull request can merge. So your bran
     [Service]
     SupplementaryGroups=docker
     EnvironmentFile=/etc/atlas/env
-    Environment=STATESPACE_APP=atlas
     Environment=STATESPACE_IMAGE_FILE=/etc/atlas/image
     ExecStart=/usr/local/bin/ssp proxy --health /health
     ExecReload=/bin/kill -HUP $MAINPID
@@ -99,7 +107,12 @@ An arm runs only while GitHub says that its pull request can merge. So your bran
     Restart=always
     ```
 
-    Put the runtime token in `/etc/atlas/env` as `SSP_TOKEN`. The containers get the environment of the service, but not the variables of the proxy.
+    Put a runtime token for the app in `/etc/atlas/env` as `SSP_TOKEN`. The proxy takes the app from the token. The containers get the environment of the service, but not the variables of the proxy.
+
+    ```shell
+    ssp token create --name atlas-proxy \
+      --preset runtime --app atlas
+    ```
 
     To deploy a new default, write its image to the file, and reload the service. The proxy starts the new image. When `--health` answers, the proxy sends it traffic and stops the old container.
 
@@ -126,23 +139,26 @@ An arm runs only while GitHub says that its pull request can merge. So your bran
           - --default
           - http://localhost:8000
         env:
-          - name: STATESPACE_APP
-            value: atlas
           - name: SSP_TOKEN
             valueFrom:
               secretKeyRef:
                 name: statespace
-                key: runtime-token
+                key: token
         ports:
           - containerPort: 8080
     ```
 
     Set the Service's `targetPort` to `8080`, the sidecar's port.
 
-    Run one `ssp controller kubernetes` in the namespace, with a controller token. It runs each arm and control as a copy of the Deployment, with the arm's image. When the arm stops, the controller deletes the copy. It also reports the digest of the default that the Deployment's pods run.
+    Run one `ssp controller kubernetes` in the namespace. It runs each arm and control as a copy of the Deployment, with the arm's image. When the arm stops, the controller deletes the copy. It also reports the digest of the default that the Deployment's pods run.
+
+    The sidecars and the controller use the same runtime token for the app, and take the app from it.
 
     ```shell
-    ssp token create --name controller --preset controller
+    ssp token create --name atlas \
+      --preset runtime --app atlas
+    kubectl create secret generic statespace \
+      --from-literal=token=<token>
     kubectl apply -f statespace-controller.yaml
     ```
 
@@ -161,7 +177,7 @@ Keep as many machines or pods as you run now. All proxies assign a subject to th
 
 Each proxy on Docker, and each controller, runs a maximum of `--max-arms` arms, controls included. The default is 5. Make the machines large enough for that many copies of the app, or set a lower limit. On Kubernetes, each arm gets the replicas of the default, times its share of subjects. Each arm gets a minimum of one replica. Subjects of arms over the limit get the default.
 
-To limit how many subjects are in experiments at all, set the app's traffic limit on the default branch. Arms that do not fit wait, first come, first served.
+To limit how many subjects are in experiments at all, set the app's traffic limit on the default branch. Arms that do not fit wait, first come, first served. The setup pull request sets 20%. Without the key, the limit is 100%.
 
 ```toml statespace.toml
 app = "atlas"

@@ -12,7 +12,7 @@ load balancer → ssp proxy :8080
   └→ recent-clicks@4be1f0c  (branch image)
 ```
 
-The proxy needs a token with the `runtime` preset in `SSP_TOKEN`.
+The proxy needs a token with the `runtime` preset in `SSP_TOKEN`. A runtime token for one app, from `ssp token create --preset runtime --app atlas`, gives the proxy its app.
 
 ## Two ways to run
 
@@ -24,16 +24,14 @@ The proxy needs a token with the `runtime` preset in `SSP_TOKEN`.
 <CodeGroup>
 
 ```shell Docker
-ssp proxy --app atlas \
-  --image-file /etc/atlas/image \
+ssp proxy --image-file /etc/atlas/image \
   --health /health \
   --arm-env DATABASE_URL="$ARM_DATABASE_URL" \
   --redact 'sk_live_\w+'
 ```
 
 ```shell Routing only
-ssp proxy --app atlas \
-  --default http://localhost:8000
+ssp proxy --default http://localhost:8000
 ```
 
 </CodeGroup>
@@ -42,8 +40,8 @@ ssp proxy --app atlas \
 
 Give one of `--image`, `--image-file`, or `--default`.
 
-<ParamField body="--app" type="string" required>
-  The app whose experiments the proxy serves. Environment variable: `STATESPACE_APP`.
+<ParamField body="--app" type="string">
+  The app whose experiments the proxy serves. Defaults to the app of a token for one app. Without such a token, `--app` is required. With such a token, another app is an error. Environment variable: `STATESPACE_APP`.
 </ParamField>
 
 <ParamField body="--image" type="string">
