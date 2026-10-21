@@ -26,7 +26,8 @@ A token opens the API and, with `query:read`, PostgreSQL. Statespace shows its s
 ```shell
 ssp token create --name production --preset runtime
 ssp token create --name analyst --preset analyst --app atlas
-ssp token create --name agent --scope experiments:write --scope query:read --expires-in-days 30
+ssp token create --name agent --expires-in-days 30 \
+  --scope experiments:write --scope query:read
 ssp token list
 ssp token revoke tok_123
 ssp token revoke --all --yes

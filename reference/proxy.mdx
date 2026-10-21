@@ -6,9 +6,10 @@ description: Review how ssp proxy routes requests, runs containers, and records 
 `ssp proxy` is a reverse proxy in front of an app. For each request, it assigns the subject and forwards the request to the app's default or to an arm of the subject's experiment.
 
 ```text
-load balancer → ssp proxy :8080 → default                   (the deployed image)
-                                → control of ranking        (the default build of the arms' base)
-                                → recent-clicks@4be1f0c     (an image of the branch)
+load balancer → ssp proxy :8080
+  ├→ default                (deployed image)
+  ├→ control of ranking     (default of the base)
+  └→ recent-clicks@4be1f0c  (branch image)
 ```
 
 ## Two ways to run

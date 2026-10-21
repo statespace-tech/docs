@@ -46,7 +46,8 @@ SELECT
   arm,
   commit,
   avg((status >= 500)::int) AS error_rate,
-  percentile_cont(0.9) WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
+  percentile_cont(0.9)
+    WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
 FROM atlas.requests
 WHERE experiment = 'ranking' AND experiment_version = 1
 GROUP BY arm, commit;
@@ -61,8 +62,8 @@ SELECT
   arm,
   commit,
   count(*) AS observations,
-  avg((data->>'position')::double precision) AS mean_position,
-  stddev_samp((data->>'position')::double precision) AS sd_position
+  avg((data->>'position')::float) AS mean_position,
+  stddev_samp((data->>'position')::float) AS sd_position
 FROM atlas.logs
 WHERE experiment = 'ranking'
   AND experiment_version = 1
@@ -75,5 +76,6 @@ GROUP BY arm, commit;
 Write the decision and its evidence in the pull request. Then close it to drop the arm, or merge it to ship.
 
 ```shell
-gh pr close 412 --comment "Keep the default: no change in click position, p90 latency +40 ms."
+gh pr close 412 --comment "Keep the default:
+no change in click position, p90 latency +40 ms."
 ```

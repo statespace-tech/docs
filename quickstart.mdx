@@ -28,7 +28,8 @@ This example tests a branch of the search app `atlas` that ranks results by rece
     ```yaml
     - uses: statespace-tech/action@v1
       with:
-        image: ghcr.io/acme/atlas@${{ steps.build.outputs.digest }}
+        image: >-
+          ghcr.io/acme/atlas@${{ steps.build.outputs.digest }}
     ```
 
     Merge the pull request. In branch protection for `main`, require one approval. If the App did not open the pull request, open it from the checklist on the **Apps** page of the dashboard.
@@ -45,7 +46,11 @@ This example tests a branch of the search app `atlas` that ranks results by rece
 
     ```python
     subject = request.headers["x-statespace-subject"]
-    print(json.dumps({"event": "click", "subject": subject, "position": 1}))
+    print(json.dumps({
+        "event": "click",
+        "subject": subject,
+        "position": 1,
+    }))
     ```
 
     Deploy this change to production as usual, so the default and every arm print the same lines.
@@ -56,7 +61,8 @@ This example tests a branch of the search app `atlas` that ranks results by rece
 
     ```shell
     ssp token create --name production --preset runtime
-    ssp proxy --app atlas --image ghcr.io/acme/atlas:main --health /health
+    ssp proxy --app atlas --health /health \
+  --image ghcr.io/acme/atlas:main
     ```
 
     On Kubernetes, run it beside the app in each pod instead. See [Deployment](/getting-started/deployment).
@@ -93,9 +99,11 @@ This example tests a branch of the search app `atlas` that ranks results by rece
     ```sql
     SELECT arm, commit,
            count(DISTINCT subject_id) AS subjects,
-           count(DISTINCT subject_id) FILTER (WHERE data->>'event' = 'click') AS clicked
+           count(DISTINCT subject_id)
+             FILTER (WHERE data->>'event' = 'click') AS clicked
     FROM atlas.logs
-    WHERE experiment = 'recent-clicks' AND reason IN ('assigned', 'arm-unavailable')
+    WHERE experiment = 'recent-clicks'
+      AND reason IN ('assigned', 'arm-unavailable')
     GROUP BY arm, commit;
     ```
 

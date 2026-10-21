@@ -22,7 +22,11 @@ This distinction affects whether the [estimand](/concepts/statistical-inference#
 Every line an arm prints is a raw outcome. A JSON line keeps its fields as `data`, and its `subject` field ties it to that subject's arm.
 
 ```python
-print(json.dumps({"event": "click", "subject": subject, "position": 3}))
+print(json.dumps({
+    "event": "click",
+    "subject": subject,
+    "position": 3,
+}))
 ```
 
 The proxy sets the `x-statespace-subject` header to the subject from your rule. Thus, each arm uses the subject that the proxy assigned. Use the same event names, meaning, and units in the default and every arm. A line without a subject still belongs to the arm that printed it, which serves rates such as errors per request.
@@ -64,10 +68,12 @@ WITH unit_outcomes AS (
   SELECT
     subject_id,
     arm,
-    avg((data->>'position')::double precision) AS unit_position
+    avg((data->>'position')::float) AS unit_position
   FROM atlas.logs
   WHERE experiment = 'ranking'
-    AND experiment_version = 1 AND reason IN ('assigned', 'arm-unavailable') AND data->>'event' = 'click'
+    AND experiment_version = 1
+    AND reason IN ('assigned', 'arm-unavailable')
+    AND data->>'event' = 'click'
   GROUP BY subject_id, arm
 )
 SELECT
@@ -91,7 +97,8 @@ A guardrail metric detects unacceptable harm outside the primary objective. Comm
 ```sql
 SELECT arm,
        avg((status >= 500)::int) AS error_rate,
-       percentile_cont(0.9) WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
+       percentile_cont(0.9)
+         WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
 FROM atlas.requests
 WHERE experiment = 'ranking'
 GROUP BY arm;
@@ -100,7 +107,11 @@ GROUP BY arm;
 Print other guardrails as lines in the default and every arm.
 
 ```python
-print(json.dumps({"event": "performance", "subject": subject, "latency_ms": 42}))
+print(json.dumps({
+    "event": "performance",
+    "subject": subject,
+    "latency_ms": 42,
+}))
 ```
 
 ## Structured outcomes

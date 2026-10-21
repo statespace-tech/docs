@@ -22,7 +22,8 @@ All arms of an experiment use the same subject rule. A commit with another rule 
 `ssp proxy` calculates a bucket from the app's salt and the subject ID.
 
 ```text
-bucket = first 53 bits of SHA-256(salt + ":" + subject_id) / 2^53
+hash   = SHA-256(salt + ":" + subject_id)
+bucket = first 53 bits of hash / 2^53
 ```
 
 The same subject, salt, and allocation ranges produce the same arm on every proxy and every request.

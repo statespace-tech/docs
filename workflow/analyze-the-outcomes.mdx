@@ -40,7 +40,8 @@ Compare errors and latency of the arms before you trust outcomes. Divide by requ
 SELECT arm, commit,
        count(*) AS requests,
        avg((status >= 500)::int) AS error_rate,
-       percentile_cont(0.9) WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
+       percentile_cont(0.9)
+         WITHIN GROUP (ORDER BY duration_ms) AS p90_ms
 FROM atlas.requests
 WHERE experiment = 'ranking' AND experiment_version = 1
 GROUP BY arm, commit;
@@ -75,8 +76,10 @@ SELECT
   arm,
   commit,
   count(DISTINCT subject_id) AS subjects,
-  count(*) FILTER (WHERE data->>'event' = 'click') AS clicks,
-  avg((data->>'position')::double precision) FILTER (WHERE data->>'event' = 'click') AS mean_position
+  count(*)
+    FILTER (WHERE data->>'event' = 'click') AS clicks,
+  avg((data->>'position')::float)
+    FILTER (WHERE data->>'event' = 'click') AS mean_position
 FROM atlas.logs
 WHERE experiment = 'ranking'
   AND experiment_version = 1

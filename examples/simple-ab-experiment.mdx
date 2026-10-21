@@ -22,24 +22,31 @@ Print the same line in the default and the arm.
 
 ```python
 subject = request.headers["x-statespace-subject"]
-print(json.dumps({"event": "click", "subject": subject, "position": 1}))
+print(json.dumps({
+    "event": "click",
+    "subject": subject,
+    "position": 1,
+}))
 ```
 
 Push the branch and open a pull request with the hypothesis. When it is approved and can merge, the arm runs.
 
 ```shell
 git push -u origin exp/ranking/recent-clicks
-gh pr create --title "Rank by recent clicks" --body "Sorted results should get more clicks."
+gh pr create --title "Rank by recent clicks" \
+  --body "Sorted results should get more clicks."
 ```
 
 Compare the arms within version 1.
 
 ```sql
 SELECT arm, commit, count(DISTINCT subject_id) AS subjects,
-       avg((data->>'position')::double precision) AS mean_position
+       avg((data->>'position')::float) AS mean_position
 FROM atlas.logs
-WHERE experiment = 'ranking' AND experiment_version = 1
-  AND reason IN ('assigned', 'arm-unavailable') AND data->>'event' = 'click'
+WHERE experiment = 'ranking'
+  AND experiment_version = 1
+  AND reason IN ('assigned', 'arm-unavailable')
+  AND data->>'event' = 'click'
 GROUP BY arm, commit;
 ```
 

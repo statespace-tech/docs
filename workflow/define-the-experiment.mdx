@@ -15,7 +15,11 @@ Statespace records each line that an arm prints, with its arm. Thus, your curren
 
 ```python
 subject = request.headers["x-statespace-subject"]
-print(json.dumps({"event": "click", "subject": subject, "position": position}))
+print(json.dumps({
+    "event": "click",
+    "subject": subject,
+    "position": position,
+}))
 ```
 
 The proxy calculates the subject with your subject rule. It sends the result in the `x-statespace-subject` header. The app reads the subject from this header.

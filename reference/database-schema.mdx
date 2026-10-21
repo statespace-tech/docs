@@ -5,19 +5,19 @@ description: Review each app's analysis views, the account's audit log, and what
 
 Each account has one isolated PostgreSQL database. Each app has a schema of the same name, with views that show only that app's rows. Tokens with `query:read` can read these views and nothing else.
 
-```text
-atlas.logs          one row per run, with the lines its subject's arm printed after it
-atlas.runs          each subject's routing by a proxy
-atlas.output        every line the arms printed
-atlas.requests      one row per request an arm served
-atlas.metrics       per-minute HTTP summaries and resource use of each arm
-atlas.lifecycle     arm events: started, ready, exited, stopped, failed
-atlas.hosts         proxies and controllers that reported in the last day
-atlas.arms          every arm and control of every version, and where it runs
-atlas.pull_requests what the pull requests of experiment branches run, and why they wait
-atlas.sample_ratio  whether each version's subjects split as its shares say
-account.audit       every change to the account and its apps
-```
+| View | Has |
+| --- | --- |
+| `atlas.logs` | One row per run, with the lines its subject's arm printed after it |
+| `atlas.runs` | Each subject's routing by a proxy |
+| `atlas.output` | Every line the arms printed |
+| `atlas.requests` | One row per request an arm served |
+| `atlas.metrics` | Per-minute HTTP summaries and resource use of each arm |
+| `atlas.lifecycle` | Arm events: started, ready, exited, stopped, failed |
+| `atlas.hosts` | Proxies and controllers that reported in the last day |
+| `atlas.arms` | Every arm and control of every version, and where it runs |
+| `atlas.pull_requests` | What the pull requests of experiment branches run, and why they wait |
+| `atlas.sample_ratio` | Whether each version's subjects split as its shares say |
+| `account.audit` | Every change to the account and its apps |
 
 The API commits events to an account outbox. The worker writes the final rows into tables in the `statespace` schema, which tokens cannot read. The default is never recorded.
 
@@ -73,7 +73,8 @@ SELECT
   arm,
   commit,
   count(DISTINCT subject_id) AS subjects,
-  avg((data->>'position')::double precision) FILTER (WHERE data->>'event' = 'click') AS mean_position
+  avg((data->>'position')::float)
+    FILTER (WHERE data->>'event' = 'click') AS mean_position
 FROM atlas.logs
 WHERE experiment = 'ranking'
   AND reason IN ('assigned', 'arm-unavailable')

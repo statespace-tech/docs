@@ -9,12 +9,12 @@ A treatment is the behavior being tested. An arm is a branch of your app that de
 
 This example changes search ranking with the arm `recent-clicks`, the branch `exp/ranking/recent-clicks`.
 
-```text
-intervention: change search ranking
-treatment:    recent-clicks, an image of a commit of exp/ranking/recent-clicks
-control:      the default build of the commit where the branch left main
-default:      the image of atlas you deployed, for everyone outside the experiment
-```
+| Term | In this example |
+| --- | --- |
+| Intervention | Change search ranking |
+| Treatment | `recent-clicks`, an image of a commit of `exp/ranking/recent-clicks` |
+| Control | The default build of the commit where the branch left `main` |
+| Default | The image of `atlas` you deployed, for everyone outside the experiment |
 
 An arm can change anything in your app's image: code, dependencies, the operating system, or how it starts. Each commit is a version of the arm, and an experiment version records the commit of each of its arms.
 

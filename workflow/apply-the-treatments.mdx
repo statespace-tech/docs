@@ -36,7 +36,8 @@ Statespace also checks that the comparison is fair:
 Run the app behind `ssp proxy`. Give it a runtime token as `SSP_TOKEN`.
 
 ```shell
-ssp proxy --app atlas --image ghcr.io/acme/atlas:main --health /health
+ssp proxy --app atlas --health /health \
+  --image ghcr.io/acme/atlas:main
 ```
 
 The proxy runs the default image as a container, and a container for each arm and control. A container gets traffic once `--health` answers 200. The proxy reports the digest of its default, so that Statespace knows which commit is deployed.
@@ -80,7 +81,8 @@ Without a target, `ssp status` shows the arm of the `exp/` branch that you check
 
 ```sql
 SELECT id, kind, version, report FROM atlas.hosts;
-SELECT timestamp, arm, commit, event, data FROM atlas.lifecycle ORDER BY timestamp DESC LIMIT 20;
+SELECT timestamp, arm, commit, event, data
+FROM atlas.lifecycle ORDER BY timestamp DESC LIMIT 20;
 ```
 
 ## Change the arm

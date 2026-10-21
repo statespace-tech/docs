@@ -19,7 +19,11 @@ Print lines with the account ID as the subject.
 
 ```python
 subject = request.headers["x-statespace-subject"]
-print(json.dumps({"event": "click", "subject": subject, "user": user_id}))
+print(json.dumps({
+    "event": "click",
+    "subject": subject,
+    "user": user_id,
+}))
 ```
 
 Count independent accounts rather than requests.
@@ -27,7 +31,9 @@ Count independent accounts rather than requests.
 ```sql
 SELECT arm, commit, count(DISTINCT subject_id) AS accounts
 FROM atlas.runs
-WHERE experiment = 'ranking' AND experiment_version = 1 AND reason IN ('assigned', 'arm-unavailable')
+WHERE experiment = 'ranking'
+  AND experiment_version = 1
+  AND reason IN ('assigned', 'arm-unavailable')
 GROUP BY arm, commit;
 ```
 

@@ -37,7 +37,8 @@ jobs:
           tags: ghcr.io/acme/atlas:${{ github.sha }}
       - uses: statespace-tech/action@v1
         with:
-          image: ghcr.io/acme/atlas@${{ steps.build.outputs.digest }}
+          image: >-
+            ghcr.io/acme/atlas@${{ steps.build.outputs.digest }}
 ```
 
 Add the same last step to the workflow that builds production, after its build. The App does not change deploy workflows, so this step is yours to add. On the default branch, the step records a default build. When a proxy runs that image, its commit becomes a base that arms can start from.
@@ -102,7 +103,9 @@ containers:
         value: atlas
       - name: SSP_TOKEN
         valueFrom:
-          secretKeyRef: {name: statespace, key: runtime-token}
+          secretKeyRef:
+            name: statespace
+            key: runtime-token
     ports:
       - containerPort: 8080
 ```

@@ -5,9 +5,10 @@ description: A/B test whole versions of your app on live traffic, from pull requ
 
 Statespace A/B tests whole versions of an app in production. A branch named `exp/<name>` is an arm, and its pull request is its address. `exp/<experiment>/<arm>` adds more arms to one experiment. When GitHub says that its pull request can merge, `ssp proxy` sends a share of real subjects to the branch, and the same share to a control: the version the branch started from. Then it records what they do.
 
-```text
-connect GitHub → merge "Set up Statespace" → push exp/ branch → CI runs ssp apply → pull request can merge → ssp proxy routes subjects → arms print lines → SQL
-```
+1. Connect GitHub, and merge the "Set up Statespace" pull request.
+2. Push an `exp/` branch, and open a pull request. CI records each commit with `ssp apply`.
+3. When the pull request can merge, `ssp proxy` routes a share of the subjects to the arm.
+4. The arm prints lines. Compare the arms in SQL.
 
 ## Start here
 
@@ -67,5 +68,9 @@ A stop from Statespace makes the pull request a draft, so GitHub stays the one r
 Your app prints what happens, as it already does. Every line an arm prints is recorded, and a JSON line with a `subject` field is tied to that subject's arm.
 
 ```python
-print(json.dumps({"event": "click", "subject": subject, "position": 1}))
+print(json.dumps({
+    "event": "click",
+    "subject": subject,
+    "position": 1,
+}))
 ```
