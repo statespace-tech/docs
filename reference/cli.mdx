@@ -96,42 +96,42 @@ ssp status https://github.com/acme/atlas/pull/418
 ```
 
 <ParamField body="targets" type="string[]">
-  Pull request URLs, repository URLs, or paths. See [Targets](#targets). Without a target, `status` shows the arm of the `exp/` branch that you checked out. Else it shows the app of the nearest `statespace.toml`, else the repository you are in, else every app.
+  Targets. See [Targets](#targets). Without a target, `status` shows the arm of the `exp/` branch that you checked out. Else it shows the app of the nearest `statespace.toml`, else the repository you are in, else every app.
 </ParamField>
 
 Below the table, `status` gives each experiment's share of the app's subjects, arms and controls together, such as `recent-clicks holds 20% of atlas's subjects.` With `--json`, each row has `experiment_share`.
 
 ## stop
 
-Stop arms at once. The Statespace App makes their pull requests drafts and comments who stopped them. Their subjects get the default.
+Stop an app, an experiment, or an arm at once. Statespace keeps a hold on the target. The pull requests do not change. Subjects get the default until someone resumes the same target.
 
 ```shell
-ssp stop https://github.com/acme/atlas/pull/418
+ssp stop exp/ranking/recent-clicks --reason "errors > 2%"
 ```
 
 <ParamField body="targets" type="string[]" required>
-  One or more pull request URLs, repository URLs, or paths. See [Targets](#targets).
+  One or more targets. See [Targets](#targets).
 </ParamField>
 
-The command does not ask for confirmation, so agents can run it. A signed-in person needs the triage role on each repository. If the command cannot change some pull requests, it names them on standard error and exits with status 1. With `--json`, they are under `failed`.
+<ParamField body="--reason" type="string">
+  Why you stop. The `Statespace` check, `ssp status`, and the dashboard show it.
+</ParamField>
 
-<Note>
-  While GitHub is unavailable, a stop is not possible. Proxies keep their last plan.
-</Note>
+The command does not ask for confirmation, so agents can run it. A signed-in person needs the triage role on each repository. A token needs the `experiments:write` scope. A stop on a target that has a hold already changes nothing. If some targets fail, the command names them on standard error and exits with status 1. With `--json`, they are under `failed`.
 
 ## resume
 
-Mark ready for review the pull requests that a stop made drafts. Each arm runs again while its pull request can merge.
+Clear the hold on each target. Holds on other targets stay. Each arm runs again while its pull request can merge.
 
 ```shell
-ssp resume https://github.com/acme/atlas/pull/418
+ssp resume exp/ranking/recent-clicks
 ```
 
 <ParamField body="targets" type="string[]" required>
-  One or more pull request URLs, repository URLs, or paths. See [Targets](#targets).
+  One or more targets. See [Targets](#targets).
 </ParamField>
 
-`resume` changes only the drafts that a stop made. A named pull request that a person made a draft is an error; a wider target skips it. Failures work as for `stop`.
+A target without a hold fails, and the error names the holds that cover it, for example `atlas/ranking has no hold. It is covered by: atlas (datadog-alerts)`. Failures work as for `stop`.
 
 ## Targets
 
@@ -139,8 +139,11 @@ ssp resume https://github.com/acme/atlas/pull/418
 
 | Target | Means |
 | --- | --- |
+| `atlas` | The app |
+| `atlas/ranking` | One experiment of the app |
+| `exp/ranking/recent-clicks` | One arm. The app comes from the nearest `statespace.toml`, or from the only app with that experiment |
 | `https://github.com/acme/atlas/pull/418` | That pull request's arm, in every app it runs in |
-| `https://github.com/acme/atlas` | Every arm of the repository's apps |
+| `https://github.com/acme/atlas` | Every app of the repository |
 | `.` or `services/search` | The app of the nearest `statespace.toml`; without one, the repository |
 
 ## token create

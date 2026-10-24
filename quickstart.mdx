@@ -146,10 +146,11 @@ In this tutorial, you test a change to the search app `atlas` on live traffic. Y
     GROUP BY arm, commit;
     ```
 
-    To ship the arm, merge the pull request. To stop it, make the pull request a draft, or run `ssp stop` with its URL.
+    To ship the arm, merge the pull request. To stop it at once, run `ssp stop` with its branch. To run it again, run `ssp resume`.
 
     ```shell
-    ssp stop https://github.com/acme/atlas/pull/418
+    ssp stop exp/ranking/recent-clicks
+    ssp resume exp/ranking/recent-clicks
     ```
   </Step>
 </Steps>

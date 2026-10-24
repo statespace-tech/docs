@@ -79,7 +79,7 @@ A proxy records a run when it routes a subject in an experiment version for the 
 | `subject_id` | `TEXT` | The subject |
 | `arm` | `TEXT` | `control` or an arm. `NULL` when ineligible |
 | `commit` | `TEXT` | The arm's commit, or a control's base commit. `NULL` when ineligible |
-| `reason` | `TEXT` | `assigned`, `ineligible`, `eligibility-error`, or `arm-unavailable` |
+| `reason` | `TEXT` | `assigned`, `ineligible`, `eligibility-error`, `arm-unavailable`, or `override` (a request that chose its arm; see [Overrides](/reference/proxy#overrides)) |
 | `context` | `JSONB` | The request's `method` and `path` |
 | `host` | `TEXT` | The proxy |
 
@@ -190,7 +190,7 @@ Compare an arm with the control whose `commit` is the arm's `base_commit`.
 | `branch` | `TEXT` | The `exp/` branch |
 | `head_commit` | `TEXT` | The newest commit of the branch |
 | `state` | `TEXT` | `open`, `closed`, or `merged` |
-| `draft` | `BOOLEAN` | Whether it is a draft. A stop makes it a draft |
+| `draft` | `BOOLEAN` | Whether it is a draft. A draft runs no arm |
 | `review_decision` | `TEXT` | GitHub's review decision, such as `approved` |
 | `merge_state` | `TEXT` | GitHub's merge state, such as `clean` or `blocked` |
 | `merged_at` | `TIMESTAMPTZ` | When it merged |

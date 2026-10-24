@@ -107,35 +107,72 @@ To change the share or the rules, change `statespace.toml` on the branch, and pu
 
 ## Stop and resume
 
-To stop an arm, make its pull request a draft. To run it again, mark the pull request ready for review.
-
-In an emergency, use `ssp stop`, or **Stop** in the dashboard. The Statespace App makes the pull requests drafts, and comments who stopped them. Their subjects get the default within seconds. A stop and a resume need the triage role on the repository. Statespace asks GitHub for your role at that moment.
+A stop takes arms off traffic at once. Their subjects get the default within seconds. The pull requests do not change, and GitHub is not necessary.
 
 ```shell
-ssp stop https://github.com/acme/atlas/pull/418
-ssp stop https://github.com/acme/atlas
-ssp stop .
+ssp stop atlas
+ssp stop atlas/ranking
+ssp stop exp/ranking/recent-clicks --reason "errors > 2%"
 ```
 
 | Target | Stops |
 | --- | --- |
+| An app, such as `atlas` | Every experiment of the app, also experiments that start later |
+| An experiment, such as `atlas/ranking` | Every arm of the experiment, also arms that open later |
+| A branch, such as `exp/ranking/recent-clicks` | That arm |
 | A pull request URL | Its arm, in each app that it runs in |
-| A repository URL | Each arm of the repository's apps |
-| A path, such as `.` | The arms of the app of the nearest `statespace.toml`. Without one, the arms of the repository |
+| A repository URL | Every app of the repository |
+| A path, such as `.` | The app of the nearest `statespace.toml` |
 
-The dashboard can also stop each arm of one experiment or of one app.
+**Stop** in the dashboard does the same for an app, an experiment, or an arm.
 
-To run the arms again, use `ssp resume` with the same targets. You can also mark the pull requests ready for review on GitHub.
+A stop is a hold that Statespace keeps. While a hold covers an arm:
+
+1. The arm does not run, also after a new push.
+2. Its `Statespace` check fails, for example `Stopped by octocat with ssp stop · errors > 2%`. If your repository requires the check, the pull request cannot merge.
+3. `ssp status` and the dashboard show who stopped it, when, and why.
+
+To run it again, resume the same target:
 
 ```shell
-ssp resume https://github.com/acme/atlas/pull/418
+ssp resume exp/ranking/recent-clicks
 ```
 
-`ssp resume` marks ready only the drafts that a stop made. A draft that a person made stays a draft. Each arm runs again while its pull request can merge. If a stop or a resume cannot change a pull request, it shows the pull request and exits with status 1.
+A resume clears only the hold on its target. Other holds stay. For example:
 
-<Warning>
-  A stop needs GitHub. While GitHub is not available, you cannot stop an arm. Proxies keep their last plan.
-</Warning>
+1. At 02:00, an alert stops the app: `ssp stop atlas`.
+2. At 02:10, a person stops one arm: `ssp stop exp/ranking/recent-clicks`.
+3. At 03:00, `ssp resume atlas` runs the other experiments again. `recent-clicks` stays stopped until `ssp resume exp/ranking/recent-clicks`.
+
+A resume does not start an arm that GitHub does not allow. The arm runs again only while its pull request can merge.
+
+A stop and a resume need the triage role on the repository, or a token with the `experiments:write` scope. An alert can stop an app through the API:
+
+```shell
+curl -X POST https://api.statespace.com/v1/stop \
+  -H "authorization: Bearer $STATESPACE_TOKEN" \
+  -d '{"targets": [{"app": "atlas"}],
+       "reason": "checkout errors > 2%"}'
+```
+
+## Look at an arm
+
+To see a running arm yourself, use a proxy with [`--overrides`](/reference/proxy#overrides). Add the branch to any URL of the app:
+
+```text
+https://staging.atlas.dev/?ssp_arm=exp/ranking/recent-clicks
+```
+
+The proxy sends you to the same URL without the parameter, and keeps you on the arm for one hour of activity. To leave the arm, open a URL with an empty `?ssp_arm=`.
+
+For an API, send the header on each request:
+
+```shell
+curl https://api.atlas.dev/search?q=maps \
+  -H 'ssp-arm: exp/ranking/recent-clicks'
+```
+
+The `Statespace` check of each pull request shows both forms. Only arms that run can be opened. Your visits are recorded with the reason `override`. They do not count as subjects of the arm, but the lines the arm prints count in its events.
 
 ## Ship the arm
 
@@ -167,7 +204,8 @@ The `Statespace` check and `ssp status` show why an arm waits. Find the reason b
   <Accordion title="The pull request is stopped">
     | Reason | Do this |
     | --- | --- |
-    | the pull request is a draft; mark it ready for review to run it | Mark it ready for review, or run `ssp resume` with its URL |
+    | the pull request is a draft; mark it ready for review to run it | Mark it ready for review |
+    | Stopped by … | Run `ssp resume` with the same target, or **Resume** in the dashboard |
     | a reviewer requested changes | Make the changes, and get a new review |
   </Accordion>
 

@@ -80,6 +80,10 @@ Give one of `--image`, `--image-file`, or `--default`.
   A regular expression. The proxy replaces its matches in recorded lines before the lines leave this machine. Repeat it for each expression.
 </ParamField>
 
+<ParamField body="--overrides" type="boolean">
+  Let requests choose a running arm with `?ssp_arm=<branch>` or the header `ssp-arm`. See [Overrides](#overrides). Environment variable: `STATESPACE_OVERRIDES`. Without it, the proxy removes both and ignores them.
+</ParamField>
+
 <ParamField body="--port" type="integer">
   The port that the app listens on in its container. Defaults to the image's `EXPOSE` port. With `--image` only. Environment variable: `STATESPACE_PORT`.
 </ParamField>
@@ -111,6 +115,27 @@ The proxy sends these headers to the app. It removes the same headers from clien
 The proxy sets the `ssp_sid` cookie on the first response to a new visitor. It accepts HTTP/1.1 and HTTP/2, streams request and response bodies, and passes WebSocket and other upgrades through. If an arm does not answer a request without a body, the proxy sends that request to the default again.
 
 A subject gets the default when its arm starts, fails, or is over `--max-arms`. Its run records `reason = 'arm-unavailable'`. Every subject gets the default when the proxy has no configuration newer than `--stale-after`.
+
+## Overrides
+
+With `--overrides`, a request can choose a running arm by its branch. Use it to look at an arm in staging or in production.
+
+| Client | Send | The proxy |
+| --- | --- | --- |
+| Browser | `?ssp_arm=exp/ranking/recent-clicks` | Sets the `ssp_arm` cookie, and redirects a `GET` to the same URL without the parameter |
+| API | Header `ssp-arm: exp/ranking/recent-clicks` | Uses the arm for that request only |
+
+1. The cookie lasts one hour, and each request renews it.
+2. An empty `?ssp_arm=` removes the cookie.
+3. A branch that does not run gets status 404 and the list of running arms.
+4. A cookie for an arm that stopped is removed, and the request gets the normal assignment.
+5. The app never sees `ssp_arm` or `ssp-arm`.
+
+Override runs record `reason = 'override'`. Subject counts and the split test ignore them. Requests and printed lines count for the arm.
+
+<Warning>
+  Anybody who can reach a proxy with `--overrides` can open its running arms. Put staging behind a VPN, a password, or an IP allowlist. Branch names of public repositories are public.
+</Warning>
 
 ## Containers
 

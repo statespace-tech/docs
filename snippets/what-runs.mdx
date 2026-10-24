@@ -4,6 +4,7 @@
 | Never could merge | Does not run |
 | Could merge, and then could not | Runs the last commit that could merge. The `Statespace` check warns after 7 days |
 | Is a draft, or a reviewer requested changes | Stops |
+| Is stopped in Statespace (`ssp stop` or **Stop**) | Stops until someone resumes it. The pull request does not change |
 | Merged | Ends the experiment. Its other arms run again from bases built after the merge |
 | Closed | Is removed |
 

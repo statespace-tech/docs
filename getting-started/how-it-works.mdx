@@ -25,15 +25,15 @@ GitHub decides what may run. Statespace decides only whether it runs fairly.
 
 <WhatRuns />
 
-A stop from Statespace makes the pull request a draft, so GitHub stays the one record of what may run. Each new commit needs a new approval, unless your repository says otherwise.
+An arm runs only when both say yes: GitHub, and Statespace. Statespace says no only after a stop. A stop is a hold that Statespace keeps. It does not change the pull request, and it works while GitHub is not available. Each new commit needs a new approval, unless your repository says otherwise.
 
 ## Parts of Statespace
 
 | Part | What it does |
 | --- | --- |
-| GitHub App | Opens the setup pull request. Reads the state of pull requests. Posts the `Statespace` check. Makes pull requests drafts when you stop arms |
+| GitHub App | Opens the setup pull request. Reads the state of pull requests. Posts the `Statespace` check |
 | Dashboard | Shows what runs. Stops and resumes arms, and edits `statespace.toml` through the App. Shows a setup checklist for each repository, with the snippet of each step. Creates tokens by their job |
-| `ssp status`, `stop`, `resume` | Show and stop arms from a terminal or an agent, by pull request URL, repository URL, or path |
+| `ssp status`, `stop`, `resume` | Show what runs, and stop or resume an app, an experiment, or an arm, from a terminal or an agent |
 | `ssp apply` | Runs in CI, and records the image of each commit with the job's GitHub OIDC token |
 | `ssp proxy` | Assigns each request's subject and forwards the request. With `--image`, it also runs the default and the arms on Docker |
 | `ssp controller kubernetes` | Runs the arms on Kubernetes as copies of the default's Deployment |
