@@ -2,7 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Statespace",
-  "description": "A/B test whole versions of your app on live traffic, from pull requests.",
+  "description": "Run a commit on a share of live traffic beside a control, and read the evidence on the commit.",
   "colors": {
     "primary": "#6B56C8",
     "light": "#9C8CE6",
@@ -34,49 +34,48 @@
   "navigation": {
     "groups": [
       {
-        "group": "Getting started",
+        "group": "Get started",
         "pages": [
           "index",
           "quickstart",
-          "getting-started/how-it-works",
-          "getting-started/installation",
-          "getting-started/deployment"
+          "getting-started/installation"
         ]
       },
       {
         "group": "Concepts",
         "pages": [
-          "concepts/random-sampling",
-          "concepts/treatments-and-control-groups",
-          "concepts/random-assignment",
-          "concepts/outcome-measures",
-          "concepts/statistical-inference"
+          "concepts/how-it-works",
+          "concepts/apps",
+          "concepts/arms",
+          "concepts/subjects",
+          "concepts/events-and-metrics",
+          "concepts/evidence",
+          "concepts/holds",
+          "concepts/overrides",
+          "concepts/permissions"
         ]
       },
       {
-        "group": "Experiment workflow",
+        "group": "Guides",
         "pages": [
-          "workflow/define-the-experiment",
-          "workflow/apply-the-treatments",
-          "workflow/analyze-the-outcomes"
-        ]
-      },
-      {
-        "group": "Examples",
-        "pages": [
-          "examples/simple-ab-experiment",
-          "examples/cluster-randomized-experiment",
-          "examples/full-analysis-walkthrough"
+          "guides/github-actions",
+          "guides/docker",
+          "guides/cloud-run",
+          "guides/kubernetes",
+          "guides/events-and-metrics",
+          "guides/emergency-stop",
+          "guides/agents"
         ]
       },
       {
         "group": "Reference",
         "pages": [
-          "reference/experiment-definition",
           "reference/cli",
-          "reference/proxy",
-          "reference/controller",
-          "reference/database-schema"
+          "reference/statespace-toml",
+          "reference/api",
+          "reference/cel",
+          "reference/commit-status",
+          "reference/limits"
         ]
       }
     ]
@@ -136,7 +135,59 @@
   "redirects": [
     {
       "source": "/reference/host",
-      "destination": "/reference/proxy"
+      "destination": "/reference/cli"
+    },
+    {
+      "source": "/reference/proxy",
+      "destination": "/reference/cli"
+    },
+    {
+      "source": "/reference/controller",
+      "destination": "/guides/kubernetes"
+    },
+    {
+      "source": "/reference/experiment-definition",
+      "destination": "/reference/statespace-toml"
+    },
+    {
+      "source": "/reference/database-schema",
+      "destination": "/concepts/events-and-metrics"
+    },
+    {
+      "source": "/getting-started/how-it-works",
+      "destination": "/concepts/how-it-works"
+    },
+    {
+      "source": "/getting-started/deployment",
+      "destination": "/guides/docker"
+    },
+    {
+      "source": "/concepts/random-sampling",
+      "destination": "/concepts/subjects"
+    },
+    {
+      "source": "/concepts/treatments-and-control-groups",
+      "destination": "/concepts/apps"
+    },
+    {
+      "source": "/concepts/random-assignment",
+      "destination": "/concepts/subjects"
+    },
+    {
+      "source": "/concepts/outcome-measures",
+      "destination": "/concepts/events-and-metrics"
+    },
+    {
+      "source": "/concepts/statistical-inference",
+      "destination": "/concepts/evidence"
+    },
+    {
+      "source": "/workflow/:slug*",
+      "destination": "/quickstart"
+    },
+    {
+      "source": "/examples/:slug*",
+      "destination": "/guides/events-and-metrics"
     }
   ]
 }
