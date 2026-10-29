@@ -1,22 +1,26 @@
 ---
 title: Quickstart
-description: Test a new search ranking on live traffic from a pull request, and read the result.
+description: Run a commit as an arm on Docker, read its evidence on the commit, and remove it.
 ---
 
-In this tutorial, you test a change to the search app `atlas` on live traffic. You push the branch `exp/recent-clicks`, which ranks results by recent clicks. At the end, 10% of the subjects get the branch and 10% get its control. Then you compare the two in SQL.
+import BuildWorkflow from '/snippets/build-workflow.mdx';
+
+In this tutorial, you test a change to the app `shop-dev` on live traffic. The app runs on one machine with Docker. At the end, 5% of the visitors get your commit, and 5% get the control. The commit status `statespace/shop-dev` shows the evidence.
 
 ## Prerequisites
 
-- A GitHub repository with a `Dockerfile`, such as `acme/atlas`.
-- A GitHub Actions workflow that builds and deploys the app from `main`.
-- A server with Docker that runs the app.
+- A GitHub repo with a `Dockerfile`, such as `acme/shop`. The app listens on the port that the `Dockerfile` names with `EXPOSE`.
+- A Linux machine with Docker. The proxy runs the app on this machine.
+- The admin role on the repo. You need it to add the app and its token.
 
-## Run your first experiment
+## Run your first arm
 
 <Steps>
-  <Step title="Connect GitHub">
-    On [statespace.com](https://statespace.com), select **Connect GitHub**. Pick your organization and the repositories that run experiments. One screen installs the Statespace GitHub App and signs you in.
+  <Step title="Install the GitHub App">
+    On [statespace.com](https://statespace.com), select **Connect GitHub**. Install the Statespace GitHub App on the account that owns the repo. The App can read code, metadata, and members, and write commit statuses. It cannot write code.
+  </Step>
 
+  <Step title="Install the CLI">
     Install the CLI, and sign in with the same GitHub account.
 
     ```shell
@@ -25,149 +29,151 @@ In this tutorial, you test a change to the search app `atlas` on live traffic. Y
     ```
   </Step>
 
-  <Step title="Merge the setup pull request">
-    The App opens a pull request named "Set up Statespace". It adds `.github/workflows/statespace.yml` and this `statespace.toml`. The workflow builds each push to an `exp/` branch from your `Dockerfile`, and records the image.
+  <Step title="Write statespace.toml">
+    In the root folder of the repo, write a starter file.
+
+    ```shell
+    ssp init
+    ```
+
+    Add one event and one metric to the file. The event counts the visitors who send a checkout. The metric is the share of visitors with a checkout.
 
     ```toml statespace.toml
-    # Statespace runs a branch named exp/<name> as an
-    # experiment while its pull request can merge.
-    # Settings:
-    # https://docs.statespace.com/reference/experiment-definition
-    app = "atlas"
-    # The share of the app's subjects that an arm gets.
-    # Its control gets as many.
-    share = 0.05
-    # The most of the app's subjects that experiments
-    # may hold together.
-    max_traffic = 0.2
+    [[event]]
+    name = "checkout"
+    match = '''
+    request.method == "POST"
+      && request.path == "/api/checkout"
+      && request.status < 300
+    '''
+
+    [[metric]]
+    label = "checkout rate %"
+    value = '100.0 * events["checkout"].subjects / subjects'
     ```
 
-    In the workflow that builds production, add this step after the build. Statespace then knows the commit of each production image.
-
-    ```yaml .github/workflows/production.yml
-    - uses: statespace-tech/action@v1
-      with:
-        image: >-
-          ghcr.io/acme/atlas@${{ steps.build.outputs.digest }}
-    ```
-
-    Merge the pull request. In branch protection for `main`, require one approval.
-
-    <Tip>
-      If the App did not open the pull request, open it from the checklist on the **Apps** page. Each step of the checklist shows the snippet that you need for it.
-    </Tip>
+    See [statespace.toml](/reference/statespace-toml) for every key.
   </Step>
 
-  <Step title="Print what you measure">
-    Statespace records each line that an arm prints. To compare subjects, print a JSON line with a `subject` field. The proxy puts the subject in the `x-statespace-subject` header.
+  <Step title="Build every push">
+    `ssp init` printed the action step. Add the workflow below to the repo. It builds each push to each branch, pushes the image to GitHub Packages, and records the build.
 
-    ```python app.py
-    subject = request.headers["x-statespace-subject"]
-    print(json.dumps({
-        "event": "click",
-        "subject": subject,
-        "position": 1,
-    }))
+    <BuildWorkflow />
+
+    Commit both files, and push them to `main`.
+
+    ```shell
+    git add statespace.toml .github/workflows/build.yml
+    git commit -m "Record builds with Statespace"
+    git push
     ```
 
-    Deploy this change to production as usual. Then the default and every arm print the same lines.
+    When the workflow is done, the build of this commit is recorded.
+  </Step>
+
+  <Step title="Add the app">
+    In the repo folder, add the app. The CLI reads the repo from the `origin` remote, and the folder from the nearest `statespace.toml`. It prints what it found.
+
+    ```shell
+    ssp app add shop-dev --note "shop on the dev machine"
+    ```
+  </Step>
+
+  <Step title="Add a runtime token">
+    Add a token for the proxy. The CLI shows the secret only one time.
+
+    ```shell
+    ssp token add --app shop-dev --note "Docker proxy"
+    ```
+
+    On the machine, put the secret in `/etc/shop/env`.
+
+    ```shell /etc/shop/env
+    STATESPACE_TOKEN=<secret>
+    ```
   </Step>
 
   <Step title="Run the proxy">
-    Create a runtime token for the app, and store it as `SSP_TOKEN` where the app runs.
+    On the machine, write the live image to a file. Use the digest of the build of `main`.
 
     ```shell
-    ssp token create --name production \
-      --preset runtime --app atlas
+    echo "ghcr.io/acme/shop@sha256:<digest>" \
+      | sudo tee /etc/shop/image
     ```
 
-    Run the app behind `ssp proxy`. It takes the app from the token. It runs your deployed image and each arm as containers, and routes each subject.
+    Start the proxy. It runs live from the file, and it listens on port 8080. Point your traffic at port 8080.
 
     ```shell
-    ssp proxy --health /health \
-      --image ghcr.io/acme/atlas:main
+    set -a; . /etc/shop/env; set +a
+    ssp proxy docker --app shop-dev \
+      --image-file /etc/shop/image
     ```
 
-    On Kubernetes, run the proxy beside the app in each pod instead. See [Deployment](/getting-started/deployment).
+    To run the proxy as a service, see [Docker](/guides/docker).
   </Step>
 
-  <Step title="Open a pull request">
-    Start the branch, and change the ranking. Set the arm's share in `statespace.toml`.
-
-    ```toml statespace.toml
-    app = "atlas"
-    share = 0.1
-    subject = 'request.headers["x-user-id"]'
-    max_traffic = 0.2
-    ```
-
-    Push the branch, and open a pull request.
+  <Step title="Push a change">
+    Make a change on a new branch, and push it. CI builds the commit and records it.
 
     ```shell
-    git switch -c exp/recent-clicks
-    git commit -am "Rank results by recent clicks"
-    git push -u origin exp/recent-clicks
-    gh pr create --fill
+    git switch -c green-button
+    git commit -am "Make the checkout button green"
+    git push -u origin green-button
     ```
-
-    CI records the commit. When a reviewer approves the pull request and GitHub says that it can merge, the arm runs.
   </Step>
 
-  <Step title="Check that the arm runs">
-    Show the arm of the branch that you are on.
+  <Step title="Add the arm">
+    When the workflow is done, add the commit as an arm. The CLI prints the build that it chose.
 
     ```shell
-    ssp status
+    ssp arm add "$(git rev-parse HEAD)" --app shop-dev \
+      --share 0.05 --note "green checkout button"
     ```
 
-    Make sure that the status is `running`, with a share of 10%. `ssp status` also says that `recent-clicks` holds 20% of atlas's subjects: 10% for the arm, and 10% for its control. If the status is `waiting`, it tells you why.
-
-    The `Statespace` check on the pull request shows the same status. While the arm runs, the check also shows the subjects, requests, errors, latency, and events of the arm and its control.
+    The proxy starts the control and the arm. Then 5% of the visitors get the arm, and 5% get the control.
   </Step>
 
-  <Step title="Read the results">
-    Create a token that reads the app in SQL. The output shows its database URL.
+  <Step title="Read the evidence">
+    Show the arm.
 
     ```shell
-    ssp token create --name analyst --preset analyst \
-      --app atlas
+    ssp arm show "$(git rev-parse HEAD)" --app shop-dev
     ```
 
-    Compare the share of subjects who clicked in each arm.
+    The commit on GitHub has the status `statespace/shop-dev`. When the arm runs, the status says, for example:
 
-    ```sql
-    SELECT arm, commit,
-           count(DISTINCT subject_id) AS subjects,
-           count(DISTINCT subject_id)
-             FILTER (WHERE data->>'event' = 'click') AS clicked
-    FROM atlas.logs
-    WHERE experiment = 'recent-clicks'
-      AND reason IN ('assigned', 'arm-unavailable')
-    GROUP BY arm, commit;
+    ```text
+    5% · 1,204 subjects · split OK · checkout rate % 3.4 vs 2.8
+    · errors 0.3% vs 0.2%
     ```
 
-    To ship the arm, merge the pull request. To stop it at once, run `ssp stop` with its branch. To run it again, run `ssp resume`.
+    Statespace updates the status about every 10 minutes. Select **Details** to see the arm in the dashboard.
+  </Step>
+
+  <Step title="Remove the arm">
+    When you have the evidence that you need, remove the arm. Statespace keeps its evidence, and the status says "Ended".
 
     ```shell
-    ssp stop exp/ranking/recent-clicks
-    ssp resume exp/ranking/recent-clicks
+    ssp arm remove "$(git rev-parse HEAD)" --app shop-dev
     ```
+
+    To ship the change, merge the branch and deploy it as usual.
   </Step>
 </Steps>
 
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="How it works" icon="workflow" href="/getting-started/how-it-works">
-    See what serves each request, and what GitHub decides.
+  <Card title="How it works" icon="workflow" href="/concepts/how-it-works">
+    See live, the control, and the arms.
   </Card>
-  <Card title="Deployment" icon="server" href="/getting-started/deployment">
-    Run the proxy with systemd or on Kubernetes.
+  <Card title="Events and metrics" icon="chart-column" href="/guides/events-and-metrics">
+    Count what matters to you.
   </Card>
-  <Card title="Define the experiment" icon="flask-conical" href="/workflow/define-the-experiment">
-    Choose the subject, the eligibility, and the outcome.
+  <Card title="Stop in an emergency" icon="octagon-x" href="/guides/emergency-stop">
+    Stop an arm or an app at once.
   </Card>
-  <Card title="Analyze the outcomes" icon="chart-column" href="/workflow/analyze-the-outcomes">
-    Check the split, then compare the arms.
+  <Card title="Cloud Run" icon="cloud" href="/guides/cloud-run">
+    Run the proxy in front of a Cloud Run service.
   </Card>
 </CardGroup>

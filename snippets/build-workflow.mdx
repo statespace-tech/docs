@@ -1,0 +1,35 @@
+```yaml .github/workflows/build.yml
+# Build each push to each branch, and record the build.
+name: Build
+on:
+  push:
+    branches: ["**"]
+permissions:
+  contents: read
+  packages: write
+  # The Statespace action proves the commit with OIDC.
+  id-token: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/acme/shop:${{ github.sha }}
+      # Record "commit -> image digest". Keep this step
+      # after the build.
+      - uses: statespace-tech/action@v1
+        with:
+          image: >-
+            ghcr.io/acme/shop@${{ steps.build.outputs.digest }}
+          path: .
+```

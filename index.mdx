@@ -1,40 +1,42 @@
 ---
 title: Statespace
 sidebarTitle: Introduction
-description: A/B test whole versions of your app on live traffic, from pull requests, and analyze the results with SQL.
+description: Run a commit on a share of live traffic beside a control, and read the evidence on the commit.
 ---
 
-Statespace A/B tests whole versions of your app in production. A pull request of a branch named `exp/<name>` is an experiment. While GitHub says that the pull request can merge, `ssp proxy` sends a share of real subjects to the branch. The same share goes to a control: the version that the branch started from. Every line the arms print goes to your PostgreSQL database.
+import TrafficDiagram from '/snippets/traffic-diagram.mdx';
 
-1. Connect GitHub, and merge the "Set up Statespace" pull request.
-2. Push an `exp/` branch, and open a pull request. CI records each commit with `ssp apply`.
-3. When the pull request can merge, `ssp proxy` routes a share of the subjects to the arm.
-4. The arm prints lines. Compare the arms in SQL.
+Statespace runs a commit of your app on a small share of real traffic. A control runs beside it. Statespace records what happens and puts the evidence on the commit, as a commit status.
+
+A person or a coding agent adds the commit as an **arm**. The proxy in front of your app sends 5% of the visitors to the arm and 5% to the control. All other visitors get your live service, as before.
+
+<TrafficDiagram />
+
+Your CI builds the images. Statespace runs only images of builds that your CI recorded. Your settings, events, and metrics are in `statespace.toml`, in your repo.
+
+## How you use it
+
+1. Your CI builds each push and records the build with `statespace-tech/action@v1`.
+2. `ssp proxy` runs in front of your app.
+3. You add a commit as an arm with `ssp arm add a1b2c3d --app shop-prod`.
+4. The commit status `statespace/shop-prod` shows the evidence: subjects, the split check, your headline metric, and errors.
+5. You remove the arm with `ssp arm remove`, or stop it at once with `ssp arm stop`.
+
+Statespace shows numbers for each side. It does not tell you which side is better. You and your agents decide.
 
 ## Get started
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
-    Open a pull request, run an arm, and read the result.
-  </Card>
-  <Card title="How it works" icon="workflow" href="/getting-started/how-it-works">
-    See what serves each request, and what GitHub decides.
+    Run your first arm on Docker.
   </Card>
   <Card title="Installation" icon="download" href="/getting-started/installation">
-    Connect GitHub, install the CLI, and create tokens.
+    Install the GitHub App and the CLI.
   </Card>
-  <Card title="Deployment" icon="server" href="/getting-started/deployment">
-    Record builds from CI, and run the proxy in production.
+  <Card title="How it works" icon="workflow" href="/concepts/how-it-works">
+    See the parts and what each part does.
   </Card>
-</CardGroup>
-
-## Learn more
-
-<CardGroup cols={2}>
-  <Card title="Experiment workflow" icon="route" href="/workflow/define-the-experiment">
-    Follow an experiment from definition to analysis.
-  </Card>
-  <Card title="Reference" icon="book" href="/reference/experiment-definition">
-    Look up settings, commands, and tables.
+  <Card title="CLI reference" icon="terminal" href="/reference/cli">
+    Look up every command and flag.
   </Card>
 </CardGroup>

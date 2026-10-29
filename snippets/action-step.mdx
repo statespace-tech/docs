@@ -1,0 +1,9 @@
+```yaml .github/workflows/build.yml
+# Record "commit -> image digest" after the build.
+- uses: statespace-tech/action@v1
+  with:
+    image: >-
+      ghcr.io/acme/shop@${{ steps.build.outputs.digest }}
+    # The folder of statespace.toml.
+    path: .
+```
