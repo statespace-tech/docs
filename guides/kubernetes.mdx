@@ -1,0 +1,170 @@
+---
+title: Run the proxy on Kubernetes
+sidebarTitle: Kubernetes
+description: Run ssp proxy kubernetes as its own Deployment in front of your app, with arms as copies of your Deployment.
+---
+
+On Kubernetes, the proxy runs as its own Deployment in front of your app. The control and each arm run as copies of your Deployment with another image.
+
+```text
+                         ┌─► Service shop                (live)
+visitors ─► shop-proxy ──┼─► shop-ssp-control            (control)
+                         └─► shop-ssp-a1b2c3d4e5f6       (arm)
+```
+
+## How it works
+
+- Live is the Service of your Deployment. By default, it has the name of the Deployment.
+- For the control and each arm, the proxy makes a Deployment and a Service. Each one copies the pod spec of your Deployment and changes only the image.
+- Their names are `shop-ssp-control`, or `shop-ssp-` and the first 12 characters of the commit. They have the label `statespace.com/app`.
+- The replicas of each copy follow its share.
+- Your Deployment does not change.
+
+## Prerequisites
+
+- Your Deployment `shop` and its Service `shop`, in the namespace `prod`.
+- An app, such as `shop-prod`, and a recorded build of the image that live runs.
+- `kubectl` with rights to make a Role in the namespace.
+
+## Set up the proxy
+
+<Steps>
+  <Step title="Keep the token in a Secret">
+    Add a runtime token for the app, and put it in a Secret.
+
+    ```shell
+    ssp token add --app shop-prod --note "Kubernetes proxy"
+    kubectl -n prod create secret generic statespace \
+      --from-literal=token=<secret>
+    ```
+  </Step>
+
+  <Step title="Give the proxy its permissions">
+    The proxy manages Deployments and Services, and reads pods and their logs, in the namespace.
+
+    ```yaml shop-proxy-rbac.yaml
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: shop-proxy
+      namespace: prod
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: shop-proxy
+      namespace: prod
+    rules:
+      - apiGroups: ["apps"]
+        resources: ["deployments"]
+        verbs: ["get", "list", "watch", "create",
+                "update", "patch", "delete"]
+      - apiGroups: [""]
+        resources: ["services"]
+        verbs: ["get", "list", "watch", "create",
+                "update", "patch", "delete"]
+      - apiGroups: [""]
+        resources: ["pods", "pods/log"]
+        verbs: ["get", "list", "watch"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: shop-proxy
+      namespace: prod
+    subjects:
+      - kind: ServiceAccount
+        name: shop-proxy
+        namespace: prod
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: shop-proxy
+    ```
+  </Step>
+
+  <Step title="Deploy the proxy">
+    Run the proxy as a Deployment with a Service.
+
+    ```yaml shop-proxy.yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: shop-proxy
+      namespace: prod
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: shop-proxy
+      template:
+        metadata:
+          labels:
+            app: shop-proxy
+        spec:
+          serviceAccountName: shop-proxy
+          containers:
+            - name: proxy
+              image: ghcr.io/statespace-tech/statespace:0.4.0
+              args:
+                - proxy
+                - kubernetes
+                - --app
+                - shop-prod
+                - --deployment
+                - shop
+                - --namespace
+                - prod
+              env:
+                - name: STATESPACE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: statespace
+                      key: token
+              ports:
+                - containerPort: 8080
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: shop-proxy
+      namespace: prod
+    spec:
+      selector:
+        app: shop-proxy
+      ports:
+        - port: 80
+          targetPort: 8080
+    ```
+
+    ```shell
+    kubectl apply -f shop-proxy-rbac.yaml
+    kubectl apply -f shop-proxy.yaml
+    ```
+  </Step>
+
+  <Step title="Send traffic to the proxy">
+    Point your Ingress or load balancer to the Service `shop-proxy`, not to `shop`. Then check the app.
+
+    ```shell
+    ssp app show shop-prod
+    ```
+  </Step>
+</Steps>
+
+## Many replicas
+
+Every replica of the proxy routes requests. Only the replica that holds the app's lease manages the copies. When that replica stops, another replica gets the lease in about 30 seconds.
+
+All replicas must report the same settings and the same live image. While they do not, the arms of the app do not run, and `ssp app show` says why.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Docker" icon="container" href="/guides/docker">
+    Run the proxy on one machine.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/reference/cli#ssp-proxy-kubernetes">
+    Look up the flags of `ssp proxy kubernetes`.
+  </Card>
+</CardGroup>

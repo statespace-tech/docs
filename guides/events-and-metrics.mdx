@@ -1,0 +1,130 @@
+---
+title: Write events and metrics
+sidebarTitle: Events and metrics
+description: Count requests and output lines with CEL events, and compare the arm and the control with metrics.
+---
+
+This guide shows how to write events and metrics in `statespace.toml`. Your app needs no code change. See [Events and metrics](/concepts/events-and-metrics) for the model.
+
+## Steps
+
+1. Choose what to count: a request, or a line that the app prints.
+2. Write one `[[event]]` for each thing.
+3. Write a `[[metric]]` for each number that you want to compare. Put the most important metric first.
+4. Push the commit. CI checks every expression when it records the build.
+5. The settings apply when the commit runs as live.
+
+## Count requests
+
+A request event can use `method`, `path`, `query`, `headers`, `cookies`, `status`, and `ms`. Request events also count subjects, so use them for rates per visitor.
+
+```toml statespace.toml
+# A visitor signs up.
+[[event]]
+name = "signup"
+match = '''
+request.method == "POST"
+  && request.path == "/api/signup"
+  && request.status < 300
+'''
+
+# A visitor sends an order.
+[[event]]
+name = "checkout"
+match = '''
+request.method == "POST"
+  && request.path == "/api/checkout"
+  && request.status < 300
+'''
+
+# A page takes more than one second.
+[[event]]
+name = "slow"
+match = 'request.ms > 1000'
+
+# A visitor opens the shop from the mobile app.
+[[event]]
+name = "mobile"
+match = 'request.headers["x-client"] == "mobile"'
+```
+
+Statespace can match headers and cookies, but it never stores them.
+
+## Count output lines
+
+An output event uses `stdout` or `stderr`, with `text` and `json`. `json` is the line as an object, or `{}` when the line is not a JSON object.
+
+```toml statespace.toml
+# The app prints {"event": "payment_failed", ...}.
+[[event]]
+name = "payment_failed"
+match = 'stdout.json.event == "payment_failed"'
+
+# The app prints a fatal error.
+[[event]]
+name = "fatal"
+match = 'stderr.text.contains("FATAL")'
+```
+
+Output lines have no subject. So an output event has `.lines`, and no `.subjects`.
+
+## Write metrics
+
+A metric uses the totals of one side. Statespace computes it for the arm and for the control.
+
+```toml statespace.toml
+# The headline: the share of visitors who order.
+[[metric]]
+label = "checkout rate %"
+value = '100.0 * events["checkout"].subjects / subjects'
+
+[[metric]]
+label = "signup rate %"
+value = '100.0 * events["signup"].subjects / subjects'
+
+[[metric]]
+label = "error rate %"
+value = '100.0 * errors / requests'
+
+[[metric]]
+label = "slow requests %"
+value = '100.0 * events["slow"].lines / requests'
+
+[[metric]]
+label = "failed payments per 1k requests"
+value = '1000.0 * events["payment_failed"].lines / requests'
+
+[[metric]]
+label = "p90 ms"
+value = 'p90_ms'
+```
+
+## Rules
+
+- Each event uses exactly one source. An expression with no source, or with two sources, fails in CI.
+- A missing field is no match. It is not an error.
+- An event without rows is `0`. All numbers are decimals.
+- A metric that uses `.subjects` of an output event fails in CI.
+- A metric that uses an event that does not exist fails in CI.
+- A side with no subjects shows `–`.
+
+## Per-app events
+
+Events and metrics in a section `[app.<name>]` are added after the shared ones. Use this for a measure that only one app has.
+
+```toml statespace.toml
+[[app.shop-prod.event]]
+name = "refund"
+match = 'request.path == "/api/refund" && request.status < 300'
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="CEL variables" icon="braces" href="/reference/cel">
+    Look up every variable and field.
+  </Card>
+  <Card title="Evidence on the commit" icon="circle-check" href="/concepts/evidence">
+    See where the headline metric shows.
+  </Card>
+</CardGroup>

@@ -1,0 +1,84 @@
+---
+title: Run arms with coding agents
+sidebarTitle: Agents
+description: Let a coding agent add a commit as an arm, read the evidence, and remove the arm.
+---
+
+A coding agent can run the whole loop: change the code, run the change as an arm, read the evidence, and decide. Every command works without questions and prints JSON with `--json`.
+
+## Give the agent the skill
+
+Give this prompt to your coding agent.
+
+```text
+Read https://statespace.com/skill.md and follow it.
+```
+
+## Give the agent a credential
+
+The agent uses a GitHub credential. Its role on the repo decides what it can do. See [Permissions](/concepts/permissions).
+
+- In a terminal, sign in with `ssp login`.
+- For the API, send a GitHub user token, such as `github_pat_...`.
+
+To add arms, the agent needs the level that `arm_role` sets for the app. The default is `write`.
+
+## The loop
+
+1. The agent makes a change on a branch, commits it, and pushes it.
+
+   ```shell
+   git switch -c faster-search
+   git commit -am "Cache search results for 60 seconds"
+   git push -u origin faster-search
+   ```
+
+2. CI builds the commit and records it. The agent waits for the workflow.
+
+   ```shell
+   gh run watch --exit-status \
+     "$(gh run list --commit "$(git rev-parse HEAD)" \
+       --json databaseId --jq '.[0].databaseId')"
+   ```
+
+3. The agent adds the commit as an arm, with a note that says why.
+
+   ```shell
+   ssp arm add "$(git rev-parse HEAD)" --app shop-prod \
+     --share 0.05 --note "cache search, expect p90 down" \
+     --json
+   ```
+
+4. The agent reads the evidence from time to time.
+
+   ```shell
+   ssp arm show "$(git rev-parse HEAD)" --app shop-prod \
+     --json
+   ```
+
+   The JSON has `state`, `reason`, `totals`, `metrics`, `split`, and `versions`. The commit status `statespace/shop-prod` has the same headline.
+
+5. The agent or a person decides. To end the arm, remove it.
+
+   ```shell
+   ssp arm remove "$(git rev-parse HEAD)" --app shop-prod \
+     --note "p90 412 vs 455 ms, open a pull request"
+   ```
+
+## Rules for agents
+
+- Read `split` first. When the split is off, do not trust the other numbers.
+- Compare numbers of one version only. A new version starts the evidence again.
+- Stop an arm at once when errors go up: `ssp arm stop`.
+- Write a `--note` on each change. People read it in the dashboard and in `ssp arm show`.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="CLI" icon="terminal" href="/reference/cli">
+    Look up every command and its JSON.
+  </Card>
+  <Card title="Stop in an emergency" icon="octagon-x" href="/guides/emergency-stop">
+    Stop an arm or an app at once.
+  </Card>
+</CardGroup>

@@ -1,0 +1,111 @@
+---
+title: Run the proxy on Docker
+sidebarTitle: Docker
+description: Run ssp proxy docker on one machine, as a systemd service, with live, the control, and the arms as containers.
+---
+
+On a machine with Docker, `ssp proxy docker` runs live, the control, and the arms as containers. It listens on one port in front of them.
+
+## Prerequisites
+
+- An app, such as `shop-dev`. See [Apps](/concepts/apps).
+- A runtime token for the app.
+- A Linux machine with Docker and the `ssp` CLI.
+- A recorded build of the image that live runs.
+
+## Set up the service
+
+<Steps>
+  <Step title="Add a runtime token">
+    In your terminal, add a token for the app.
+
+    ```shell
+    ssp token add --app shop-dev --note "Docker proxy"
+    ```
+
+    On the machine, put the secret in an environment file. Let only root read it.
+
+    ```shell /etc/shop/env
+    STATESPACE_TOKEN=<secret>
+    ```
+  </Step>
+
+  <Step title="Write the live image">
+    Write the image of live to a file. Use a digest of a recorded build.
+
+    ```shell
+    echo "ghcr.io/acme/shop@sha256:<digest>" \
+      | sudo tee /etc/shop/image
+    ```
+  </Step>
+
+  <Step title="Add a systemd unit">
+    Add a unit that runs the proxy.
+
+    ```ini /etc/systemd/system/shop-proxy.service
+    [Unit]
+    After=docker.service
+    Requires=docker.service
+
+    [Service]
+    SupplementaryGroups=docker
+    EnvironmentFile=/etc/shop/env
+    ExecStart=/usr/local/bin/ssp proxy docker \
+      --app shop-dev \
+      --image-file /etc/shop/image
+    Restart=always
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+  </Step>
+
+  <Step title="Start the service">
+    Start the proxy, and point your traffic at port 8080.
+
+    ```shell
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now shop-proxy
+    ```
+  </Step>
+
+  <Step title="Check the app">
+    In your terminal, show the app. It shows live, the proxy instance, and the orchestrator `docker`.
+
+    ```shell
+    ssp app show shop-dev
+    ```
+  </Step>
+</Steps>
+
+## Deploy a new live
+
+Write the new image to the file. The proxy deploys it as the new live.
+
+```shell
+echo "ghcr.io/acme/shop@sha256:<new digest>" \
+  | sudo tee /etc/shop/image
+```
+
+When the live image changes, the proxy also replaces the control. Each arm starts a new version.
+
+## Containers
+
+- The port of the app comes from `EXPOSE` in its image.
+- The containers get the environment of the proxy.
+- The proxy labels its containers. After a crash, a new proxy adopts them.
+
+## Flags
+
+See [ssp proxy docker](/reference/cli#ssp-proxy-docker) for every flag.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Cloud Run" icon="cloud" href="/guides/cloud-run">
+    Run the proxy in front of a Cloud Run service.
+  </Card>
+  <Card title="Kubernetes" icon="ship-wheel" href="/guides/kubernetes">
+    Run the proxy in front of a Deployment.
+  </Card>
+</CardGroup>

@@ -1,0 +1,110 @@
+---
+title: Build every push on GitHub Actions
+sidebarTitle: GitHub Actions
+description: Build the commits that can become arms, and record each build with statespace-tech/action.
+---
+
+import BuildWorkflow from '/snippets/build-workflow.mdx';
+import ActionStep from '/snippets/action-step.mdx';
+
+Statespace runs only images that your CI built and recorded. This guide records builds from GitHub Actions.
+
+## Build every push
+
+Build each commit that can become an arm. The simplest way is to build each push to each branch.
+
+<BuildWorkflow />
+
+To build fewer commits, use a branch pattern, such as `branches: ["main", "try/**"]`. A branch name means nothing to Statespace. Only the build record counts.
+
+The job needs `id-token: write`. The action sends the job's GitHub OIDC token, and Statespace gets the repo and the commit from it. CI keeps no Statespace secret.
+
+## Record the build of live
+
+Statespace finds the live commit from the build of the live image. So the workflow that builds the image that you deploy must record it too. Add the action step after the build in that workflow.
+
+<ActionStep />
+
+When live runs an image without a build, the arms of the app wait.
+
+## Inputs
+
+<ParamField body="image" type="string" required>
+  The image, by digest, such as `ghcr.io/acme/shop@sha256:2222…`.
+</ParamField>
+
+<ParamField body="path" type="string">
+  The folder of `statespace.toml`, from the root of the repo, such as `.` or `services/shop`.
+</ParamField>
+
+<ParamField body="app" type="string">
+  The app that this build is for. Without it, the build serves every app of the repo and folder. See [Build labels](#build-labels).
+</ParamField>
+
+## Checks of statespace.toml
+
+The action sends `statespace.toml` with the build. Statespace checks the file.
+
+- A wrong key, a wrong type, or a CEL error fails the step, with the message.
+- A section `[app.<name>]` that matches no app gives a warning. The step does not fail.
+
+So a commit with a bad file gets no build, and cannot become an arm.
+
+## Build labels
+
+Some builds put different values in the image for each app. For example, a web app can put its API address in the bundle at build time. Then build one image for each app, and give each build its app.
+
+```yaml .github/workflows/build.yml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - app: shop-dev
+            api: https://api.dev.acme.com
+          - app: shop-prod
+            api: https://api.acme.com
+    steps:
+      # Check out, and sign in to the registry, as above.
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: .
+          push: true
+          build-args: API_URL=${{ matrix.api }}
+          tags: >-
+            ghcr.io/acme/shop:${{ matrix.app }}-${{ github.sha }}
+      - uses: statespace-tech/action@v1
+        with:
+          image: >-
+            ghcr.io/acme/shop@${{ steps.build.outputs.digest }}
+          path: .
+          app: ${{ matrix.app }}
+```
+
+These rules choose the build of a commit for an app:
+
+1. A build with `app: shop-prod` serves only `shop-prod`.
+2. For `shop-prod`, a build with `app: shop-prod` wins over a build without `app`.
+3. A build without `app` serves every app of the repo and folder.
+
+Two builds of one commit and folder without `app` must have the same image. The same image again is accepted. A different image fails with this message:
+
+```text
+a1b2c3d has a build without app already. Add app: so
+Statespace knows which build is for which app
+```
+
+`ssp arm add` prints the build that it chose.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Docker" icon="container" href="/guides/docker">
+    Run the proxy on one machine.
+  </Card>
+  <Card title="statespace.toml" icon="file-cog" href="/reference/statespace-toml">
+    Look up every key.
+  </Card>
+</CardGroup>

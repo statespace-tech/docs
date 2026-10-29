@@ -1,0 +1,132 @@
+---
+title: Run the proxy on Cloud Run
+sidebarTitle: Cloud Run
+description: Run ssp proxy cloudrun as its own Cloud Run service in front of your service, with arms as tagged revisions.
+---
+
+On Cloud Run, the proxy runs as its own service in front of your service. The control and each arm run as revisions of your service, with 0% of its traffic.
+
+```text
+                        ┌─► shop          (service URL)
+visitors ─► shop-proxy ─┼─► ssp-control   (tag URL)
+                        └─► ssp-a1b2c3d4e5f6  (tag URL)
+```
+
+## How it works
+
+- Live is the URL of your service. The live image is the image of the revision that gets the traffic.
+- For the control and each arm, the proxy deploys a revision of your service with 0% traffic.
+- Each revision has a tag: `ssp-control`, or `ssp-` and the first 12 characters of the commit.
+- A new revision copies every setting of the service, such as secrets, the VPC connector, and the service account. Only the image changes.
+- The proxy sends requests to the tag URL with a Google ID token.
+- The proxy uses the Cloud Run Admin API v2, with the service account of its own Cloud Run service.
+
+Your deploy workflow does not change.
+
+<Note>
+  Cloud Run must be able to pull the images of the arms. Push the images that CI records to a registry that Cloud Run can use, such as Artifact Registry.
+</Note>
+
+## Prerequisites
+
+- Your service on Cloud Run, such as `shop` in `us-east1`, with its runtime service account `shop-runtime`.
+- An app, such as `shop-prod`, and a recorded build of the image that live runs.
+- The `gcloud` CLI with rights to manage the project.
+- The proxy image `ghcr.io/statespace-tech/statespace:0.4.0` in a registry that Cloud Run can use.
+
+## Set up the proxy
+
+In the commands, `acme-shop` is the project.
+
+<Steps>
+  <Step title="Add a service account for the proxy">
+    Add the account, and keep its address in a variable.
+
+    ```shell
+    gcloud iam service-accounts create shop-proxy \
+      --project acme-shop
+    proxy=shop-proxy@acme-shop.iam.gserviceaccount.com
+    ```
+  </Step>
+
+  <Step title="Let the proxy deploy revisions">
+    Give the proxy's account Cloud Run Developer on your service.
+
+    ```shell
+    gcloud run services add-iam-policy-binding shop \
+      --region us-east1 \
+      --member "serviceAccount:$proxy" \
+      --role roles/run.developer
+    ```
+
+    Let it act as the runtime account of your service.
+
+    ```shell
+    gcloud iam service-accounts add-iam-policy-binding \
+      shop-runtime@acme-shop.iam.gserviceaccount.com \
+      --member "serviceAccount:$proxy" \
+      --role roles/iam.serviceAccountUser
+    ```
+  </Step>
+
+  <Step title="Keep the token in Secret Manager">
+    Add a runtime token for the app. Put the secret in Secret Manager.
+
+    ```shell
+    ssp token add --app shop-prod --note "Cloud Run proxy"
+    printf '%s' '<secret>' | gcloud secrets create \
+      shop-statespace-token --data-file=-
+    ```
+
+    Let the proxy's account read the secret.
+
+    ```shell
+    gcloud secrets add-iam-policy-binding \
+      shop-statespace-token \
+      --member "serviceAccount:$proxy" \
+      --role roles/secretmanager.secretAccessor
+    ```
+  </Step>
+
+  <Step title="Deploy the proxy">
+    Deploy the proxy as the service `shop-proxy`. Use the path of the proxy image in your registry.
+
+    ```shell
+    gcloud run deploy shop-proxy \
+      --region us-east1 \
+      --image <registry>/statespace-tech/statespace:0.4.0 \
+      --service-account "$proxy" \
+      --set-secrets STATESPACE_TOKEN=shop-statespace-token:latest \
+      --args=proxy,cloudrun,--app,shop-prod,\
+--service,shop,--region,us-east1 \
+      --allow-unauthenticated
+    ```
+  </Step>
+
+  <Step title="Send traffic to the proxy">
+    Point your domain, such as `shop.acme.com`, to `shop-proxy`. Then check the app.
+
+    ```shell
+    ssp app show shop-prod
+    ```
+
+    The output shows live, the proxy instances, and the orchestrator `cloudrun`.
+  </Step>
+</Steps>
+
+## Many instances
+
+Cloud Run can run many instances of the proxy. Every instance routes requests. Only the instance that holds the app's lease deploys and removes revisions. When that instance stops, another instance gets the lease in about 30 seconds.
+
+All instances must report the same settings and the same live image. While they do not, the arms of the app do not run, and `ssp app show` says why.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Kubernetes" icon="ship-wheel" href="/guides/kubernetes">
+    Run the proxy in front of a Deployment.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/reference/cli#ssp-proxy-cloudrun">
+    Look up the flags of `ssp proxy cloudrun`.
+  </Card>
+</CardGroup>
