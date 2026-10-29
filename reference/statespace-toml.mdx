@@ -1,83 +1,129 @@
 ---
 title: statespace.toml
-description: Every key of statespace.toml, the per-app sections, and when a change takes effect.
+description: Every key of statespace.toml, the experiment tables, the per-app sections, and when a change takes effect.
 ---
 
-`statespace.toml` holds the settings, events, and metrics of the apps that run from its folder. It has no app name: the name comes from `ssp app add` and `ssp proxy --app`.
+import StarterToml from '/snippets/starter-toml.mdx';
+
+`statespace.toml` holds the settings, events, metrics, and experiments of the apps that run from its folder. It has no app name: the name comes from `ssp app add` and `ssp proxy --app`. Several apps can run from one folder, such as `shop-dev` and `shop-prod`.
+
+## Starter file
+
+Write this file in the folder of your app's code. A person or a coding agent can copy it. Change the event to a route of your app.
+
+<StarterToml />
+
+## Full example
 
 ```toml statespace.toml
-# Shared settings for every app built from this folder.
-subject = 'request.cookies.ssp_sid'
-eligibility = 'request.headers["cf-ipcountry"] == "US"'
-max_traffic = 0.2
-max_arms = 5
-arm_role = "write"
 overrides = false
 redact = ['\b\d{16}\b']
 
+# Shared events and metrics: in every experiment.
 [[event]]
-name = "checkout"
+name = "purchase"
 match = '''
 request.method == "POST"
-  && request.path == "/api/checkout"
+  && request.path == "/checkout"
   && request.status < 300
 '''
 
-[[event]]
-name = "fatal"
-match = 'stderr.text.contains("FATAL")'
-
 [[metric]]
-label = "checkout rate %"
-value = '100.0 * events["checkout"].subjects / subjects'
+label = "purchase rate %"
+value = '100.0 * events["purchase"].subjects / subjects'
 
-# Per-app sections change and extend the shared settings.
+# Experiments, in priority order.
+[experiment.checkout]
+subject = 'request.headers["x-user-id"]'
+max_share = 0.2
+
+[[experiment.checkout.event]]
+name = "coupon"
+match = '''
+request.method == "POST"
+  && request.path == "/checkout/coupon"
+'''
+
+[[experiment.checkout.metric]]
+label = "coupon use %"
+value = '100.0 * events["coupon"].subjects / subjects'
+
+[experiment.us-landing]
+eligibility = 'request.headers["cf-ipcountry"] == "US"'
+max_share = 0.15
+
+# Per-app sections replace and extend the shared settings.
 [app.shop-dev]
-max_traffic = 1.0
 overrides = true
 
-[app.shop-prod]
-arm_role = "maintain"
+[app.shop-dev.experiment.checkout]
+max_share = 1.0
 ```
 
 ## Settings
 
-<ParamField path="subject" type="CEL → string" default="request.cookies.ssp_sid">
-  The subject ID of a request. When the expression gives no string, the request goes to live. See [Subjects](/concepts/subjects).
-</ParamField>
-
-<ParamField path="eligibility" type="CEL → bool" default="everyone">
-  Who can be in the control or an arm. An error sends the request to live, with the reason `eligibility-error`.
-</ParamField>
-
-<ParamField path="max_traffic" type="number" default="0.2">
-  The largest share of subjects in all arms and the control together. From more than 0 to 1.
-</ParamField>
-
-<ParamField path="max_arms" type="integer" default="5">
-  The most arms that run at the same time. The control does not count. 1 or more.
-</ParamField>
-
-<ParamField path="arm_role" type="string" default="write">
-  The level that adds and removes arms of the app: `write`, `maintain`, or `admin`. See [Permissions](/concepts/permissions).
-</ParamField>
-
 <ParamField path="overrides" type="boolean" default="false">
-  Let testers open a running arm. See [Overrides](/concepts/overrides).
+  Let testers open an arm of a running experiment. See [Overrides](/concepts/overrides).
 </ParamField>
 
 <ParamField path="redact" type="string[]">
-  Regular expressions. The proxy replaces their matches in output lines with `[redacted]` before the lines leave the machine.
+  Regular expressions. The proxy replaces their matches in output lines, request paths, and queries with `[redacted]` before they leave the machine.
 </ParamField>
 
-`subject` and `eligibility` use `request` with `method`, `path`, `query`, `headers`, and `cookies`. See [CEL variables](/reference/cel).
+<ParamField path="[[event]]" type="table">
+  A shared event, with `name` and `match`. It applies to every experiment. See [Events](#events).
+</ParamField>
+
+<ParamField path="[[metric]]" type="table">
+  A shared metric, with `label` and `value`. It applies to every experiment. See [Metrics](#metrics).
+</ParamField>
+
+<ParamField path="[experiment.<name>]" type="table">
+  One experiment. See [Experiments](#experiments).
+</ParamField>
+
+<ParamField path="[app.<name>]" type="table">
+  Settings for one app. See [Per-app sections](#per-app-sections).
+</ParamField>
+
+## Experiments
+
+Each table `[experiment.<name>]` defines one experiment. An empty table is an experiment with the defaults. You set its arms with [`ssp experiment update`](/reference/cli#ssp-experiment-update).
+
+<ParamField path="subject" type="CEL → string" default="request.cookies.ssp_sid">
+  The subject ID of a request. When the expression gives no string, the experiment skips the request. See [Subjects](/concepts/subjects).
+</ParamField>
+
+<ParamField path="eligibility" type="CEL → bool" default="everyone">
+  Who can enter the experiment. When the expression is false or has an error, the experiment skips the request. Statespace counts each error.
+</ParamField>
+
+<ParamField path="max_share" type="number" default="0.2">
+  The largest total of the shares of the experiment's arms. A fraction: more than 0, and 1 at most.
+</ParamField>
+
+<ParamField path="[[experiment.<name>.event]]" type="table">
+  An own event of the experiment, with `name` and `match`. It applies only to this experiment.
+</ParamField>
+
+<ParamField path="[[experiment.<name>.metric]]" type="table">
+  An own metric of the experiment, with `label` and `value`. It applies only to this experiment.
+</ParamField>
+
+- A name has 1 to 40 characters: lowercase letters, digits, and `-`.
+- Each experiment exists in every app of the folder. Its arms and its state are different for each app.
+- `subject` and `eligibility` use `request` with `method`, `path`, `query`, `headers`, and `cookies`. See [CEL variables](/reference/cel).
+
+### Priority order
+
+The order of the `[experiment.*]` tables is the priority order. When two running experiments can claim the same request, the experiment that is first in the file gets it. In the full example, `checkout` comes before `us-landing`. See [Assignment](/concepts/subjects#assignment).
 
 ## Events
 
-Each `[[event]]` defines a named count. See [Events and metrics](/concepts/events-and-metrics).
+Each event defines a named count. See [Events and metrics](/concepts/events-and-metrics).
 
 <ParamField path="name" type="string" required>
-  The name of the event, such as `checkout`. Metrics use it in `events["checkout"]`.
+  The name of the event, such as `purchase`. Metrics use it in `events["purchase"]`.
 </ParamField>
 
 <ParamField path="match" type="CEL → bool" required>
@@ -86,31 +132,51 @@ Each `[[event]]` defines a named count. See [Events and metrics](/concepts/event
 
 ## Metrics
 
-Each `[[metric]]` is a formula over the totals of one side. The first metric is the headline.
+Each metric is a formula over the totals of one arm.
 
 <ParamField path="label" type="string" required>
-  The name that the evidence shows, such as `checkout rate %`.
+  The name that the evidence shows, such as `purchase rate %`.
 </ParamField>
 
 <ParamField path="value" type="CEL → number" required>
   The formula. See [CEL variables](/reference/cel#metric-value).
 </ParamField>
 
+## Shared and own
+
+- Shared events and metrics apply to every experiment.
+- Own events and metrics of an experiment come after the shared ones, and apply only to it.
+- The same event name or metric label two times is an error in CI: `event "coupon" is defined twice`.
+- The **headline** is the first own metric of the experiment. When it has no own metric, the headline is the first shared metric.
+
 ## Per-app sections
 
-A section `[app.<name>]` holds settings for one app.
+A section `[app.<name>]` holds settings for one app. It can hold:
 
-- A key in the section replaces the shared key.
-- `[[app.<name>.event]]` and `[[app.<name>.metric]]` are added after the shared events and metrics.
-- A section that matches no app gives a warning in CI. It is not an error.
+- `overrides` and `redact`. They replace the shared values.
+- `[[app.<name>.event]]` and `[[app.<name>.metric]]`. They are added after the shared events and metrics.
+- `[app.<name>.experiment.<exp>]`, with experiment keys. They replace the shared keys of that experiment for that app.
+
+A section that matches no app gives a warning in CI. It is not an error.
 
 ## When a change takes effect
 
 1. You commit a change to `statespace.toml`.
-2. CI records the build of the commit. Statespace checks the file. A wrong key, a wrong type, or a CEL error fails the CI step.
+2. CI records the build of the commit. Statespace checks the file. A wrong key, a wrong type, or a CEL error fails the CI step, with the message. For example, `subject` at the top level is a wrong key: it belongs in an `[experiment.<name>]` table.
 3. The commit runs as live.
-4. The app gets the settings of the file in the build of its live commit.
-5. Each arm of the app starts a new version.
+4. The app gets the settings and experiments of the file in the build of its live commit.
+
+## What a release does to a running experiment
+
+| The release changes | Result |
+| --- | --- |
+| Only code | Nothing. `ssp experiment show` says "live is now f2f2f2f" |
+| `subject`, `eligibility`, or `max_share` of the experiment, or removes its table | The experiment stops |
+| A shared event | Every running experiment of the app stops |
+| An own event of the experiment | The experiment stops |
+| A metric, shared or own | Nothing stops. Evidence uses the new formula. The history says `metric "purchase rate %" changed in live d00d123` |
+
+The reason of a stop is "its definition changed in live d00d123". `ssp experiment show`, the commit statuses, and the audit log give it, with the start command to run again. See [What a release does](/concepts/experiments#what-a-release-does).
 
 ## Next steps
 

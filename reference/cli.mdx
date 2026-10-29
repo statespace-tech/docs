@@ -3,24 +3,24 @@ title: CLI
 description: Every ssp command, argument, and flag, and what each command prints.
 ---
 
-`ssp` adds and removes apps, arms, and tokens, stops and resumes arms, and runs the proxy. Install it with the [install script](/getting-started/installation#cli).
+`ssp` adds and removes apps and tokens, sets the arms of experiments, starts and stops experiments, and runs the proxy. Install it with the [install script](/getting-started/installation#cli).
 
 ```text
-ssp app    add | remove | list | show | stop | resume
-ssp arm    add | remove | list | show | stop | resume
-ssp token  add | remove | list
-ssp proxy  docker | cloudrun | kubernetes
-ssp init
+ssp app         add | remove | list | show
+ssp experiment  list | show | update | start | stop
+ssp token       add | remove | list
+ssp proxy       docker | cloudrun | kubernetes
 ssp login | logout | whoami
 ```
 
 ## Conventions
 
-- Commands have the form `ssp <noun> <verb> <object>`. The object is positional, such as the app name or the commit.
-- `--app` names the app of an arm, a token, or a proxy.
+- Commands have the form `ssp <noun> <verb> <object>`. The object is positional, such as the app name or the experiment name.
+- `--app` names the app of an experiment, a token, or a proxy. You can leave it out when the current folder is linked to exactly one app. `ssp proxy` always needs it.
 - A commit is the full commit or its first 7 characters or more.
+- A share is a fraction, such as `0.05`. It is never `5` or `5%`.
 - No command asks a question, except `ssp login`.
-- `ssp app add` and `ssp arm add` print what they found and chose.
+- `ssp app add` and `ssp experiment update` print what they found and chose.
 - Each command that changes something prints exactly what it changed.
 
 ## Common flags
@@ -30,7 +30,11 @@ ssp login | logout | whoami
 </ParamField>
 
 <ParamField body="--note" type="string">
-  Free text for people and agents, 1 to 200 characters on one line. All commands that change something take it. The dashboard, `ssp app show`, and `ssp arm show` show it.
+  Free text for people and agents, 1 to 200 characters on one line. All commands that change something take it. The dashboard, `ssp app show`, and `ssp experiment show` show it.
+</ParamField>
+
+<ParamField body="--app" type="string">
+  The app. Required when the current folder is not linked to exactly one app.
 </ParamField>
 
 ## Output and exit codes
@@ -72,15 +76,15 @@ ssp app remove shop-dev
   The app.
 </ParamField>
 
-The command fails while the app has arms that are not removed. It prints what it deleted. With `--json`, it prints `{"deleted": App}`.
+The command fails while an experiment of the app runs. It prints what it deleted. With `--json`, it prints `{"deleted": App}`.
 
 <Warning>
-  You cannot undo `ssp app remove`. The evidence of all arms of the app is deleted.
+  You cannot undo `ssp app remove`. The evidence of all experiments of the app is deleted.
 </Warning>
 
 ## ssp app list
 
-List the apps: repo, folder, live commit, running arms, and holds.
+List the apps: repo, folder, live commit, and running experiments.
 
 ```shell
 ssp app list
@@ -90,7 +94,7 @@ With `--json`, it prints `{"apps": [App]}`.
 
 ## ssp app show
 
-Show an app in full: live, the control, the arms with their headline metric, holds, the settings that apply, the proxy instances, the orchestrator, and the lease holder.
+Show an app in full: the live commit and when it was built, the experiments and their state, the settings that apply and their source commit, the proxy instances, the orchestrator, and the lease holder.
 
 ```shell
 ssp app show shop-prod
@@ -102,144 +106,151 @@ ssp app show shop-prod
 
 With `--json`, it prints the `AppDetail`.
 
-## ssp app stop
+## ssp experiment list
 
-Place a hold on the app. Every arm of the app leaves traffic, also the arms that people add later. You need the role write or triage on the repo.
+List the experiments of an app: state, version, arms, and the headline metric.
 
 ```shell
-ssp app stop shop-prod --note "checkout errors > 2%"
+ssp experiment list --app shop-prod
+```
+
+<ParamField body="--running" type="boolean">
+  Show only the running experiments.
+</ParamField>
+
+<ParamField body="--all" type="boolean">
+  Also show the experiments that are `gone`: their table is not in the live `statespace.toml`.
+</ParamField>
+
+With `--json`, it prints `{"experiments": [Experiment]}`.
+
+## ssp experiment show
+
+Show an experiment in full:
+
+- the definition, and the commit that it comes from;
+- the arms with their shares, and the reference;
+- the evidence of the current or last version for each arm: totals, metrics, the split check, and the top events;
+- the versions, and the history of starts, stops, and metric changes;
+- the drift from live, such as "live is now f2f2f2f" or "live c0ffee1 contains a1b2c3d";
+- the override link of each arm, when the app allows overrides.
+
+```shell
+ssp experiment show checkout --app shop-prod
 ```
 
 <ParamField body="name" type="string" required>
-  The app.
+  The experiment.
 </ParamField>
 
-A stop on an app that has a hold returns the hold, and changes nothing. With `--json`, it prints the `Hold`. See [Holds](/concepts/holds).
+With `--json`, it prints the `ExperimentDetail`.
 
-## ssp app resume
+## ssp experiment update
 
-Clear the hold on the app. Holds on single arms stay, and the command says so.
+Add arms, change their shares, or remove them. Only the arms that you name change. You need the role Write or Maintain on the repo.
 
 ```shell
-ssp app resume shop-prod
+ssp experiment update checkout --app shop-prod \
+  --arm c0ffee1=0.05 --arm a1b2c3d=0.05
 ```
 
 <ParamField body="name" type="string" required>
-  The app.
+  The experiment.
 </ParamField>
 
-With `--json`, it prints the removed `Hold`.
+<ParamField body="--arm" type="string">
+  `<commit>=<share>`. Repeat it for each arm. The share is a fraction.
 
-## ssp arm add
+  - A new commit is added with the share.
+  - A commit that is an arm gets the new share.
+  - `=0` removes the arm. Its evidence stays.
+</ParamField>
 
-Add a commit as an arm, or change the share of an arm. You need the level that `arm_role` sets for the app.
+These examples change the arms of `checkout`:
 
 ```shell
-ssp arm add a1b2c3d --app shop-prod --share 0.05 \
-  --note "green checkout button"
+# Add e5f6a7b.
+ssp experiment update checkout --arm e5f6a7b=0.04
+# Change the share of c0ffee1.
+ssp experiment update checkout --arm c0ffee1=0.06
+# Remove e5f6a7b.
+ssp experiment update checkout --arm e5f6a7b=0
+# Replace a1b2c3d with f6a7b8c.
+ssp experiment update checkout \
+  --arm a1b2c3d=0 --arm f6a7b8c=0.05
 ```
 
-<ParamField body="commit" type="string" required>
-  The commit. A prefix that matches more than one build fails, and the error lists the matches.
-</ParamField>
+The command prints the change and the full list of arms after it. `-` marks a removed arm, and `+` an added arm:
 
-<ParamField body="--app" type="string" required>
-  The app.
-</ParamField>
+```text
+checkout · shop-prod · stopped
+  − a1b2c3d   0.05
+  + f6a7b8c   0.05
+    c0ffee1   0.06   (reference)
+  total 0.11 of max_share 0.2
+```
 
-<ParamField body="--share" type="number" default="0.05">
-  The fraction of the app's subjects that the arm gets.
-</ParamField>
+Without `--arm`, the command prints the current list.
 
-The command prints the build that it chose. Without a build of the commit for the app, it fails: "No build of a1b2c3d for shop-prod. Push it so CI builds it." For an arm that exists, the command changes the share, starts a new version, and prints the old and the new share. With `--json`, it prints the `Arm`, with `build` and, for a change, `previous_share`.
+The command fails, and changes nothing, when:
 
-## ssp arm remove
+- the experiment runs: "checkout is running. Stop it first: ssp experiment stop checkout";
+- the shares add up to more than `max_share`;
+- a commit has no build for the app: "No build of a1b2c3d for shop-prod. Push it so CI builds it.";
+- a prefix matches more than one build. The error lists the matches;
+- `=0` names a commit that is not an arm: "e5f6a7b is not an arm of checkout".
 
-End an arm. Statespace keeps its evidence. Its commit status says "Ended".
+With `--json`, it prints `{"experiment": Experiment, "added", "changed", "removed"}`.
+
+## ssp experiment start
+
+Start a new version of the experiment. You need the role Write or Maintain on the repo.
 
 ```shell
-ssp arm remove a1b2c3d --app shop-prod
+ssp experiment start checkout --app shop-prod \
+  --note "one-page checkout"
 ```
 
-<ParamField body="commit" type="string" required>
-  The arm's commit.
+<ParamField body="name" type="string" required>
+  The experiment.
 </ParamField>
 
-<ParamField body="--app" type="string" required>
-  The app.
-</ParamField>
+The command checks, in this order:
 
-With `--json`, it prints the `Arm`.
+1. The experiment has 2 or more arms.
+2. The shares add up to `max_share` or less.
+3. Each arm has a build for the app.
+4. The shares of all running experiments of the app, and of this one, add up to 1 or less.
 
-## ssp arm list
+When a check fails, nothing changes, and the command says why. Then the experiment is `starting`. The command waits, and prints each arm when it is ready. When each arm is ready, the experiment is `running`.
 
-List the arms of an app: running, waiting, stopped, and the arms removed in the last 90 days. An arm whose commit is in the live commit says "Live 9f1ce8a contains this commit · consider ssp arm remove".
+When an arm is not ready in 5 minutes, the copies stop, and the experiment is `stopped` again. The command gives the reason for each arm:
+
+```text
+starting checkout on shop-prod
+  c0ffee1   ready
+  a1b2c3d   not ready: the container exits at start (exit 1)
+checkout did not start. Nothing changed.
+```
+
+The command also tells you when the experiment can claim the requests of another running experiment, for example: "checkout and us-landing can claim the same requests; checkout is first in statespace.toml".
+
+With `--json`, it prints the `Experiment` in its last state.
+
+## ssp experiment stop
+
+Stop one or more experiments. Their arms leave traffic in seconds. You need the role Write or Maintain on the repo.
 
 ```shell
-ssp arm list --app shop-prod
+ssp experiment stop checkout us-landing --app shop-prod \
+  --note "incident 214"
 ```
 
-<ParamField body="--app" type="string" required>
-  The app.
+<ParamField body="name" type="string" required>
+  One or more experiments.
 </ParamField>
 
-With `--json`, it prints `{"arms": [Arm]}`.
-
-## ssp arm show
-
-Show an arm: its state and reason, the totals and metrics of the arm and the control, the split check, the top events, the versions, the holds, and the override link.
-
-```shell
-ssp arm show a1b2c3d --app shop-prod
-```
-
-<ParamField body="commit" type="string" required>
-  The arm's commit.
-</ParamField>
-
-<ParamField body="--app" type="string" required>
-  The app.
-</ParamField>
-
-With `--json`, it prints the `ArmDetail`.
-
-## ssp arm stop
-
-Place a hold on one arm. The arm leaves traffic in seconds. You need the role write or triage on the repo.
-
-```shell
-ssp arm stop a1b2c3d --app shop-prod \
-  --note "checkout errors > 2%"
-```
-
-<ParamField body="commit" type="string" required>
-  The arm's commit.
-</ParamField>
-
-<ParamField body="--app" type="string" required>
-  The app.
-</ParamField>
-
-With `--json`, it prints the `Hold`.
-
-## ssp arm resume
-
-Clear the hold on one arm. A hold on the app stays.
-
-```shell
-ssp arm resume a1b2c3d --app shop-prod \
-  --note "fixed in b2c3d4e"
-```
-
-<ParamField body="commit" type="string" required>
-  The arm's commit.
-</ParamField>
-
-<ParamField body="--app" type="string" required>
-  The app.
-</ParamField>
-
-With `--json`, it prints the removed `Hold`.
+A stop on a stopped experiment returns it unchanged. With `--json`, it prints the stopped experiments. See [Stop in an emergency](/guides/emergency-stop).
 
 ## ssp token add
 
@@ -279,7 +290,7 @@ ssp token list
 
 ## ssp proxy docker
 
-Run the proxy on a machine with Docker. Live, the control, and the arms run as containers. See [Docker](/guides/docker).
+Run the proxy on a machine with Docker. Live and the arms run as containers. See [Docker](/guides/docker).
 
 ```shell
 ssp proxy docker --app shop-dev \
@@ -290,11 +301,15 @@ ssp proxy docker --app shop-dev \
   A file that holds the live image. When the file changes, the proxy deploys the new live.
 </ParamField>
 
+<ParamField body="--health" type="string">
+  A path, such as `/health`. An arm is ready when this path answers with a 2xx status. Without it, an arm is ready when it accepts a TCP connection.
+</ParamField>
+
 The [proxy flags](#proxy-flags) also apply.
 
 ## ssp proxy cloudrun
 
-Run the proxy in front of a Cloud Run service. The control and the arms run as tagged revisions of the service. See [Cloud Run](/guides/cloud-run).
+Run the proxy in front of a Cloud Run service. Each arm runs as a tagged revision of the service. See [Cloud Run](/guides/cloud-run).
 
 ```shell
 ssp proxy cloudrun --app shop-prod \
@@ -313,7 +328,7 @@ The [proxy flags](#proxy-flags) also apply.
 
 ## ssp proxy kubernetes
 
-Run the proxy in front of a Kubernetes Deployment. The control and the arms run as copies of the Deployment. See [Kubernetes](/guides/kubernetes).
+Run the proxy in front of a Kubernetes Deployment. Each arm runs as a copy of the Deployment. See [Kubernetes](/guides/kubernetes).
 
 ```shell
 ssp proxy kubernetes --app shop-prod \
@@ -355,14 +370,6 @@ Each `ssp proxy` command takes these flags. All other settings come from [`state
 </ParamField>
 
 `ssp proxy` prints no JSON document. It passes HTTP/1.1, HTTP/2, and WebSocket.
-
-## ssp init
-
-Write a starter `statespace.toml` in the current folder, and print the action step to add to your build workflow. The command fails when the file exists. It changes only the working copy.
-
-```shell
-ssp init
-```
 
 ## ssp login
 

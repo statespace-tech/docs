@@ -14,7 +14,7 @@ https://api.statespace.com
 - Send `Authorization: Bearer <credential>` on each route. See [Credentials](/concepts/permissions#credentials).
 - Bodies and responses are JSON.
 - An error is `{"error": "..."}` with a status from 400 to 599.
-- `{commit}` is the full commit or its first 7 characters or more.
+- A commit is the full commit or its first 7 characters or more.
 
 ```shell
 curl -sS https://api.statespace.com/v1/apps \
@@ -44,23 +44,31 @@ The response has `repo`, `commit`, `path`, `app`, `image`, and `warnings`, a lis
 | `POST /v1/apps` | `name`, `repo`, `path`, `note`? | `App` |
 | `GET /v1/apps/{app}` | | `AppDetail` |
 | `DELETE /v1/apps/{app}` | `note`? | `{"deleted": App}` |
-| `POST /v1/apps/{app}/stop` | `note`? | `Hold` |
-| `POST /v1/apps/{app}/resume` | `note`? | The removed `Hold` |
 
 `?` marks an optional key.
 
-## Arms
+## Experiments
 
 | Route | Body | Response |
 | --- | --- | --- |
-| `GET /v1/apps/{app}/arms` | | `{"arms": [Arm]}` |
-| `POST /v1/apps/{app}/arms` | `commit`, `share`?, `note`? | `Arm`, with `build` and `previous_share` |
-| `GET /v1/apps/{app}/arms/{commit}` | | `ArmDetail` |
-| `DELETE /v1/apps/{app}/arms/{commit}` | `note`? | `Arm` |
-| `POST /v1/apps/{app}/arms/{commit}/stop` | `note`? | `Hold` |
-| `POST /v1/apps/{app}/arms/{commit}/resume` | `note`? | The removed `Hold` |
+| `GET /v1/apps/{app}/experiments` | | `{"experiments": [Experiment]}` |
+| `GET /v1/apps/{app}/experiments/{exp}` | | `ExperimentDetail` |
+| `PATCH /v1/apps/{app}/experiments/{exp}/arms` | `arms`, `note`? | `{"experiment": Experiment, "added", "changed", "removed"}` |
+| `POST /v1/apps/{app}/experiments/{exp}/start` | `note`? | `Experiment`, in the state `starting` |
+| `POST /v1/apps/{app}/experiments/{exp}/stop` | `note`? | `Experiment` |
 
-`GET /v1/apps/{app}/arms` lists running, waiting, and stopped arms, and the arms removed in the last 90 days. In the `POST` response, `build` is the image and its app label. `previous_share` is there when the share changed.
+- `arms` is a map of commit to share, such as `{"a1b2c3d": 0.05, "e5f6a7b": 0}`. A share of `0` removes the arm. Only the commits in the map change.
+- After `start`, get the experiment until its state is `running` or `stopped`. The CLI does this.
+
+This example sets two arms of `checkout`:
+
+```shell
+app=https://api.statespace.com/v1/apps/shop-prod
+curl -sS -X PATCH "$app/experiments/checkout/arms" \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"arms": {"c0ffee1": 0.05, "a1b2c3d": 0.05}}'
+```
 
 ## Tokens
 
@@ -83,27 +91,23 @@ The runtime configuration of the app.
   "app": "shop-prod",
   "salt": "…",
   "settings_hash": "…",
-  "settings": {
-    "subject": "…",
-    "eligibility": null,
-    "overrides": false,
-    "redact": [],
-    "max_arms": 5
-  },
-  "events": [
-    {"name": "checkout", "source": "request", "match": "…"}
-  ],
-  "live": {"commit": "9f1ce8a…", "image": "…@sha256:…"},
-  "control": {
-    "image": "…@sha256:…",
-    "ranges": [[0.0, 0.05]]
-  },
-  "arms": [
+  "settings": {"overrides": false, "redact": []},
+  "live": {"commit": "c0ffee1…", "image": "…@sha256:…"},
+  "experiments": [
     {
-      "commit": "a1b2c3d…",
-      "image": "…@sha256:…",
+      "name": "checkout",
       "version": 3,
-      "ranges": [[0.05, 0.10]]
+      "state": "running",
+      "subject": "…",
+      "eligibility": null,
+      "events": [
+        {"name": "purchase", "source": "request",
+         "match": "…"}
+      ],
+      "arms": [
+        {"commit": "a1b2c3d…", "image": "…@sha256:…",
+         "ranges": [[0.05, 0.10]]}
+      ]
     }
   ],
   "lease": {"holder": "instance-id", "expires_at": "…"},
@@ -111,7 +115,9 @@ The runtime configuration of the app.
 }
 ```
 
-Before the first report, `settings` has the defaults and `live` is `null`. The proxy then sends all requests to live.
+- `experiments` holds the `starting` and `running` experiments, in the order of `statespace.toml`.
+- The proxy routes only to `running` experiments. The lease holder starts the arms of both.
+- Before the first report, `live` is `null`. The proxy then sends all requests to live.
 
 ### POST /v1/runtime/apps/\{app\}/report
 
@@ -124,13 +130,15 @@ Each proxy instance reports. Only the lease holder sends `units`.
 | `orchestrator` | `docker`, `cloudrun`, or `kubernetes` |
 | `live_image` | The image that live runs |
 | `settings_hash` | The hash of the settings that the instance uses |
-| `units` | `[{"side", "commit", "address", "ready"}]` |
+| `units` | `[{"experiment", "commit", "address", "ready", "reason"}]` |
 
 The response is `{"lease": bool, "expires_at"}`.
 
 ### POST /v1/events
 
-Send recorded rows. The body has `app`, `runs`, `requests`, `stdout`, `stderr`, `events`, and `lifecycle`. Each row has `id`, `side`, `arm`, `version`, and `timestamp`. `id` makes a second send of a row change nothing. `arm` is the commit, or `null` for the control.
+Send recorded rows. The body has `app`, `runs`, `requests`, `stdout`, `stderr`, `events`, and `lifecycle`. Each row has `id`, `experiment`, `arm`, `version`, and `timestamp`. `arm` is the commit. `id` makes a second send of a row change nothing.
+
+The lifecycle events are `started`, `ready`, `stopped`, and `failed`.
 
 ## Other
 
@@ -154,43 +162,51 @@ Send recorded rows. The body has `app`, `runs`, `requests`, `stdout`, `stderr`, 
 | `repo` | The repo, such as `acme/shop` |
 | `path` | The folder of `statespace.toml` |
 | `note` | The note |
-| `live` | `{"commit", "image"}`, or `null` |
-| `arms` | The number of running arms |
-| `holds` | The holds on the app |
+| `live` | `{"commit", "image", "built_at"}`, or `null` |
+| `experiments` | The number of running experiments |
 | `created_at` | When the app was added |
+| `level` | The level of the caller: `read`, `write`, or `admin` |
+
+### Experiment
+
+| Field | Means |
+| --- | --- |
+| `name` | The experiment |
+| `app` | The app |
+| `state` | `stopped`, `starting`, `running`, or `gone` |
+| `reason` | One line about the state |
+| `version` | The current or last version |
+| `definition` | `{"subject", "eligibility", "max_share"}` |
+| `arms` | `[Arm]` |
+| `reference` | The commit of the reference arm |
+| `headline` | `{"label", "values": {"<commit>": number or null}}`, or `null` |
+| `started_by`, `started_at` | Who started the current or last version, and when |
+| `stopped_at` | When the last version stopped |
 
 ### Arm
 
 | Field | Means |
 | --- | --- |
 | `commit` | The commit, the ID of the arm |
-| `app` | The app |
-| `share` | The share of subjects |
-| `note` | The note |
-| `state` | `starting`, `running`, `waiting`, `stopped`, or `removed` |
-| `reason` | One line about the state |
-| `version` | The current version |
+| `share` | The share of the app's subjects |
 | `image` | The image of the build |
+| `ready` | `true` when the copy of the arm is ready |
 | `ahead`, `behind` | Commits ahead of and behind the live commit |
 | `live_contains` | `true` when the live commit contains the arm's commit |
-| `headline` | `{"label", "arm", "control"}`, or `null` |
 | `added_by`, `added_at` | Who added the arm, and when |
-| `removed_at` | When the arm was removed |
 
-### ArmDetail
+### ExperimentDetail
 
-An `Arm`, with these fields:
+An `Experiment`, with these fields:
 
 | Field | Means |
 | --- | --- |
-| `totals` | `{"arm": Totals, "control": Totals}` |
-| `metrics` | `[{"label", "arm", "control"}]` |
+| `source` | `{"commit", "path"}`: where the definition comes from |
+| `totals` | `{"<commit>": Totals}` |
+| `metrics` | `[{"label", "values"}]` |
 | `split` | `{"ok", "p"}`, or `null` |
-| `events` | The top event names, with counts for each side |
-| `versions` | The versions of the arm |
-| `holds` | The holds that cover the arm |
-| `override_url` | The override link, or `null` |
-
-### Hold
-
-A hold has `actor`, `actor_kind` (`person`, `workflow`, or `token`), `via` (`cli`, `dashboard`, or `api`), the note, and the time. See [Holds](/concepts/holds).
+| `events` | `[{"name", "values"}]`: the top events |
+| `versions` | `[{"version", "arms", "started_at", "stopped_at", "stopped_by", "reason"}]` |
+| `history` | Starts, stops, and metric changes |
+| `drift` | `{"live_commit"}`, or `null` |
+| `override_urls` | `{"<commit>": url}`, or `null` |

@@ -1,6 +1,6 @@
 ---
 title: Limits and retention
-description: How long Statespace keeps data, and the limits of names, notes, rows, and storage.
+description: How long Statespace keeps data, and the limits of names, notes, shares, rows, and storage.
 ---
 
 This page lists the limits and times of Statespace.
@@ -9,9 +9,9 @@ This page lists the limits and times of Statespace.
 
 | Data | Kept |
 | --- | --- |
-| `requests`, `stdout`, `stderr` rows | 90 days |
-| Removed arms in `ssp arm list` | 90 days |
-| Evidence of a removed arm | Frozen and kept. Its raw rows follow the 90 days above |
+| `requests`, `stdout`, `stderr`, `events`, `runs`, and `lifecycle` rows | 90 days |
+| Totals of each version | Until you remove the app. So Statespace can always compute the evidence again |
+| History and evidence of a `gone` experiment | Kept. `ssp experiment list --all` shows it |
 
 Statespace never records live.
 
@@ -30,24 +30,28 @@ Each account has its own PostgreSQL database. A subject can be erased with `POST
 | Value | Limit |
 | --- | --- |
 | App name | 1 to 63 characters: lowercase letters, digits, and `-`. Unique in the workspace |
+| Experiment name | 1 to 40 characters: lowercase letters, digits, and `-` |
 | Commit prefix | 7 characters or more |
 | `--note` | 1 to 200 characters, one line |
-| `--share` | Default `0.05` |
-| `max_traffic` | More than 0, at most 1. Default `0.2` |
-| `max_arms` | 1 or more. Default `5`. The control does not count |
+| Share of an arm | A fraction, such as `0.05`. `0` removes the arm |
+| `max_share` | More than 0, at most 1. Default `0.2` |
+| Shares of all running experiments of an app | 1 at most |
+| Arms to start an experiment | 2 or more |
 | Commit status description | 140 characters |
 
 ## Times
 
 | Item | Time |
 | --- | --- |
+| Arms of a starting experiment become ready | 5 minutes at most. Then the start fails |
+| Arms of a stopped experiment leave traffic | Seconds |
 | Visitor cookie `ssp_sid` | 90 days, renewed on each response |
 | Override cookie `ssp_arm` | 1 hour, renewed on each request |
-| Commit status update | At each change, and about every 10 minutes |
+| Commit status update | At each change of state, and once an hour while the experiment runs |
 | Roles from GitHub | Kept 10 minutes |
 | Proxy lease | 30 seconds. The holder renews it every 10 seconds |
-| A stopped arm leaves traffic | Seconds |
+| Runtime configuration older than this sends every request to live | 5 minutes |
 
 ## Split check
 
-The split check starts at 100 subjects of the arm and the control.
+The split check starts at 100 subjects in the arms of the experiment. It reports `split off` when p is less than 0.001.

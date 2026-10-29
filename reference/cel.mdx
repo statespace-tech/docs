@@ -10,7 +10,7 @@ description: The variables and fields that each CEL expression in statespace.tom
 | `subject` | string | `request` without `status` and `ms` |
 | `eligibility` | bool | `request` without `status` and `ms` |
 | `[[event]] match` | bool | One of `request`, `stdout`, or `stderr` |
-| `[[metric]] value` | number | The totals of one side |
+| `[[metric]] value` | number | The totals of one arm |
 
 CI checks each expression when it records a build. An error fails the CI step, with the message.
 
@@ -21,18 +21,20 @@ The proxy evaluates `subject` and `eligibility` before it sends the request.
 | Field | Type | Example |
 | --- | --- | --- |
 | `request.method` | string | `"POST"` |
-| `request.path` | string | `"/api/checkout"` |
+| `request.path` | string | `"/checkout"` |
 | `request.query` | map of strings | `request.query.ref == "mail"` |
 | `request.headers` | map of strings | `request.headers["x-user-id"]` |
 | `request.cookies` | map of strings | `request.cookies.ssp_sid` |
 
 ```toml statespace.toml
+[experiment.checkout]
 subject = 'request.headers["x-user-id"]'
 eligibility = 'request.headers["cf-ipcountry"] == "US"'
 ```
 
-- When `subject` gives no string, the request goes to live.
-- When `eligibility` has an error, the request goes to live, with the reason `eligibility-error`.
+- `subject` and `eligibility` are keys of an `[experiment.<name>]` table.
+- When `subject` gives no string, the experiment skips the request.
+- When `eligibility` is false or has an error, the experiment skips the request. Statespace counts each error for the experiment.
 
 ## Event match
 
@@ -45,7 +47,7 @@ The proxy evaluates request events after the response.
 | Field | Type | Example |
 | --- | --- | --- |
 | `request.method` | string | `"POST"` |
-| `request.path` | string | `"/api/signup"` |
+| `request.path` | string | `"/signup"` |
 | `request.query` | map of strings | `request.query.plan == "pro"` |
 | `request.headers` | map of strings | `request.headers["x-client"]` |
 | `request.cookies` | map of strings | `request.cookies.theme` |
@@ -67,11 +69,11 @@ The proxy evaluates output events as the lines come.
 
 ## Metric value
 
-A metric uses the totals of one side: the arm or the control. All numbers are decimals.
+A metric uses the totals of one arm. All numbers are decimals.
 
 | Variable | Means |
 | --- | --- |
-| `subjects` | Assigned subjects. Overrides do not count |
+| `subjects` | Subjects, overrides included |
 | `requests` | Requests |
 | `errors` | Requests with a status from 500 to 599 |
 | `p50_ms` | The median latency |
@@ -81,11 +83,11 @@ A metric uses the totals of one side: the arm or the control. All numbers are de
 
 ```toml statespace.toml
 [[metric]]
-label = "checkout rate %"
-value = '100.0 * events["checkout"].subjects / subjects'
+label = "purchase rate %"
+value = '100.0 * events["purchase"].subjects / subjects'
 ```
 
 - An event without rows is `0`.
-- A side with no subjects shows `–`.
+- An arm with no subjects shows `–`.
 - A metric that uses `.subjects` of an output event fails in CI.
 - A metric that uses an event that does not exist fails in CI.

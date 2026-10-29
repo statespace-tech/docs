@@ -1,48 +1,42 @@
 ---
 title: Commit status
-description: Each state and description of the statespace/<app> commit status on an arm's commit.
+description: Each state and description of the statespace/<app>/<experiment> commit status on an arm's commit.
 ---
 
-Statespace posts one commit status on each arm's commit for each app. Its context is `statespace/<app>`, such as `statespace/shop-prod`.
+Statespace posts a commit status on the commit of each arm, the reference too. There is one status for each app and experiment. Its context is `statespace/<app>/<experiment>`, such as `statespace/shop-prod/checkout`.
 
-- Statespace updates the status at each change, and about every 10 minutes.
-- The description has 140 characters at most. Statespace cuts a longer one.
-- **Details** opens the arm in the dashboard.
-- The state says where the arm is. It never says that the arm is good or bad.
+- Statespace posts at each change of state: start, stop, removal, and an arm that is not ready.
+- While the experiment runs, Statespace posts once an hour, only when the description changed.
+- Statespace posts only for arms of running experiments, and one last time at stop or removal. Old lines stay as they were last written.
+- GitHub accepts 1,000 statuses for each commit and context at most. Statespace stops the hourly posts at 950, to keep room for changes of state.
+- The description has 140 characters at most.
+- **Details** opens the experiment in the dashboard: `https://statespace.com/dashboard/apps/<app>/experiments/<experiment>?workspace=<login>`.
+- The state says where the arm is. It never says that the arm is good or bad. It is never `failure`.
 
 ## States
 
 | The arm | State | Description, for example |
 | --- | --- | --- |
-| Added, starts | `pending` | `Starting at 5% (+5% control) · 1 ahead of live 9f1ce8a` |
-| Waits | `pending` | `Waiting: max_traffic 20% is full` |
-| Is not ready | `failure` | `Not running: the container exits at start. See ssp arm show` |
-| Runs | `pending` | `5% · 1,204 subjects · split OK · checkout rate % 3.4 vs 2.8 · errors 0.3% vs 0.2%` |
-| Live moved | `pending` | `Live is now c3d4e5f · evidence restarted · 5%` |
-| Live contains it | `pending` | `Live c3d4e5f contains this commit · consider ssp arm remove` |
-| Is stopped | `failure` | `Stopped by maria with ssp arm stop · checkout errors > 2%` |
-| Is removed | `success` | `Ended · 4,812 subjects · checkout rate % 3.4 vs 2.8` |
+| Runs | `pending` | `v1 running · 0.05 · 2,040 subjects · split OK · purchase rate % 3.4 vs 2.8 (c0ffee1)` |
+| Runs, the reference | `pending` | `v1 reference · 0.05 · 2,031 subjects · split OK · purchase rate % 2.8 vs 3.4 (a1b2c3d)` |
+| Runs, not ready | `pending` | `v1 not ready: the container exits (exit 1) · subjects go to live` |
+| Is stopped | `success` | `v1 stopped · 2,040 subjects · purchase rate % 3.4 vs 2.8 (c0ffee1)` |
+| Is stopped by a release | `success` | `v1 stopped: definition changed in live d00d123 · 2,040 subjects · …` |
+| Is removed | `success` | `removed · last v2 · 3,310 subjects · purchase rate % 3.3 vs 2.9 (c0ffee1)` |
 
 ## The running description
 
-The description of a running arm has these parts, in this order:
+The description of an arm in a running experiment has these parts, in this order:
 
-1. the share of the arm;
-2. the subjects of the arm;
-3. the split check: `split OK` or `split off (p=0.003)`;
-4. the first metric, arm vs control;
-5. the errors, arm vs control.
+1. the version, such as `v1`;
+2. `running`, or `reference` for the reference arm;
+3. the share of the arm;
+4. the subjects of the arm;
+5. the split check: `split OK` or `split off (p=0.0004)`;
+6. the headline metric, this arm vs the other arm, with the commit of the other arm.
 
-## The stopped description
-
-The description says who stopped the arm, and how. Then it gives the note, when there is one.
-
-| Stopped with | Description |
-| --- | --- |
-| The CLI | `Stopped by maria with ssp arm stop` |
-| The dashboard | `Stopped by maria in the dashboard` |
-| The API | `Stopped by maria through the API` |
+With 3 or more arms, the line of the reference says `reference of 2 arms`.
 
 ## GitHub App permission
 
-The Statespace GitHub App needs only the permission to write commit statuses for this.
+The Statespace GitHub App needs only the permission to write commit statuses for this. Your CI does nothing for it.
