@@ -1,0 +1,58 @@
+---
+title: How it works
+description: The parts of Statespace, and what each part does with a request.
+---
+
+import TrafficDiagram from '/snippets/traffic-diagram.mdx';
+
+What runs when you add an arm, and who decides what?
+
+## The parts
+
+| Part | Where it runs | What it does |
+| --- | --- | --- |
+| Your CI | GitHub Actions | Builds images, and records each build with `statespace-tech/action@v1` |
+| `ssp proxy` | In front of your app | Assigns each request, and runs the control and the arms |
+| Statespace | `api.statespace.com` | Keeps apps, arms, builds, and evidence. Posts commit statuses |
+| `ssp` CLI | Your terminal or agent | Adds and removes apps, arms, and tokens. Stops and resumes |
+
+Your app does not know Statespace. It runs no proxy and needs no code change.
+
+## A request
+
+<TrafficDiagram />
+
+For each request, the proxy does these steps:
+
+1. It reads the subject ID, such as the `ssp_sid` cookie.
+2. It checks `eligibility`.
+3. It hashes the subject ID to a point between 0 and 1.
+4. It sends the request to the arm or the control whose range holds the point. All other points go to live.
+
+The proxy never waits on Statespace during a request. It gets its configuration in the background. When something is wrong, the request goes to live. See [Subjects and the cookie](/concepts/subjects).
+
+## Live, the control, and the arms
+
+- **Live** is the service that you run now. It serves everyone outside the arms and the control. Statespace never records it.
+- **The control** is a copy of the live image. It serves only the control's subjects. Statespace records it.
+- **An arm** is a commit that runs on a share of the traffic. Statespace records it.
+
+The arm and the control get the same kind of subjects at the same time. So the difference between them comes from the commit.
+
+## Who decides
+
+- Your CI decides which images exist. The proxy runs only images of recorded builds.
+- A person or an agent with permission on the repo adds each arm. Statespace never starts an arm by itself.
+- `statespace.toml` in your repo holds the settings. A setting changes only with a commit.
+- Statespace shows numbers for each side. You and your agents decide what they mean.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Apps and live" icon="box" href="/concepts/apps">
+    See what an app is, and where live comes from.
+  </Card>
+  <Card title="Arms and versions" icon="git-commit-horizontal" href="/concepts/arms">
+    See how an arm runs and when its evidence restarts.
+  </Card>
+</CardGroup>

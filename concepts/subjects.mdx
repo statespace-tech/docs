@@ -1,0 +1,78 @@
+---
+title: Subjects and the cookie
+description: How the proxy assigns each request to live, the control, or an arm, and the visitor cookie.
+---
+
+How does the proxy pick the side of a request, and how does a visitor keep the same side?
+
+## Subjects
+
+A subject is whom the split assigns: a visitor, a user, or an account. The `subject` setting reads the subject ID from the request. The default is the visitor cookie `ssp_sid`.
+
+```toml statespace.toml
+# Assign signed-in users by their user ID.
+subject = 'request.headers["x-user-id"]'
+```
+
+When the expression gives no string, the request goes to live.
+
+## Assignment
+
+For each request, the proxy does these steps:
+
+1. It reads the subject ID with `subject`.
+2. It checks `eligibility`. A subject that is not eligible goes to live.
+3. It hashes the subject ID. The point is the first 53 bits of `SHA-256(salt:subject_id)`, as a number from 0 to 1.
+4. It sends the request to the arm or the control whose range holds the point. All other points go to live.
+
+The ranges of the arms do not overlap. The size of each range is the share of its arm. The control's ranges are as large as the largest share of a running arm. `max_traffic` limits the total of all arms and the control.
+
+The same subject ID always gives the same point. So a subject stays on one side, on every proxy instance, with no sticky sessions.
+
+## Reasons
+
+The proxy records a reason for each assignment.
+
+| Reason | Means |
+| --- | --- |
+| `assigned` | The subject is in the control or an arm |
+| `ineligible` | `eligibility` is false. The request goes to live |
+| `eligibility-error` | `eligibility` has an error. The request goes to live |
+| `arm-unavailable` | The arm or the control is not ready. The request goes to live |
+| `override` | The request names its arm. See [Overrides](/concepts/overrides) |
+
+## Headers to your app
+
+The proxy adds these headers to each request to the control or an arm. It first removes all incoming `x-statespace-*` headers.
+
+| Header | Value |
+| --- | --- |
+| `x-statespace-subject` | The subject ID |
+| `x-statespace-side` | `control` or `arm` |
+| `x-statespace-arm` | The arm's commit. Only on arm requests |
+
+Responses of the control and the arms have `Cache-Control: private`.
+
+## The visitor cookie
+
+With the default `subject`, a request without `ssp_sid` gets a new ID. The response sets this cookie:
+
+```text
+ssp_sid=<id>; Path=/; Max-Age=7776000; HttpOnly;
+  Secure; SameSite=None; Partitioned
+```
+
+- The cookie lasts 90 days. Each response renews it.
+- It works in an iframe on another site.
+- Over plain `http`, the cookie is `SameSite=Lax`, without `Secure` and `Partitioned`.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Events and metrics" icon="chart-column" href="/concepts/events-and-metrics">
+    See what the proxy records for each side.
+  </Card>
+  <Card title="CEL variables" icon="braces" href="/reference/cel">
+    Look up the fields of `request`.
+  </Card>
+</CardGroup>

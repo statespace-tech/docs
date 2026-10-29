@@ -1,0 +1,64 @@
+---
+title: Arms and versions
+description: How a commit runs as an arm, why it waits, and when its evidence restarts.
+---
+
+What is an arm, and when does Statespace start new evidence for it?
+
+## Arms
+
+An arm is a commit that runs on a share of an app's traffic. The commit is the arm's ID.
+
+```shell
+ssp arm add a1b2c3d --app shop-prod --share 0.05 \
+  --note "green checkout button"
+```
+
+- Give the full commit or its first 7 characters or more. When a prefix matches more than one build, the command fails and lists them.
+- `ssp arm add` finds the build of the commit for the app, and prints the build that it chose. Without a build, it fails: "No build of a1b2c3d for shop-prod. Push it so CI builds it."
+- The share is the fraction of the app's subjects that the arm gets. The default is `0.05`.
+- To change the share, run `ssp arm add` again with a new `--share`. The command prints the old and the new share.
+- Any commit with a build can be an arm, also an older one. The evidence shows how many commits the arm is ahead of and behind the live commit.
+
+## End an arm
+
+`ssp arm remove` ends the arm. Statespace keeps its evidence, and its commit status says "Ended".
+
+```shell
+ssp arm remove a1b2c3d --app shop-prod
+```
+
+When the live commit contains the arm's commit, nothing changes by itself. The commit status and `ssp arm list` say "Live 9f1ce8a contains this commit · consider ssp arm remove". You remove the arm.
+
+## Why an arm waits
+
+An arm waits, and does not run, when one of these is true:
+
+- `max_traffic` is full. Arms get traffic first come, first served.
+- `max_arms` arms run already.
+- The app has no live commit yet.
+- A hold covers the arm. See [Holds](/concepts/holds).
+
+`ssp arm show` and the commit status give the reason, such as `Waiting: max_traffic 20% is full`.
+
+## Versions
+
+A version is one fixed definition of an arm. Statespace shows evidence for each version. A new version starts when:
+
+- the share of the arm changes;
+- the live commit of the app changes;
+- the settings of the app change;
+- a hold on the arm starts or ends.
+
+The evidence starts again with each version. The arm keeps the same subjects across versions, because it keeps its ranges of the hash space. `ssp arm show` lists the versions.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Subjects and the cookie" icon="cookie" href="/concepts/subjects">
+    See how the proxy picks the side of a request.
+  </Card>
+  <Card title="Evidence on the commit" icon="circle-check" href="/concepts/evidence">
+    Read the commit status of an arm.
+  </Card>
+</CardGroup>

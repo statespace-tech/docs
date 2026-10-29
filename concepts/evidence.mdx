@@ -1,0 +1,51 @@
+---
+title: Evidence on the commit
+description: How Statespace puts the evidence of each arm on its commit as a commit status.
+---
+
+Where do you and your agents read the evidence of an arm?
+
+Statespace posts a commit status on each arm's commit, for each app. Its name is `statespace/<app>`, such as `statespace/shop-prod`. Statespace updates the status at each change, and about every 10 minutes.
+
+```text
+statespace/shop-prod  pending
+5% · 1,204 subjects · split OK · checkout rate % 3.4 vs 2.8
+· errors 0.3% vs 0.2%
+```
+
+The running line has:
+
+1. the share of the arm;
+2. the subjects of the arm;
+3. the [split check](/concepts/events-and-metrics#the-split-check);
+4. the first metric, arm vs control;
+5. the errors, arm vs control.
+
+## The state says where the arm is
+
+The state of the status says where the arm is. It never says that the arm is good or bad.
+
+| The arm | State |
+| --- | --- |
+| Starts, waits, or runs | `pending` |
+| Is not ready, or is stopped | `failure` |
+| Is removed | `success` |
+
+See [Commit status](/reference/commit-status) for each description.
+
+## More evidence
+
+- **Details** on the status opens the arm in the dashboard.
+- `ssp arm show <commit> --app <app>` shows the totals and all metrics for each side, the split check, the top events, the versions, and the holds.
+- `ssp arm show --json` gives the same data to agents.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Commit status" icon="list" href="/reference/commit-status">
+    Look up each state and description.
+  </Card>
+  <Card title="Agents" icon="bot" href="/guides/agents">
+    Let a coding agent read the evidence.
+  </Card>
+</CardGroup>
