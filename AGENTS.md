@@ -5,32 +5,40 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
 
 ## Product
 
-- A branch named `exp/<name>` is an experiment with one arm. `exp/<experiment>/<arm>` adds arms to one
-  experiment. An arm runs while GitHub says that its pull request can merge.
-- Settings live in `statespace.toml`. Arm settings come from the `exp/` branch; app settings come from the
-  default branch.
-- The GitHub App opens the "Set up Statespace" pull request, reports pull request state, posts the
-  `statespace/apply` and `statespace/arm` checks, commits dashboard edits, and makes pull requests drafts
-  for stops.
-- The CLI records builds in CI (`ssp apply`), shows and stops arms (`status`, `stop`, `resume`), manages
-  tokens, and runs `ssp proxy` and `ssp controller kubernetes`. It has no command that only reads recorded
-  data: SQL reads data.
-- Each account has one PostgreSQL database, with one schema of views per app.
+`statespace-tech/design.md` is the source of truth. The docs must match it.
 
-Document current behavior only. Mark proposed behavior with a visible `Planned` warning.
+- An app is one running copy of a service, such as `shop-dev` or `shop-prod`. `ssp app add` adds it. It is
+  linked to one repo and one folder.
+- CI builds images and records each build ("commit → image digest") with `statespace-tech/action@v1` and
+  GitHub OIDC. The proxy runs only images of recorded builds.
+- An arm is a commit that runs on a share of an app's traffic. The commit is the arm's ID. A person or an
+  agent adds it with `ssp arm add <commit> --app <app>`.
+- Live is the service that the customer runs. It is never recorded. The control is a copy of the live
+  image that serves only the control's subjects.
+- `ssp proxy docker|cloudrun|kubernetes --app <app>` runs in front of the app. The instance that holds
+  the lease runs the control and the arms.
+- Settings, events, and metrics live in `statespace.toml`, with `[app.<name>]` sections. Events and
+  metrics are CEL.
+- Evidence goes on the arm's commit as the commit status `statespace/<app>`.
+- Holds (`ssp app stop`, `ssp arm stop`) take arms out of traffic. Overrides (`?ssp_arm=<commit>`) let
+  testers open a running arm.
+- Permissions come from GitHub roles. The only Statespace token is the runtime token of one app.
+
+Document current behavior only. Mark proposed behavior with a visible `Planned` warning. Do not document
+models that were removed. When the spec is silent, do not invent behavior.
 
 ## Words
 
 - Write in ASD-STE100 Simplified Technical English: short sentences, one idea in each, active voice,
-  second person, present tense.
+  second person, present tense. Keep sentences in procedures to 20 words or fewer.
 - Do not use filler such as "simply", "just", "please note", or "it's worth noting".
-- Use one term for each thing: **arm** (the image of a commit of an `exp/` branch), **control** (the
-  default build of an arm's base), **default** (the deployed version), **subject** (who gets an arm),
-  **base** (the commit where the branch left the default branch). Use `control group` and
-  `treatment group` only for statistics.
-- Use one example everywhere: the organization `acme`, the repository `acme/atlas`, the app `atlas`, the
-  experiment `ranking` with the arms `recent-clicks` and `bm25`, and pull request `#418`. For a one-arm
-  example, use `exp/recent-clicks`. Write tokens as `ssp_tok_...`, never complete.
+- Use one term for each thing: **app**, **live**, **live commit**, **build**, **arm** (never "variant"),
+  **control**, **side** (`arm` or `control`), **subject**, **share**, **version**, **hold**,
+  **override**, **event**, **metric**, **orchestrator**.
+- Use one example everywhere: the organization `acme`, the repo `acme/shop`, the apps `shop-dev` and
+  `shop-prod`, the commit `a1b2c3d`, the live commit `9f1ce8a`, the event `checkout`, the metric
+  `checkout rate %`, and the image `ghcr.io/acme/shop@sha256:…`. Use only neutral, invented names. Never
+  use the names of customers. Write secrets as `<secret>`.
 
 ## Pages
 
@@ -39,7 +47,7 @@ Give each page one type (Diátaxis), and keep it to that type.
 | Type | Folder | Shape |
 | --- | --- | --- |
 | Tutorial | root (`quickstart`) | What you get, prerequisites, `<Steps>`, a check of the result, next steps |
-| How-to | `getting-started/`, `workflow/`, `examples/` | The task in the title, `<Steps>` or short sections, next steps |
+| How-to | `getting-started/`, `guides/` | The task in the title, `<Steps>` or short sections, next steps |
 | Explanation | `concepts/` | Starts with the question it answers; no procedures |
 | Reference | `reference/` | Complete and scannable; follows the structure of the thing it describes |
 
@@ -53,11 +61,11 @@ Give each page one type (Diátaxis), and keep it to that type.
 
 - `<Steps>` for a sequence that the reader does in order. Each step title starts with a verb.
 - `<ParamField>` for each setting, flag, and argument in reference pages, with `type`, `default`, and
-  `required` where they apply: `<ParamField path="share" type="number" required>` for a
-  `statespace.toml` key, and `<ParamField body="--image" type="string" required>` for a CLI flag or
+  `required` where they apply: `<ParamField path="max_traffic" type="number" default="0.2">` for a
+  `statespace.toml` key, and `<ParamField body="--app" type="string" required>` for a CLI flag or
   argument.
-- Tables for short comparisons and lists of names, such as views or presets. Not for flags.
-- `<CodeGroup>` for alternatives of one step, such as Docker and Kubernetes.
+- Tables for short comparisons and lists of names, such as states or fields. Not for flags.
+- `<CodeGroup>` for alternatives of one step.
 - `<Note>` for useful context, `<Tip>` for a better way, `<Warning>` for data loss, cost, or a step that
   cannot be undone. One callout per section at most.
 - `<AccordionGroup>` for troubleshooting and questions.
@@ -66,11 +74,11 @@ Give each page one type (Diátaxis), and keep it to that type.
 ## Code
 
 - Give each code block a language and, when it is a file, its path as the title:
-  ` ```toml statespace.toml `, ` ```yaml .github/workflows/statespace.yml `.
+  ` ```toml statespace.toml `, ` ```yaml .github/workflows/build.yml `.
 - Put one sentence before each code block that says what it does.
-- Keep code lines to 60 characters, so blocks fit without scrolling at 1440 pixels. One key per line in
-  `print(json.dumps({...}))`; one SQL condition per line, with `FILTER` and `WITHIN GROUP` on a
-  continuation line and `::float` casts; `\` continuations in shell; comments on their own line.
+- Keep code lines to 60 characters where you can, and never over 80, so blocks fit without scrolling.
+  Use `\` continuations in shell, one CEL condition per line in `'''` strings, and comments on their own
+  line.
 - Use real numbered lists for sequences, never `a → b → c` in a code block.
 
 ## Checks

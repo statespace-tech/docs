@@ -33,13 +33,14 @@ Pushes and pull requests run both checks in GitHub Actions.
 
 ## Structure
 
-The documentation follows five sections.
+The documentation has four sections.
 
-- Getting started introduces the interfaces.
-- Concepts explains experiment theory.
-- Experiment workflow follows the production lifecycle.
-- Examples provides complete recipes.
-- Reference documents exact interfaces and schemas.
+- Get started: the introduction, the quickstart, and installation.
+- Concepts: apps, live, the control, arms, subjects, events and metrics, evidence, holds, overrides, and
+  permissions.
+- Guides: CI on GitHub Actions, the proxy on Docker, Cloud Run, and Kubernetes, events and metrics,
+  emergency stops, and agents.
+- Reference: the CLI, `statespace.toml`, the API, CEL variables, commit statuses, and limits.
 
 ## Content status
 
