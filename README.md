@@ -36,11 +36,12 @@ Pushes and pull requests run both checks in GitHub Actions.
 The documentation has four sections.
 
 - Get started: the introduction, the quickstart, and installation.
-- Concepts: apps, live, the control, arms, subjects, events and metrics, evidence, holds, overrides, and
-  permissions.
+- Concepts: how it works, apps and live, experiments, subjects and assignment, events and metrics,
+  evidence, overrides, and permissions.
 - Guides: CI on GitHub Actions, the proxy on Docker, Cloud Run, and Kubernetes, events and metrics,
   emergency stops, and agents.
-- Reference: the CLI, `statespace.toml`, the API, CEL variables, commit statuses, and limits.
+- Reference: the CLI, `statespace.toml` with a starter file, the API, CEL variables, commit statuses,
+  and limits.
 
 ## Content status
 

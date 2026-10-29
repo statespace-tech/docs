@@ -11,17 +11,21 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
   linked to one repo and one folder.
 - CI builds images and records each build ("commit → image digest") with `statespace-tech/action@v1` and
   GitHub OIDC. The proxy runs only images of recorded builds.
-- An arm is a commit that runs on a share of an app's traffic. The commit is the arm's ID. A person or an
-  agent adds it with `ssp arm add <commit> --app <app>`.
-- Live is the service that the customer runs. It is never recorded. The control is a copy of the live
-  image that serves only the control's subjects.
+- An experiment is a named comparison of commits in one app. Its table `[experiment.<name>]` is in
+  `statespace.toml`. Its arms are commits with exact shares, set with
+  `ssp experiment update <name> --arm <commit>=<share>`. The first arm is the reference.
+- `ssp experiment start` and `ssp experiment stop` run an experiment. Each start is a new version. A
+  running experiment does not change.
+- Experiments in one app never overlap, because each arm is a full build. Different apps are independent
+  layers.
+- Live is the service that the customer runs. It is never recorded. There is no control arm: to compare
+  with live, add the live commit as an arm.
 - `ssp proxy docker|cloudrun|kubernetes --app <app>` runs in front of the app. The instance that holds
-  the lease runs the control and the arms.
-- Settings, events, and metrics live in `statespace.toml`, with `[app.<name>]` sections. Events and
-  metrics are CEL.
-- Evidence goes on the arm's commit as the commit status `statespace/<app>`.
-- Holds (`ssp app stop`, `ssp arm stop`) take arms out of traffic. Overrides (`?ssp_arm=<commit>`) let
-  testers open a running arm.
+  the lease runs the arms.
+- Settings, events, metrics, and experiments live in `statespace.toml`, with `[app.<name>]` sections.
+  Events and metrics are CEL.
+- Evidence goes on each arm's commit as the commit status `statespace/<app>/<experiment>`.
+- Overrides (`?ssp_arm=<experiment>:<commit>`) let testers open an arm of a running experiment.
 - Permissions come from GitHub roles. The only Statespace token is the runtime token of one app.
 
 Document current behavior only. Mark proposed behavior with a visible `Planned` warning. Do not document
@@ -32,12 +36,13 @@ models that were removed. When the spec is silent, do not invent behavior.
 - Write in ASD-STE100 Simplified Technical English: short sentences, one idea in each, active voice,
   second person, present tense. Keep sentences in procedures to 20 words or fewer.
 - Do not use filler such as "simply", "just", "please note", or "it's worth noting".
-- Use one term for each thing: **app**, **live**, **live commit**, **build**, **arm** (never "variant"),
-  **control**, **side** (`arm` or `control`), **subject**, **share**, **version**, **hold**,
-  **override**, **event**, **metric**, **orchestrator**.
+- Use one term for each thing: **app**, **live**, **live commit**, **build**, **experiment**, **arm**
+  (never "variant"), **reference**, **subject**, **share**, **version**, **unit**, **override**,
+  **event**, **metric**, **orchestrator**.
 - Use one example everywhere: the organization `acme`, the repo `acme/shop`, the apps `shop-dev` and
-  `shop-prod`, the commit `a1b2c3d`, the live commit `9f1ce8a`, the event `checkout`, the metric
-  `checkout rate %`, and the image `ghcr.io/acme/shop@sha256:…`. Use only neutral, invented names. Never
+  `shop-prod`, the experiments `checkout` and `us-landing`, the live commit `c0ffee1`, the commit
+  `a1b2c3d`, the event `purchase`, the metric `purchase rate %`, and the image
+  `ghcr.io/acme/shop@sha256:…`. Use only neutral, invented names. Never
   use the names of customers. Write secrets as `<secret>`.
 
 ## Pages
@@ -61,7 +66,7 @@ Give each page one type (Diátaxis), and keep it to that type.
 
 - `<Steps>` for a sequence that the reader does in order. Each step title starts with a verb.
 - `<ParamField>` for each setting, flag, and argument in reference pages, with `type`, `default`, and
-  `required` where they apply: `<ParamField path="max_traffic" type="number" default="0.2">` for a
+  `required` where they apply: `<ParamField path="max_share" type="number" default="0.2">` for a
   `statespace.toml` key, and `<ParamField body="--app" type="string" required>` for a CLI flag or
   argument.
 - Tables for short comparisons and lists of names, such as states or fields. Not for flags.
