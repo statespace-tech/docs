@@ -1,11 +1,12 @@
 ---
 title: Quickstart
-description: Run a commit as an arm on Docker, read its evidence on the commit, and remove it.
+description: Run an experiment on Docker that compares the live commit with a change, read the evidence on the commits, and stop it.
 ---
 
 import BuildWorkflow from '/snippets/build-workflow.mdx';
+import StarterToml from '/snippets/starter-toml.mdx';
 
-In this tutorial, you test a change to the app `shop-dev` on live traffic. The app runs on one machine with Docker. At the end, 5% of the visitors get your commit, and 5% get the control. The commit status `statespace/shop-dev` shows the evidence.
+In this tutorial, you test a change to the app `shop-dev` on live traffic. The app runs on one machine with Docker. At the end, the experiment `checkout` runs: 5% of the visitors get the live commit, and 5% get your change. The commit status `statespace/shop-dev/checkout` on each commit shows the evidence.
 
 ## Prerequisites
 
@@ -13,50 +14,23 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
 - A Linux machine with Docker. The proxy runs the app on this machine.
 - The admin role on the repo. You need it to add the app and its token.
 
-## Run your first arm
+## Run your first experiment
 
 <Steps>
   <Step title="Install the GitHub App">
     On [statespace.com](https://statespace.com), select **Connect GitHub**. Install the Statespace GitHub App on the account that owns the repo. The App can read code, metadata, and members, and write commit statuses. It cannot write code.
   </Step>
 
-  <Step title="Install the CLI">
-    Install the CLI, and sign in with the same GitHub account.
-
-    ```shell
-    curl -fsSL https://statespace.com/install.sh | bash
-    ssp login
-    ```
-  </Step>
-
   <Step title="Write statespace.toml">
-    In the root folder of the repo, write a starter file.
+    In the root folder of the repo, write this starter file. It has one event, one metric, and one experiment. A coding agent can write this file for you.
 
-    ```shell
-    ssp init
-    ```
+    <StarterToml />
 
-    Add one event and one metric to the file. The event counts the visitors who send a checkout. The metric is the share of visitors with a checkout.
-
-    ```toml statespace.toml
-    [[event]]
-    name = "checkout"
-    match = '''
-    request.method == "POST"
-      && request.path == "/api/checkout"
-      && request.status < 300
-    '''
-
-    [[metric]]
-    label = "checkout rate %"
-    value = '100.0 * events["checkout"].subjects / subjects'
-    ```
-
-    See [statespace.toml](/reference/statespace-toml) for every key.
+    Change the event to a route of your app. See [statespace.toml](/reference/statespace-toml) for every key.
   </Step>
 
   <Step title="Build every push">
-    `ssp init` printed the action step. Add the workflow below to the repo. It builds each push to each branch, pushes the image to GitHub Packages, and records the build.
+    Add the workflow below to the repo. It builds each push to each branch, pushes the image to GitHub Packages, and records the build.
 
     <BuildWorkflow />
 
@@ -69,6 +43,15 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
     ```
 
     When the workflow is done, the build of this commit is recorded.
+  </Step>
+
+  <Step title="Install the CLI">
+    Install the CLI, and sign in with the same GitHub account.
+
+    ```shell
+    curl -fsSL https://statespace.com/install.sh | bash
+    ssp login
+    ```
   </Step>
 
   <Step title="Add the app">
@@ -109,52 +92,66 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
       --image-file /etc/shop/image
     ```
 
-    To run the proxy as a service, see [Docker](/guides/docker).
+    The commit of `main` is now the live commit. Its `statespace.toml` defines the experiment `checkout`. To run the proxy as a service, see [Docker](/guides/docker).
   </Step>
 
   <Step title="Push a change">
     Make a change on a new branch, and push it. CI builds the commit and records it.
 
     ```shell
-    git switch -c green-button
-    git commit -am "Make the checkout button green"
-    git push -u origin green-button
+    git switch -c one-page-checkout
+    git commit -am "Put checkout on one page"
+    git push -u origin one-page-checkout
     ```
   </Step>
 
-  <Step title="Add the arm">
-    When the workflow is done, add the commit as an arm. The CLI prints the build that it chose.
+  <Step title="Set the arms">
+    When the workflow is done, set the arms of `checkout`. The live commit is the first arm, so it is the reference. Your change is the second arm. Each arm gets 5% of the visitors.
 
     ```shell
-    ssp arm add "$(git rev-parse HEAD)" --app shop-dev \
-      --share 0.05 --note "green checkout button"
+    ssp app show shop-dev
+    ssp experiment update checkout --app shop-dev \
+      --arm c0ffee1=0.05 \
+      --arm "$(git rev-parse HEAD)=0.05"
     ```
 
-    The proxy starts the control and the arm. Then 5% of the visitors get the arm, and 5% get the control.
+    Use the live commit that `ssp app show` prints in place of `c0ffee1`. The command prints the arms and the total of the shares.
+  </Step>
+
+  <Step title="Start the experiment">
+    Start the experiment. The proxy starts one copy of each arm. The command waits until each arm is ready, for 5 minutes at most.
+
+    ```shell
+    ssp experiment start checkout --app shop-dev \
+      --note "one-page checkout"
+    ```
+
+    When both arms are ready, the experiment is `running`, and the proxy sends each arm its share.
   </Step>
 
   <Step title="Read the evidence">
-    Show the arm.
+    Show the experiment.
 
     ```shell
-    ssp arm show "$(git rev-parse HEAD)" --app shop-dev
+    ssp experiment show checkout --app shop-dev
     ```
 
-    The commit on GitHub has the status `statespace/shop-dev`. When the arm runs, the status says, for example:
+    Each arm's commit on GitHub has the status `statespace/shop-dev/checkout`. While the experiment runs, the status of your change says, for example:
 
     ```text
-    5% · 1,204 subjects · split OK · checkout rate % 3.4 vs 2.8
-    · errors 0.3% vs 0.2%
+    v1 running · 0.05 · 2,040 subjects · split OK
+    · purchase rate % 3.4 vs 2.8 (c0ffee1)
     ```
 
-    Statespace updates the status about every 10 minutes. Select **Details** to see the arm in the dashboard.
+    Statespace updates the status at each change of state, and every hour. Select **Details** to see the experiment in the dashboard.
   </Step>
 
-  <Step title="Remove the arm">
-    When you have the evidence that you need, remove the arm. Statespace keeps its evidence, and the status says "Ended".
+  <Step title="Stop the experiment">
+    When you have the evidence that you need, stop the experiment. The arms leave traffic in seconds. Statespace keeps the evidence.
 
     ```shell
-    ssp arm remove "$(git rev-parse HEAD)" --app shop-dev
+    ssp experiment stop checkout --app shop-dev \
+      --note "enough data"
     ```
 
     To ship the change, merge the branch and deploy it as usual.
@@ -164,14 +161,14 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="How it works" icon="workflow" href="/concepts/how-it-works">
-    See live, the control, and the arms.
+  <Card title="Experiments" icon="flask-conical" href="/concepts/experiments">
+    See arms, the reference, and versions.
   </Card>
   <Card title="Events and metrics" icon="chart-column" href="/guides/events-and-metrics">
     Count what matters to you.
   </Card>
   <Card title="Stop in an emergency" icon="octagon-x" href="/guides/emergency-stop">
-    Stop an arm or an app at once.
+    Stop experiments at once.
   </Card>
   <Card title="Cloud Run" icon="cloud" href="/guides/cloud-run">
     Run the proxy in front of a Cloud Run service.

@@ -1,0 +1,25 @@
+```toml statespace.toml
+# Statespace settings. Reference:
+# https://docs.statespace.com/reference/statespace-toml
+
+# An event: a visitor buys. Change the path to the
+# route of your app that completes an order.
+[[event]]
+name = "purchase"
+match = '''
+request.method == "POST"
+  && request.path == "/checkout"
+  && request.status < 300
+'''
+
+# A metric. The first metric is the headline.
+[[metric]]
+label = "purchase rate %"
+value = '100.0 * events["purchase"].subjects / subjects'
+
+# An experiment. Its arms are commits. Set them with
+# ssp experiment update checkout --arm <commit>=0.05
+[experiment.checkout]
+# The arms together get at most 20% of the subjects.
+max_share = 0.2
+```

@@ -16,7 +16,7 @@ The App asks for these permissions. It never writes code.
 | Contents | Read | Find the commits ahead of and behind live |
 | Metadata | Read | Required by GitHub |
 | Members | Read | Find the role of each person on a repo |
-| Commit statuses | Read and write | Post the `statespace/<app>` status on each arm's commit |
+| Commit statuses | Read and write | Post the `statespace/<app>/<experiment>` status on each arm's commit |
 
 Permissions in Statespace come from GitHub. See [Permissions](/concepts/permissions).
 
@@ -53,7 +53,7 @@ On Cloud Run and Kubernetes, the proxy runs from the image `ghcr.io/statespace-t
 
 ## Coding agents
 
-Give this prompt to your coding agent. The skill tells the agent how to install the CLI, add arms, and read the evidence.
+Give this prompt to your coding agent. The skill tells the agent how to install the CLI, write `statespace.toml`, run experiments, and read the evidence.
 
 ```text
 Read https://statespace.com/skill.md and follow it.
@@ -65,7 +65,7 @@ See [Agents](/guides/agents) for the workflow.
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
-    Run your first arm on Docker.
+    Run your first experiment on Docker.
   </Card>
   <Card title="Build every push" icon="github" href="/guides/github-actions">
     Record builds from GitHub Actions.

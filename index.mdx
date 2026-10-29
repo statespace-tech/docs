@@ -1,34 +1,36 @@
 ---
 title: Statespace
 sidebarTitle: Introduction
-description: Run a commit on a share of live traffic beside a control, and read the evidence on the commit.
+description: Run commits as the arms of an experiment on a share of live traffic, and read the evidence on each commit.
 ---
 
 import TrafficDiagram from '/snippets/traffic-diagram.mdx';
 
-Statespace runs a commit of your app on a small share of real traffic. A control runs beside it. Statespace records what happens and puts the evidence on the commit, as a commit status.
+Statespace runs commits of your app on small shares of real traffic. It records what happens, and puts the evidence on each commit as a commit status.
 
-A person or a coding agent adds the commit as an **arm**. The proxy in front of your app sends 5% of the visitors to the arm and 5% to the control. All other visitors get your live service, as before.
+An **experiment** compares commits. Each commit is an **arm** with an exact share of the visitors, such as `0.05`. To compare a change with what runs now, make the live commit one of the arms. The proxy in front of your app sends each arm its share. All other visitors get your live service, as before.
 
 <TrafficDiagram />
 
-Your CI builds the images. Statespace runs only images of builds that your CI recorded. Your settings, events, and metrics are in `statespace.toml`, in your repo.
+Your CI builds the images. Statespace runs only images of builds that your CI recorded. Your settings, events, metrics, and experiments are in `statespace.toml`, in your repo.
 
 ## How you use it
 
 1. Your CI builds each push and records the build with `statespace-tech/action@v1`.
 2. `ssp proxy` runs in front of your app.
-3. You add a commit as an arm with `ssp arm add a1b2c3d --app shop-prod`.
-4. The commit status `statespace/shop-prod` shows the evidence: subjects, the split check, your headline metric, and errors.
-5. You remove the arm with `ssp arm remove`, or stop it at once with `ssp arm stop`.
+3. The table `[experiment.checkout]` in `statespace.toml` defines an experiment.
+4. You set the arms with `ssp experiment update checkout --arm c0ffee1=0.05 --arm a1b2c3d=0.05`.
+5. You start the experiment with `ssp experiment start checkout`.
+6. The commit status `statespace/shop-prod/checkout` on each arm's commit shows the evidence: subjects, the split check, and your headline metric.
+7. You stop the experiment with `ssp experiment stop checkout`.
 
-Statespace shows numbers for each side. It does not tell you which side is better. You and your agents decide.
+Statespace shows numbers for each arm. It does not tell you which arm is better. You and your agents decide.
 
 ## Get started
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
-    Run your first arm on Docker.
+    Run your first experiment on Docker.
   </Card>
   <Card title="Installation" icon="download" href="/getting-started/installation">
     Install the GitHub App and the CLI.
