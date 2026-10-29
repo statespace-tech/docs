@@ -1,7 +1,7 @@
 ---
 title: Write events and metrics
 sidebarTitle: Events and metrics
-description: Count requests and output lines with CEL events, and compare the arm and the control with metrics.
+description: Count requests and output lines with CEL events, and compare the arms of an experiment with metrics.
 ---
 
 This guide shows how to write events and metrics in `statespace.toml`. Your app needs no code change. See [Events and metrics](/concepts/events-and-metrics) for the model.
@@ -9,10 +9,14 @@ This guide shows how to write events and metrics in `statespace.toml`. Your app 
 ## Steps
 
 1. Choose what to count: a request, or a line that the app prints.
-2. Write one `[[event]]` for each thing.
+2. Choose where the count applies. Write a shared `[[event]]` for every experiment, or an own `[[experiment.<name>.event]]` for one experiment.
 3. Write a `[[metric]]` for each number that you want to compare. Put the most important metric first.
 4. Push the commit. CI checks every expression when it records the build.
-5. The settings apply when the commit runs as live.
+5. The change applies when the commit runs as live.
+
+<Warning>
+  A release that changes a shared event stops every running experiment of the app. A release that changes an own event stops its experiment. A change of a metric stops nothing. See [What a release does](/concepts/experiments#what-a-release-does).
+</Warning>
 
 ## Count requests
 
@@ -24,16 +28,16 @@ A request event can use `method`, `path`, `query`, `headers`, `cookies`, `status
 name = "signup"
 match = '''
 request.method == "POST"
-  && request.path == "/api/signup"
+  && request.path == "/signup"
   && request.status < 300
 '''
 
 # A visitor sends an order.
 [[event]]
-name = "checkout"
+name = "purchase"
 match = '''
 request.method == "POST"
-  && request.path == "/api/checkout"
+  && request.path == "/checkout"
   && request.status < 300
 '''
 
@@ -70,21 +74,17 @@ Output lines have no subject. So an output event has `.lines`, and no `.subjects
 
 ## Write metrics
 
-A metric uses the totals of one side. Statespace computes it for the arm and for the control.
+A metric uses the totals of one arm. Statespace computes it for each arm of the experiment.
 
 ```toml statespace.toml
 # The headline: the share of visitors who order.
 [[metric]]
-label = "checkout rate %"
-value = '100.0 * events["checkout"].subjects / subjects'
+label = "purchase rate %"
+value = '100.0 * events["purchase"].subjects / subjects'
 
 [[metric]]
 label = "signup rate %"
 value = '100.0 * events["signup"].subjects / subjects'
-
-[[metric]]
-label = "error rate %"
-value = '100.0 * errors / requests'
 
 [[metric]]
 label = "slow requests %"
@@ -99,24 +99,52 @@ label = "p90 ms"
 value = 'p90_ms'
 ```
 
-## Rules
+Errors and latency always show in the evidence. You do not need a metric for them.
 
-- Each event uses exactly one source. An expression with no source, or with two sources, fails in CI.
-- A missing field is no match. It is not an error.
-- An event without rows is `0`. All numbers are decimals.
-- A metric that uses `.subjects` of an output event fails in CI.
-- A metric that uses an event that does not exist fails in CI.
-- A side with no subjects shows `–`.
+## Count for one experiment
 
-## Per-app events
+An own event or metric applies only to its experiment. Use it for a measure that only one experiment needs. The first own metric is the headline of the experiment.
 
-Events and metrics in a section `[app.<name>]` are added after the shared ones. Use this for a measure that only one app has.
+```toml statespace.toml
+[experiment.checkout]
+max_share = 0.2
+
+# Only the arms of checkout count coupons.
+[[experiment.checkout.event]]
+name = "coupon"
+match = '''
+request.method == "POST"
+  && request.path == "/checkout/coupon"
+'''
+
+# The headline of checkout.
+[[experiment.checkout.metric]]
+label = "coupon use %"
+value = '100.0 * events["coupon"].subjects / subjects'
+```
+
+## Count for one app
+
+Events and metrics in a section `[app.<name>]` are added after the shared ones, for that app only.
 
 ```toml statespace.toml
 [[app.shop-prod.event]]
 name = "refund"
-match = 'request.path == "/api/refund" && request.status < 300'
+match = '''
+request.path == "/refund"
+  && request.status < 300
+'''
 ```
+
+## Rules
+
+- Each event uses exactly one source. An expression with no source, or with two sources, fails in CI.
+- The same event name or metric label two times fails in CI.
+- A missing field is no match. It is not an error.
+- An event without rows is `0`. All numbers are decimals.
+- A metric that uses `.subjects` of an output event fails in CI.
+- A metric that uses an event that does not exist fails in CI.
+- An arm with no subjects shows `–`.
 
 ## Next steps
 

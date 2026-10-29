@@ -1,92 +1,98 @@
 ---
 title: Stop in an emergency
 sidebarTitle: Emergency stop
-description: Take one arm or every arm of an app out of traffic in seconds, from the CLI, the dashboard, or the API.
+description: Take the arms of one or more experiments out of traffic in seconds, from the CLI, the dashboard, or the API.
 ---
 
-When an arm causes a problem, stop it. Its visitors go back to live in seconds. Then find the cause.
+When an experiment causes a problem, stop it. The visitors of its arms go back to live in seconds. Then find the cause.
 
-You need the role write or triage on the app's repo. Stop never asks for confirmation.
+You need the role Write or Maintain on the app's repo. Stop never asks for confirmation.
 
-## Stop one arm
+## Stop one experiment
 
 ```shell
-ssp arm stop a1b2c3d --app shop-prod \
+ssp experiment stop checkout --app shop-prod \
   --note "checkout errors > 2%"
 ```
 
-## Stop every arm of an app
+A stop on a stopped experiment returns it unchanged.
 
-A hold on the app covers every arm, also the arms that people add later.
+## Stop every experiment of an app
 
-```shell
-ssp app stop shop-prod --note "incident 214"
-```
+There is no stop for a whole app. Stop each running experiment by name.
+
+1. List the running experiments.
+
+   ```shell
+   ssp experiment list --app shop-prod --running
+   ```
+
+2. Stop them with one command. `stop` takes one or more names.
+
+   ```shell
+   ssp experiment stop checkout us-landing \
+     --app shop-prod --note "incident 214"
+   ```
 
 ## Stop from the dashboard
 
 1. Open the app on the **Apps** page.
-2. Select **Stop** on the app, or on one arm.
+2. Open the experiment.
+3. Select **Stop**, and write a note.
 
 ## Stop through the API
 
-Use the API when the CLI is not available, such as from an alert script. Send a GitHub token of a person with the write role on the repo.
+Use the API when the CLI is not available, such as from an alert script. Send a GitHub token of a person with the role Write or Maintain on the repo.
 
 ```shell
-curl -sS -X POST \
-  https://api.statespace.com/v1/apps/shop-prod/stop \
+app=https://api.statespace.com/v1/apps/shop-prod
+curl -sS -X POST "$app/experiments/checkout/stop" \
   -H "Authorization: Bearer $GITHUB_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"note": "alert: checkout errors > 2%"}'
 ```
 
-To stop one arm, use the arm's route.
-
-```shell
-curl -sS -X POST \
-  https://api.statespace.com/v1/apps/shop-prod/arms/a1b2c3d/stop \
-  -H "Authorization: Bearer $GITHUB_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"note": "checkout errors > 2%"}'
-```
-
-The response is the hold. A stop on a target that has a hold returns that hold, and changes nothing.
+The response is the `Experiment`, in the state `stopped`.
 
 ## Check the stop
 
 ```shell
-ssp app show shop-prod
+ssp experiment show checkout --app shop-prod
 ```
 
-The output shows the hold. The commit status of each stopped arm is `failure`, for example:
+The output shows the state `stopped`, who stopped it, and the note. The commit status of each arm becomes `success`, for example:
 
 ```text
-Stopped by maria with ssp app stop · incident 214
+v1 stopped · 2,040 subjects
+· purchase rate % 3.4 vs 2.8 (c0ffee1)
 ```
 
-## Resume
+## Run a fix
 
-Resume clears only the hold that it names.
+Each start is a new version. So the evidence of the fix does not mix with the evidence of the stopped version.
 
-```shell
-ssp app resume shop-prod
-ssp arm resume a1b2c3d --app shop-prod \
-  --note "fixed in b2c3d4e"
-```
+1. Push the fix. CI builds and records it.
+2. Replace the arm with the fix. `=0` removes the old arm.
 
-When an arm has a hold of its own, `ssp app resume` keeps that hold, and says so. Resume never brings back a removed arm.
+   ```shell
+   ssp experiment update checkout --app shop-prod \
+     --arm a1b2c3d=0 --arm b2c3d4e=0.05
+   ```
 
-<Tip>
-  To run a fix, push it, and add its commit as a new arm. Then remove the old arm.
-</Tip>
+3. Start the experiment again.
+
+   ```shell
+   ssp experiment start checkout --app shop-prod \
+     --note "fixed in b2c3d4e"
+   ```
 
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Holds" icon="pause" href="/concepts/holds">
-    See the rules of stop and resume.
+  <Card title="Experiments" icon="flask-conical" href="/concepts/experiments">
+    See start, stop, and versions.
   </Card>
   <Card title="API" icon="code" href="/reference/api">
-    Look up the stop and resume routes.
+    Look up the start and stop routes.
   </Card>
 </CardGroup>

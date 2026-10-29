@@ -1,10 +1,10 @@
 ---
 title: Run the proxy on Docker
 sidebarTitle: Docker
-description: Run ssp proxy docker on one machine, as a systemd service, with live, the control, and the arms as containers.
+description: Run ssp proxy docker on one machine, as a systemd service, with live and the arms as containers.
 ---
 
-On a machine with Docker, `ssp proxy docker` runs live, the control, and the arms as containers. It listens on one port in front of them.
+On a machine with Docker, `ssp proxy docker` runs live and the arms as containers. It listens on one port in front of them.
 
 ## Prerequisites
 
@@ -87,13 +87,14 @@ echo "ghcr.io/acme/shop@sha256:<new digest>" \
   | sudo tee /etc/shop/image
 ```
 
-When the live image changes, the proxy also replaces the control. Each arm starts a new version.
+The arms are fixed commits. So a new live does not change a running experiment, unless its `statespace.toml` changes the experiment. See [What a release does](/concepts/experiments#what-a-release-does).
 
 ## Containers
 
 - The port of the app comes from `EXPOSE` in its image.
 - The containers get the environment of the proxy.
-- The proxy labels its containers. After a crash, a new proxy adopts them.
+- The proxy labels its containers with the experiment and the commit. After a crash, a new proxy adopts them.
+- An arm is ready when it accepts a TCP connection, or when it answers `--health` with a 2xx status.
 
 ## Flags
 

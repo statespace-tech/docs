@@ -1,25 +1,26 @@
 ---
 title: Run the proxy on Cloud Run
 sidebarTitle: Cloud Run
-description: Run ssp proxy cloudrun as its own Cloud Run service in front of your service, with arms as tagged revisions.
+description: Run ssp proxy cloudrun as its own Cloud Run service in front of your service, with each arm as a tagged revision.
 ---
 
-On Cloud Run, the proxy runs as its own service in front of your service. The control and each arm run as revisions of your service, with 0% of its traffic.
+On Cloud Run, the proxy runs as its own service in front of your service. Each arm runs as a revision of your service, with 0% of its traffic.
 
 ```text
-                        ┌─► shop          (service URL)
-visitors ─► shop-proxy ─┼─► ssp-control   (tag URL)
-                        └─► ssp-a1b2c3d4e5f6  (tag URL)
+                        ┌─► shop                  (service URL)
+visitors ─► shop-proxy ─┼─► checkout c0ffee1 rev  (tag URL)
+                        └─► checkout a1b2c3d rev  (tag URL)
 ```
 
 ## How it works
 
 - Live is the URL of your service. The live image is the image of the revision that gets the traffic.
-- For the control and each arm, the proxy deploys a revision of your service with 0% traffic.
-- Each revision has a tag: `ssp-control`, or `ssp-` and the first 12 characters of the commit.
+- For each arm, the proxy deploys a revision of your service with 0% traffic.
+- Each revision has a tag with the experiment and the commit. When the name is too long for Cloud Run, it ends with a short hash. The labels keep the full experiment and commit.
 - A new revision copies every setting of the service, such as secrets, the VPC connector, and the service account. Only the image changes.
 - The proxy sends requests to the tag URL with a Google ID token.
 - The proxy uses the Cloud Run Admin API v2, with the service account of its own Cloud Run service.
+- An arm is ready when its revision is `Ready` and runs the image of the arm.
 
 Your deploy workflow does not change.
 
@@ -118,7 +119,7 @@ In the commands, `acme-shop` is the project.
 
 Cloud Run can run many instances of the proxy. Every instance routes requests. Only the instance that holds the app's lease deploys and removes revisions. When that instance stops, another instance gets the lease in about 30 seconds.
 
-All instances must report the same settings and the same live image. While they do not, the arms of the app do not run, and `ssp app show` says why.
+All instances must report the same settings and the same live image. While they do not, no experiment of the app can start, the running ones send their requests to live, and `ssp app show` says why.
 
 ## Next steps
 

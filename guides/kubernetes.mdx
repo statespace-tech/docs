@@ -1,22 +1,23 @@
 ---
 title: Run the proxy on Kubernetes
 sidebarTitle: Kubernetes
-description: Run ssp proxy kubernetes as its own Deployment in front of your app, with arms as copies of your Deployment.
+description: Run ssp proxy kubernetes as its own Deployment in front of your app, with each arm as a copy of your Deployment.
 ---
 
-On Kubernetes, the proxy runs as its own Deployment in front of your app. The control and each arm run as copies of your Deployment with another image.
+On Kubernetes, the proxy runs as its own Deployment in front of your app. Each arm runs as a copy of your Deployment with another image.
 
 ```text
-                         ┌─► Service shop                (live)
-visitors ─► shop-proxy ──┼─► shop-ssp-control            (control)
-                         └─► shop-ssp-a1b2c3d4e5f6       (arm)
+                         ┌─► Service shop     (live)
+visitors ─► shop-proxy ──┼─► checkout c0ffee1 (arm)
+                         └─► checkout a1b2c3d (arm)
 ```
 
 ## How it works
 
 - Live is the Service of your Deployment. By default, it has the name of the Deployment.
-- For the control and each arm, the proxy makes a Deployment and a Service. Each one copies the pod spec of your Deployment and changes only the image.
-- Their names are `shop-ssp-control`, or `shop-ssp-` and the first 12 characters of the commit. They have the label `statespace.com/app`.
+- For each arm, the proxy makes a Deployment and a Service. Each one copies the pod spec of your Deployment and changes only the image.
+- Their names have the experiment and the commit. When a name is too long, it ends with a short hash. The labels `statespace.com/app`, `statespace.com/experiment`, and `statespace.com/commit` keep the full values.
+- An arm is ready when its rollout is done and one replica is ready.
 - The replicas of each copy follow its share.
 - Your Deployment does not change.
 
@@ -156,7 +157,7 @@ visitors ─► shop-proxy ──┼─► shop-ssp-control            (control)
 
 Every replica of the proxy routes requests. Only the replica that holds the app's lease manages the copies. When that replica stops, another replica gets the lease in about 30 seconds.
 
-All replicas must report the same settings and the same live image. While they do not, the arms of the app do not run, and `ssp app show` says why.
+All replicas must report the same settings and the same live image. While they do not, no experiment of the app can start, the running ones send their requests to live, and `ssp app show` says why.
 
 ## Next steps
 

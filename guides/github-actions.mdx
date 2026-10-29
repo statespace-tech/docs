@@ -25,7 +25,7 @@ Statespace finds the live commit from the build of the live image. So the workfl
 
 <ActionStep />
 
-When live runs an image without a build, the arms of the app wait.
+When live runs an image without a build, no experiment of the app can start.
 
 ## Inputs
 
@@ -96,7 +96,7 @@ a1b2c3d has a build without app already. Add app: so
 Statespace knows which build is for which app
 ```
 
-`ssp arm add` prints the build that it chose.
+`ssp experiment update` prints the build that it chose for each arm.
 
 ## Next steps
 

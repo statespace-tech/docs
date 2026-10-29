@@ -1,7 +1,7 @@
 ---
-title: Run arms with coding agents
+title: Run experiments with coding agents
 sidebarTitle: Agents
-description: Let a coding agent add a commit as an arm, read the evidence, and remove the arm.
+description: Let a coding agent write statespace.toml, run commits as arms of an experiment, read the evidence, and stop it.
 ---
 
 A coding agent can run the whole loop: change the code, run the change as an arm, read the evidence, and decide. Every command works without questions and prints JSON with `--json`.
@@ -14,16 +14,18 @@ Give this prompt to your coding agent.
 Read https://statespace.com/skill.md and follow it.
 ```
 
+The skill has the [starter file](/reference/statespace-toml#starter-file). So the agent can write `statespace.toml` for a new app.
+
 ## Give the agent a credential
 
-The agent uses a GitHub credential. Its role on the repo decides what it can do. See [Permissions](/concepts/permissions).
+The agent uses a GitHub credential. Its role on the repo decides what it can do. To update, start, and stop experiments, the agent needs the role Write or Maintain. See [Permissions](/concepts/permissions).
 
 - In a terminal, sign in with `ssp login`.
 - For the API, send a GitHub user token, such as `github_pat_...`.
 
-To add arms, the agent needs the level that `arm_role` sets for the app. The default is `write`.
-
 ## The loop
+
+In this example, the live `statespace.toml` of `shop-prod` has the table `[experiment.search]`. A new experiment must ship to live before it can start.
 
 1. The agent makes a change on a branch, commits it, and pushes it.
 
@@ -41,36 +43,50 @@ To add arms, the agent needs the level that `arm_role` sets for the app. The def
        --json databaseId --jq '.[0].databaseId')"
    ```
 
-3. The agent adds the commit as an arm, with a note that says why.
+3. The agent finds the live commit. It is the reference arm.
 
    ```shell
-   ssp arm add "$(git rev-parse HEAD)" --app shop-prod \
-     --share 0.05 --note "cache search, expect p90 down" \
-     --json
+   ssp app show shop-prod --json
    ```
 
-4. The agent reads the evidence from time to time.
+4. The agent sets the arms: the live commit `c0ffee1` and the change. Each arm gets 5%.
 
    ```shell
-   ssp arm show "$(git rev-parse HEAD)" --app shop-prod \
-     --json
+   ssp experiment update search --app shop-prod \
+     --arm c0ffee1=0.05 \
+     --arm "$(git rev-parse HEAD)=0.05" --json
    ```
 
-   The JSON has `state`, `reason`, `totals`, `metrics`, `split`, and `versions`. The commit status `statespace/shop-prod` has the same headline.
-
-5. The agent or a person decides. To end the arm, remove it.
+5. The agent starts the experiment, with a note that says why. The command waits until the arms are ready, for 5 minutes at most.
 
    ```shell
-   ssp arm remove "$(git rev-parse HEAD)" --app shop-prod \
+   ssp experiment start search --app shop-prod \
+     --note "cache search, expect p90 down" --json
+   ```
+
+6. The agent reads the evidence from time to time.
+
+   ```shell
+   ssp experiment show search --app shop-prod --json
+   ```
+
+   The JSON has `state`, `reason`, `version`, `totals`, `metrics`, `split`, and `versions`. The commit status `statespace/shop-prod/search` has the same headline.
+
+7. The agent or a person decides, and stops the experiment.
+
+   ```shell
+   ssp experiment stop search --app shop-prod \
      --note "p90 412 vs 455 ms, open a pull request"
    ```
 
 ## Rules for agents
 
 - Read `split` first. When the split is off, do not trust the other numbers.
-- Compare numbers of one version only. A new version starts the evidence again.
-- Stop an arm at once when errors go up: `ssp arm stop`.
-- Write a `--note` on each change. People read it in the dashboard and in `ssp arm show`.
+- Compare numbers of one version only. Each start begins a new version.
+- Give shares as fractions, such as `0.05`.
+- `update` changes only the arms that you name. To remove an arm, give it `=0`.
+- Stop the experiment at once when errors go up.
+- Write a `--note` on each change. People read it in the dashboard and in `ssp experiment show`.
 
 ## Next steps
 
@@ -79,6 +95,6 @@ To add arms, the agent needs the level that `arm_role` sets for the app. The def
     Look up every command and its JSON.
   </Card>
   <Card title="Stop in an emergency" icon="octagon-x" href="/guides/emergency-stop">
-    Stop an arm or an app at once.
+    Stop experiments at once.
   </Card>
 </CardGroup>
