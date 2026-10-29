@@ -1,0 +1,53 @@
+---
+title: Limits and retention
+description: How long Statespace keeps data, and the limits of names, notes, rows, and storage.
+---
+
+This page lists the limits and times of Statespace.
+
+## Retention
+
+| Data | Kept |
+| --- | --- |
+| `requests`, `stdout`, `stderr` rows | 90 days |
+| Removed arms in `ssp arm list` | 90 days |
+| Evidence of a removed arm | Frozen and kept. Its raw rows follow the 90 days above |
+
+Statespace never records live.
+
+## Storage
+
+| Limit | Value |
+| --- | --- |
+| One row | 64 KiB |
+| One batch of rows from the proxy | 100 rows |
+| One account | 10 GiB. Statespace warns at 80% |
+
+Each account has its own PostgreSQL database. A subject can be erased with `POST /v1/subjects/erase`. See [API](/reference/api#other).
+
+## Names and values
+
+| Value | Limit |
+| --- | --- |
+| App name | 1 to 63 characters: lowercase letters, digits, and `-`. Unique in the workspace |
+| Commit prefix | 7 characters or more |
+| `--note` | 1 to 200 characters, one line |
+| `--share` | Default `0.05` |
+| `max_traffic` | More than 0, at most 1. Default `0.2` |
+| `max_arms` | 1 or more. Default `5`. The control does not count |
+| Commit status description | 140 characters |
+
+## Times
+
+| Item | Time |
+| --- | --- |
+| Visitor cookie `ssp_sid` | 90 days, renewed on each response |
+| Override cookie `ssp_arm` | 1 hour, renewed on each request |
+| Commit status update | At each change, and about every 10 minutes |
+| Roles from GitHub | Kept 10 minutes |
+| Proxy lease | 30 seconds. The holder renews it every 10 seconds |
+| A stopped arm leaves traffic | Seconds |
+
+## Split check
+
+The split check starts at 100 subjects of the arm and the control.

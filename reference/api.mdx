@@ -1,0 +1,196 @@
+---
+title: API
+description: Every route of the Statespace API, its body, and its response.
+---
+
+The CLI, the dashboard, the action, and the proxy use this API. Agents and scripts can use it too.
+
+```text
+https://api.statespace.com
+```
+
+## Requests
+
+- Send `Authorization: Bearer <credential>` on each route. See [Credentials](/concepts/permissions#credentials).
+- Bodies and responses are JSON.
+- An error is `{"error": "..."}` with a status from 400 to 599.
+- `{commit}` is the full commit or its first 7 characters or more.
+
+```shell
+curl -sS https://api.statespace.com/v1/apps \
+  -H "Authorization: Bearer $GITHUB_TOKEN"
+```
+
+## CI
+
+### POST /v1/ci/builds
+
+Record a build. The credential is the OIDC token of the GitHub Actions job. The repo and the commit come from the token. `statespace-tech/action` calls this route.
+
+| Body | Type | Means |
+| --- | --- | --- |
+| `image` | string | The image, by digest |
+| `path` | string | The folder of `statespace.toml` |
+| `app` | string, optional | The app that the build is for |
+| `config` | string | The text of `statespace.toml` |
+
+The response has `repo`, `commit`, `path`, `app`, `image`, and `warnings`, a list.
+
+## Apps
+
+| Route | Body | Response |
+| --- | --- | --- |
+| `GET /v1/apps` | | `{"apps": [App]}` |
+| `POST /v1/apps` | `name`, `repo`, `path`, `note`? | `App` |
+| `GET /v1/apps/{app}` | | `AppDetail` |
+| `DELETE /v1/apps/{app}` | `note`? | `{"deleted": App}` |
+| `POST /v1/apps/{app}/stop` | `note`? | `Hold` |
+| `POST /v1/apps/{app}/resume` | `note`? | The removed `Hold` |
+
+`?` marks an optional key.
+
+## Arms
+
+| Route | Body | Response |
+| --- | --- | --- |
+| `GET /v1/apps/{app}/arms` | | `{"arms": [Arm]}` |
+| `POST /v1/apps/{app}/arms` | `commit`, `share`?, `note`? | `Arm`, with `build` and `previous_share` |
+| `GET /v1/apps/{app}/arms/{commit}` | | `ArmDetail` |
+| `DELETE /v1/apps/{app}/arms/{commit}` | `note`? | `Arm` |
+| `POST /v1/apps/{app}/arms/{commit}/stop` | `note`? | `Hold` |
+| `POST /v1/apps/{app}/arms/{commit}/resume` | `note`? | The removed `Hold` |
+
+`GET /v1/apps/{app}/arms` lists running, waiting, and stopped arms, and the arms removed in the last 90 days. In the `POST` response, `build` is the image and its app label. `previous_share` is there when the share changed.
+
+## Tokens
+
+| Route | Body | Response |
+| --- | --- | --- |
+| `GET /v1/tokens` | | The runtime tokens, without secrets |
+| `POST /v1/tokens` | `app`, `note`? | The token. Only this response has the secret |
+| `DELETE /v1/tokens/{id}` | | |
+
+## Runtime
+
+Only runtime tokens use these routes. The proxy calls them.
+
+### GET /v1/runtime/apps/\{app\}
+
+The runtime configuration of the app.
+
+```json
+{
+  "app": "shop-prod",
+  "salt": "…",
+  "settings_hash": "…",
+  "settings": {
+    "subject": "…",
+    "eligibility": null,
+    "overrides": false,
+    "redact": [],
+    "max_arms": 5
+  },
+  "events": [
+    {"name": "checkout", "source": "request", "match": "…"}
+  ],
+  "live": {"commit": "9f1ce8a…", "image": "…@sha256:…"},
+  "control": {
+    "image": "…@sha256:…",
+    "ranges": [[0.0, 0.05]]
+  },
+  "arms": [
+    {
+      "commit": "a1b2c3d…",
+      "image": "…@sha256:…",
+      "version": 3,
+      "ranges": [[0.05, 0.10]]
+    }
+  ],
+  "lease": {"holder": "instance-id", "expires_at": "…"},
+  "poll_interval_seconds": 5
+}
+```
+
+Before the first report, `settings` has the defaults and `live` is `null`. The proxy then sends all requests to live.
+
+### POST /v1/runtime/apps/\{app\}/report
+
+Each proxy instance reports. Only the lease holder sends `units`.
+
+| Body | Means |
+| --- | --- |
+| `instance` | The ID of the instance |
+| `version` | The version of the proxy |
+| `orchestrator` | `docker`, `cloudrun`, or `kubernetes` |
+| `live_image` | The image that live runs |
+| `settings_hash` | The hash of the settings that the instance uses |
+| `units` | `[{"side", "commit", "address", "ready"}]` |
+
+The response is `{"lease": bool, "expires_at"}`.
+
+### POST /v1/events
+
+Send recorded rows. The body has `app`, `runs`, `requests`, `stdout`, `stderr`, `events`, and `lifecycle`. Each row has `id`, `side`, `arm`, `version`, and `timestamp`. `id` makes a second send of a row change nothing. `arm` is the commit, or `null` for the control.
+
+## Other
+
+| Route | Use |
+| --- | --- |
+| `POST /v1/auth/device` and the `…/approve` and `…/token` routes | `ssp login` |
+| `GET /v1/whoami` | Who the credential is |
+| `POST /v1/github/webhook` | Changes of the GitHub App installation |
+| `POST /v1/subjects/erase` | Erase a subject. Body: `app`, `subject` |
+| `GET /v1/audit` | The audit log |
+| `GET /v1/storage` | Storage use of the account |
+| `POST /v1/contact` | Contact Statespace |
+
+## Objects
+
+### App
+
+| Field | Means |
+| --- | --- |
+| `name` | The app |
+| `repo` | The repo, such as `acme/shop` |
+| `path` | The folder of `statespace.toml` |
+| `note` | The note |
+| `live` | `{"commit", "image"}`, or `null` |
+| `arms` | The number of running arms |
+| `holds` | The holds on the app |
+| `created_at` | When the app was added |
+
+### Arm
+
+| Field | Means |
+| --- | --- |
+| `commit` | The commit, the ID of the arm |
+| `app` | The app |
+| `share` | The share of subjects |
+| `note` | The note |
+| `state` | `starting`, `running`, `waiting`, `stopped`, or `removed` |
+| `reason` | One line about the state |
+| `version` | The current version |
+| `image` | The image of the build |
+| `ahead`, `behind` | Commits ahead of and behind the live commit |
+| `live_contains` | `true` when the live commit contains the arm's commit |
+| `headline` | `{"label", "arm", "control"}`, or `null` |
+| `added_by`, `added_at` | Who added the arm, and when |
+| `removed_at` | When the arm was removed |
+
+### ArmDetail
+
+An `Arm`, with these fields:
+
+| Field | Means |
+| --- | --- |
+| `totals` | `{"arm": Totals, "control": Totals}` |
+| `metrics` | `[{"label", "arm", "control"}]` |
+| `split` | `{"ok", "p"}`, or `null` |
+| `events` | The top event names, with counts for each side |
+| `versions` | The versions of the arm |
+| `holds` | The holds that cover the arm |
+| `override_url` | The override link, or `null` |
+
+### Hold
+
+A hold has `actor`, `actor_kind` (`person`, `workflow`, or `token`), `via` (`cli`, `dashboard`, or `api`), the note, and the time. See [Holds](/concepts/holds).

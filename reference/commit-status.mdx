@@ -1,0 +1,48 @@
+---
+title: Commit status
+description: Each state and description of the statespace/<app> commit status on an arm's commit.
+---
+
+Statespace posts one commit status on each arm's commit for each app. Its context is `statespace/<app>`, such as `statespace/shop-prod`.
+
+- Statespace updates the status at each change, and about every 10 minutes.
+- The description has 140 characters at most. Statespace cuts a longer one.
+- **Details** opens the arm in the dashboard.
+- The state says where the arm is. It never says that the arm is good or bad.
+
+## States
+
+| The arm | State | Description, for example |
+| --- | --- | --- |
+| Added, starts | `pending` | `Starting at 5% (+5% control) · 1 ahead of live 9f1ce8a` |
+| Waits | `pending` | `Waiting: max_traffic 20% is full` |
+| Is not ready | `failure` | `Not running: the container exits at start. See ssp arm show` |
+| Runs | `pending` | `5% · 1,204 subjects · split OK · checkout rate % 3.4 vs 2.8 · errors 0.3% vs 0.2%` |
+| Live moved | `pending` | `Live is now c3d4e5f · evidence restarted · 5%` |
+| Live contains it | `pending` | `Live c3d4e5f contains this commit · consider ssp arm remove` |
+| Is stopped | `failure` | `Stopped by maria with ssp arm stop · checkout errors > 2%` |
+| Is removed | `success` | `Ended · 4,812 subjects · checkout rate % 3.4 vs 2.8` |
+
+## The running description
+
+The description of a running arm has these parts, in this order:
+
+1. the share of the arm;
+2. the subjects of the arm;
+3. the split check: `split OK` or `split off (p=0.003)`;
+4. the first metric, arm vs control;
+5. the errors, arm vs control.
+
+## The stopped description
+
+The description says who stopped the arm, and how. Then it gives the note, when there is one.
+
+| Stopped with | Description |
+| --- | --- |
+| The CLI | `Stopped by maria with ssp arm stop` |
+| The dashboard | `Stopped by maria in the dashboard` |
+| The API | `Stopped by maria through the API` |
+
+## GitHub App permission
+
+The Statespace GitHub App needs only the permission to write commit statuses for this.

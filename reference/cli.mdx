@@ -1,51 +1,378 @@
 ---
 title: CLI
-description: Every ssp command, argument, and flag.
+description: Every ssp command, argument, and flag, and what each command prints.
 ---
 
-`ssp` records builds in CI, shows and stops arms, manages tokens, and runs the proxy and the controller. Install it with the [install script](/getting-started/installation).
+`ssp` adds and removes apps, arms, and tokens, stops and resumes arms, and runs the proxy. Install it with the [install script](/getting-started/installation#cli).
 
-```shell
-ssp <command> [options]
+```text
+ssp app    add | remove | list | show | stop | resume
+ssp arm    add | remove | list | show | stop | resume
+ssp token  add | remove | list
+ssp proxy  docker | cloudrun | kubernetes
+ssp init
+ssp login | logout | whoami
 ```
 
-## Global options
+## Conventions
 
-Every command takes these options.
+- Commands have the form `ssp <noun> <verb> <object>`. The object is positional, such as the app name or the commit.
+- `--app` names the app of an arm, a token, or a proxy.
+- A commit is the full commit or its first 7 characters or more.
+- No command asks a question, except `ssp login`.
+- `ssp app add` and `ssp arm add` print what they found and chose.
+- Each command that changes something prints exactly what it changed.
 
-<ParamField body="--endpoint" type="string" default="https://api.statespace.com">
-  The Statespace API URL. Environment variable: `STATESPACE_URL`.
-</ParamField>
-
-<ParamField body="--token" type="string">
-  A token. Defaults to the session that `ssp login` saved. Environment variable: `SSP_TOKEN`. Proxies and controllers use a token; CI uses none.
-</ParamField>
+## Common flags
 
 <ParamField body="--json" type="boolean">
-  Print one JSON document instead of text.
+  Print exactly one JSON document on standard output. All commands take it, except `ssp proxy`. The document is the response of the [API](/reference/api) route that the command calls.
 </ParamField>
 
-<ParamField body="--workspace" type="string">
-  The workspace, by its GitHub login, such as `acme`. Environment variable: `STATESPACE_WORKSPACE`. `status`, `stop`, and `resume` use the owner of their target's repository: the owner in a URL, or the owner of the `origin` remote of a path. Other commands use your only workspace. A token belongs to one workspace, so it needs no `--workspace`.
+<ParamField body="--note" type="string">
+  Free text for people and agents, 1 to 200 characters on one line. All commands that change something take it. The dashboard, `ssp app show`, and `ssp arm show` show it.
 </ParamField>
 
 ## Output and exit codes
 
-Commands print text on standard output. Notes, warnings, and errors go to standard error. A command that fails exits with status 1. With `--json`, the result is one JSON document, and an error is `{"error": "..."}` on standard error.
+- Results go to standard output. Notes and warnings go to standard error.
+- An error exits with status 1. With `--json`, the error is `{"error": "..."}`.
 
-## login
+## ssp app add
 
-Sign in with GitHub and save the session. The command opens a browser, and you approve the terminal's code there. Then it lists your workspaces: the GitHub accounts whose installation of the App you can access.
+Add an app. It is linked to a repo and to the folder of its `statespace.toml`. You need the admin role on the repo.
+
+```shell
+ssp app add shop-prod --note "shop, production"
+```
+
+<ParamField body="name" type="string" required>
+  The name of the app: 1 to 63 lowercase letters, digits, and `-`. It must be unique in the workspace.
+</ParamField>
+
+<ParamField body="--repo" type="string">
+  The repo, as `owner/name`, such as `acme/shop`. Default: the repo of the `origin` remote of the current folder.
+</ParamField>
+
+<ParamField body="--path" type="string">
+  The folder of `statespace.toml`, from the root of the repo. Default: the folder of the nearest `statespace.toml`.
+</ParamField>
+
+The command prints the repo and the folder that it found, and the app that it added. It fails outside a repo, without a GitHub remote, or when the folder has no `statespace.toml`. With `--json`, it prints the `App`.
+
+## ssp app remove
+
+Delete an app and all its data. You need the admin role on the repo.
+
+```shell
+ssp app remove shop-dev
+```
+
+<ParamField body="name" type="string" required>
+  The app.
+</ParamField>
+
+The command fails while the app has arms that are not removed. It prints what it deleted. With `--json`, it prints `{"deleted": App}`.
+
+<Warning>
+  You cannot undo `ssp app remove`. The evidence of all arms of the app is deleted.
+</Warning>
+
+## ssp app list
+
+List the apps: repo, folder, live commit, running arms, and holds.
+
+```shell
+ssp app list
+```
+
+With `--json`, it prints `{"apps": [App]}`.
+
+## ssp app show
+
+Show an app in full: live, the control, the arms with their headline metric, holds, the settings that apply, the proxy instances, the orchestrator, and the lease holder.
+
+```shell
+ssp app show shop-prod
+```
+
+<ParamField body="name" type="string" required>
+  The app.
+</ParamField>
+
+With `--json`, it prints the `AppDetail`.
+
+## ssp app stop
+
+Place a hold on the app. Every arm of the app leaves traffic, also the arms that people add later. You need the role write or triage on the repo.
+
+```shell
+ssp app stop shop-prod --note "checkout errors > 2%"
+```
+
+<ParamField body="name" type="string" required>
+  The app.
+</ParamField>
+
+A stop on an app that has a hold returns the hold, and changes nothing. With `--json`, it prints the `Hold`. See [Holds](/concepts/holds).
+
+## ssp app resume
+
+Clear the hold on the app. Holds on single arms stay, and the command says so.
+
+```shell
+ssp app resume shop-prod
+```
+
+<ParamField body="name" type="string" required>
+  The app.
+</ParamField>
+
+With `--json`, it prints the removed `Hold`.
+
+## ssp arm add
+
+Add a commit as an arm, or change the share of an arm. You need the level that `arm_role` sets for the app.
+
+```shell
+ssp arm add a1b2c3d --app shop-prod --share 0.05 \
+  --note "green checkout button"
+```
+
+<ParamField body="commit" type="string" required>
+  The commit. A prefix that matches more than one build fails, and the error lists the matches.
+</ParamField>
+
+<ParamField body="--app" type="string" required>
+  The app.
+</ParamField>
+
+<ParamField body="--share" type="number" default="0.05">
+  The fraction of the app's subjects that the arm gets.
+</ParamField>
+
+The command prints the build that it chose. Without a build of the commit for the app, it fails: "No build of a1b2c3d for shop-prod. Push it so CI builds it." For an arm that exists, the command changes the share, starts a new version, and prints the old and the new share. With `--json`, it prints the `Arm`, with `build` and, for a change, `previous_share`.
+
+## ssp arm remove
+
+End an arm. Statespace keeps its evidence. Its commit status says "Ended".
+
+```shell
+ssp arm remove a1b2c3d --app shop-prod
+```
+
+<ParamField body="commit" type="string" required>
+  The arm's commit.
+</ParamField>
+
+<ParamField body="--app" type="string" required>
+  The app.
+</ParamField>
+
+With `--json`, it prints the `Arm`.
+
+## ssp arm list
+
+List the arms of an app: running, waiting, stopped, and the arms removed in the last 90 days. An arm whose commit is in the live commit says "Live 9f1ce8a contains this commit · consider ssp arm remove".
+
+```shell
+ssp arm list --app shop-prod
+```
+
+<ParamField body="--app" type="string" required>
+  The app.
+</ParamField>
+
+With `--json`, it prints `{"arms": [Arm]}`.
+
+## ssp arm show
+
+Show an arm: its state and reason, the totals and metrics of the arm and the control, the split check, the top events, the versions, the holds, and the override link.
+
+```shell
+ssp arm show a1b2c3d --app shop-prod
+```
+
+<ParamField body="commit" type="string" required>
+  The arm's commit.
+</ParamField>
+
+<ParamField body="--app" type="string" required>
+  The app.
+</ParamField>
+
+With `--json`, it prints the `ArmDetail`.
+
+## ssp arm stop
+
+Place a hold on one arm. The arm leaves traffic in seconds. You need the role write or triage on the repo.
+
+```shell
+ssp arm stop a1b2c3d --app shop-prod \
+  --note "checkout errors > 2%"
+```
+
+<ParamField body="commit" type="string" required>
+  The arm's commit.
+</ParamField>
+
+<ParamField body="--app" type="string" required>
+  The app.
+</ParamField>
+
+With `--json`, it prints the `Hold`.
+
+## ssp arm resume
+
+Clear the hold on one arm. A hold on the app stays.
+
+```shell
+ssp arm resume a1b2c3d --app shop-prod \
+  --note "fixed in b2c3d4e"
+```
+
+<ParamField body="commit" type="string" required>
+  The arm's commit.
+</ParamField>
+
+<ParamField body="--app" type="string" required>
+  The app.
+</ParamField>
+
+With `--json`, it prints the removed `Hold`.
+
+## ssp token add
+
+Add a runtime token for one app. You need the admin role on the repo. The command prints the secret only one time.
+
+```shell
+ssp token add --app shop-prod --note "Cloud Run proxy"
+```
+
+<ParamField body="--app" type="string" required>
+  The app of the token.
+</ParamField>
+
+<Warning>
+  Keep the output out of logs. Statespace cannot show the secret again.
+</Warning>
+
+## ssp token remove
+
+Remove a runtime token.
+
+```shell
+ssp token remove <id>
+```
+
+<ParamField body="id" type="string" required>
+  The ID of the token. `ssp token list` shows it.
+</ParamField>
+
+## ssp token list
+
+List the runtime tokens, without their secrets.
+
+```shell
+ssp token list
+```
+
+## ssp proxy docker
+
+Run the proxy on a machine with Docker. Live, the control, and the arms run as containers. See [Docker](/guides/docker).
+
+```shell
+ssp proxy docker --app shop-dev \
+  --image-file /etc/shop/image
+```
+
+<ParamField body="--image-file" type="string" required>
+  A file that holds the live image. When the file changes, the proxy deploys the new live.
+</ParamField>
+
+The [proxy flags](#proxy-flags) also apply.
+
+## ssp proxy cloudrun
+
+Run the proxy in front of a Cloud Run service. The control and the arms run as tagged revisions of the service. See [Cloud Run](/guides/cloud-run).
+
+```shell
+ssp proxy cloudrun --app shop-prod \
+  --service shop --region us-east1
+```
+
+<ParamField body="--service" type="string" required>
+  The Cloud Run service that runs live.
+</ParamField>
+
+<ParamField body="--region" type="string" required>
+  The region of the service, such as `us-east1`.
+</ParamField>
+
+The [proxy flags](#proxy-flags) also apply.
+
+## ssp proxy kubernetes
+
+Run the proxy in front of a Kubernetes Deployment. The control and the arms run as copies of the Deployment. See [Kubernetes](/guides/kubernetes).
+
+```shell
+ssp proxy kubernetes --app shop-prod \
+  --deployment shop --namespace prod
+```
+
+<ParamField body="--deployment" type="string" required>
+  The Deployment that runs live.
+</ParamField>
+
+<ParamField body="--namespace" type="string">
+  The namespace of the Deployment.
+</ParamField>
+
+<ParamField body="--service" type="string">
+  The Service of live. Default: the name of the Deployment.
+</ParamField>
+
+The [proxy flags](#proxy-flags) also apply.
+
+## Proxy flags
+
+Each `ssp proxy` command takes these flags. All other settings come from [`statespace.toml`](/reference/statespace-toml).
+
+<ParamField body="--app" type="string" required>
+  The app. The command fails when the app does not exist.
+</ParamField>
+
+<ParamField body="--listen" type="string" default="0.0.0.0:8080">
+  The address that the proxy listens on.
+</ParamField>
+
+<ParamField body="--token" type="string">
+  The runtime token of the app. Environment variable: `STATESPACE_TOKEN`.
+</ParamField>
+
+<ParamField body="--api" type="string" default="https://api.statespace.com">
+  The Statespace API. Environment variable: `STATESPACE_API`.
+</ParamField>
+
+`ssp proxy` prints no JSON document. It passes HTTP/1.1, HTTP/2, and WebSocket.
+
+## ssp init
+
+Write a starter `statespace.toml` in the current folder, and print the action step to add to your build workflow. The command fails when the file exists. It changes only the working copy.
+
+```shell
+ssp init
+```
+
+## ssp login
+
+Sign in with GitHub. The CLI shows a code. Approve the code in the browser. This is the only command that waits for you.
 
 ```shell
 ssp login
 ```
 
-<ParamField body="--no-open" type="boolean">
-  Print the sign-in URL. Do not open a browser.
-</ParamField>
-
-## logout
+## ssp logout
 
 Sign this terminal out.
 
@@ -53,201 +380,10 @@ Sign this terminal out.
 ssp logout
 ```
 
-<ParamField body="--all" type="boolean">
-  Sign out every session of the account, on every machine.
-</ParamField>
+## ssp whoami
 
-## whoami
-
-Show who is signed in, the workspace, the credential in use, its scopes, and storage use.
+Show who is signed in, and the credential that the CLI uses.
 
 ```shell
 ssp whoami
 ```
-
-## apply
-
-Record the image that this CI job built. On the default branch, the image becomes the app's default build. On an `exp/` branch, it becomes a version of the arm. The [Statespace action](https://github.com/statespace-tech/action) runs this command.
-
-```shell
-ssp apply --image ghcr.io/acme/atlas@sha256:4f2a…
-```
-
-<ParamField body="--image" type="string" required>
-  The image, by tag or digest. `ssp` resolves a tag to its digest with `docker`. Environment variable: `STATESPACE_IMAGE`.
-</ParamField>
-
-<ParamField body="--file" type="string" default="statespace.toml">
-  The path of `statespace.toml`.
-</ParamField>
-
-<ParamField body="--dry-run" type="boolean">
-  Check `statespace.toml` and print the plan, but record nothing. It works outside CI. Give an image that is in the registry.
-</ParamField>
-
-`apply` proves the build with the job's GitHub OIDC token, so the workflow needs the permission `id-token: write`.
-
-## status
-
-Show what runs, and why.
-
-```shell
-ssp status https://github.com/acme/atlas/pull/418
-```
-
-<ParamField body="targets" type="string[]">
-  Targets. See [Targets](#targets). Without a target, `status` shows the arm of the `exp/` branch that you checked out. Else it shows the app of the nearest `statespace.toml`, else the repository you are in, else every app.
-</ParamField>
-
-Below the table, `status` gives each experiment's share of the app's subjects, arms and controls together, such as `recent-clicks holds 20% of atlas's subjects.` With `--json`, each row has `experiment_share`.
-
-## stop
-
-Stop an app, an experiment, or an arm at once. Statespace keeps a hold on the target. The pull requests do not change. Subjects get the default until someone resumes the same target.
-
-```shell
-ssp stop exp/ranking/recent-clicks --reason "errors > 2%"
-```
-
-<ParamField body="targets" type="string[]" required>
-  One or more targets. See [Targets](#targets).
-</ParamField>
-
-<ParamField body="--reason" type="string">
-  Why you stop. The `Statespace` check, `ssp status`, and the dashboard show it.
-</ParamField>
-
-The command does not ask for confirmation, so agents can run it. A signed-in person needs the triage role on each repository. A token needs the `experiments:write` scope. A stop on a target that has a hold already changes nothing. If some targets fail, the command names them on standard error and exits with status 1. With `--json`, they are under `failed`.
-
-## resume
-
-Clear the hold on each target. Holds on other targets stay. Each arm runs again while its pull request can merge.
-
-```shell
-ssp resume exp/ranking/recent-clicks
-```
-
-<ParamField body="targets" type="string[]" required>
-  One or more targets. See [Targets](#targets).
-</ParamField>
-
-A target without a hold fails, and the error names the holds that cover it, for example `atlas/ranking has no hold. It is covered by: atlas (datadog-alerts)`. Failures work as for `stop`.
-
-## Targets
-
-`status`, `stop`, and `resume` take the same targets.
-
-| Target | Means |
-| --- | --- |
-| `atlas` | The app |
-| `atlas/ranking` | One experiment of the app |
-| `exp/ranking/recent-clicks` | One arm. The app comes from the nearest `statespace.toml`, or from the only app with that experiment |
-| `https://github.com/acme/atlas/pull/418` | That pull request's arm, in every app it runs in |
-| `https://github.com/acme/atlas` | Every app of the repository |
-| `.` or `services/search` | The app of the nearest `statespace.toml`; without one, the repository |
-
-## token create
-
-Create a token. `ssp` prints its secret only once. A signed-in person needs the admin role on every repository of the workspace, as organization owners have.
-
-```shell
-ssp token create --name production --preset runtime
-```
-
-<ParamField body="--name" type="string" required>
-  A name for the token.
-</ParamField>
-
-<ParamField body="--preset" type="string">
-  The usual scopes for a job: `runtime`, `analyst`, or `admin`. See [Presets](#presets).
-</ParamField>
-
-<ParamField body="--scope" type="string">
-  A scope, for a combination that no preset covers. Repeat for each: `runtime:read`, `events:write`, `arms:report`, `experiments:write`, `query:read`, or `tokens:manage`.
-</ParamField>
-
-<ParamField body="--app" type="string">
-  Limit the token to one app. A runtime token for one app gives `ssp proxy` and `ssp controller` their app, so they need no `--app`. A token with `query:read` reads only that app's views. Only the scopes `runtime:read`, `events:write`, `arms:report`, and `query:read` can be limited to an app. Environment variable: `STATESPACE_APP`.
-</ParamField>
-
-<ParamField body="--expires-in-days" type="integer">
-  Days until the token expires. Omit it for no expiration.
-</ParamField>
-
-A token with `query:read` also has a database URL. Its user is the token's ID, and its password is the token. Connect over TLS to your workspace host, such as `gh-1234567.statespace.app`, with `sslmode=verify-full`. A PostgreSQL 16 or newer client reads the URL's `sslrootcert=system`. With an older client, replace that parameter with the path of a trusted CA bundle.
-
-<Warning>
-  Keep the output of `ssp token create` out of logs. Statespace cannot show the secret again.
-</Warning>
-
-### Presets
-
-| Preset | Scopes | For |
-| --- | --- | --- |
-| `runtime` | `runtime:read`, `events:write`, `arms:report` | `ssp proxy` and `ssp controller kubernetes` |
-| `analyst` | `query:read` | SQL clients |
-| `admin` | Every scope, `tokens:manage` included | Agents that run the whole loop |
-
-## token list
-
-List the workspace's tokens and your sign-in sessions, without their secrets.
-
-```shell
-ssp token list
-```
-
-## token revoke
-
-Revoke a token or a session by its ID, or all of them.
-
-```shell
-ssp token revoke tok_123
-```
-
-<ParamField body="id" type="string">
-  The ID of the token or session. `ssp token list` shows it.
-</ParamField>
-
-<ParamField body="--all" type="boolean">
-  Revoke every token of the workspace and every session of yours, and end their database sessions. Needs `--yes`.
-</ParamField>
-
-<ParamField body="--yes" type="boolean">
-  Confirm `--all`. You cannot undo it.
-</ParamField>
-
-## proxy
-
-Run the reverse proxy in front of an app. See [Proxy](/reference/proxy) for every flag.
-
-```shell
-ssp proxy --image ghcr.io/acme/atlas:main
-```
-
-## controller kubernetes
-
-Run the arms of an app on Kubernetes. See [Controller](/reference/controller) for every flag.
-
-```shell
-ssp controller kubernetes --deployment atlas
-```
-
-## Not in the CLI
-
-Some actions are in the dashboard and the API only.
-
-| Action | Where |
-| --- | --- |
-| Change settings | Commit `statespace.toml`, or use **Edit** in the dashboard |
-| Erase a subject | **Apps** page, or `DELETE /v1/apps/{app}/subjects/{subject}` |
-| Delete an app | **Apps** page, or `DELETE /v1/apps/{app}`. Every arm must be stopped |
-
-An erasure deletes the subject's runs, requests, and the lines that name it, in one app. Erased data can stay in encrypted backups until their retention ends. The audit record of the erasure keeps the subject ID.
-
-<Warning>
-  You cannot undo an erasure or a deletion.
-</Warning>
-
-## Limits
-
-An event can be 64 KiB at most, and Statespace keeps events for 90 days. The lines that arms print follow the app's shorter `output_retention_days`. Storage is 1 GiB on the free plan and 10 GiB on other plans. `ssp whoami` shows the use. Statespace warns at 80%, and refuses new events when storage is full.

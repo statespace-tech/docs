@@ -1,0 +1,91 @@
+---
+title: CEL variables
+description: The variables and fields that each CEL expression in statespace.toml can use.
+---
+
+`statespace.toml` uses [CEL](https://cel.dev) expressions in four places. Each place has its own variables.
+
+| Key | Gives | Variables |
+| --- | --- | --- |
+| `subject` | string | `request` without `status` and `ms` |
+| `eligibility` | bool | `request` without `status` and `ms` |
+| `[[event]] match` | bool | One of `request`, `stdout`, or `stderr` |
+| `[[metric]] value` | number | The totals of one side |
+
+CI checks each expression when it records a build. An error fails the CI step, with the message.
+
+## Subject and eligibility
+
+The proxy evaluates `subject` and `eligibility` before it sends the request.
+
+| Field | Type | Example |
+| --- | --- | --- |
+| `request.method` | string | `"POST"` |
+| `request.path` | string | `"/api/checkout"` |
+| `request.query` | map of strings | `request.query.ref == "mail"` |
+| `request.headers` | map of strings | `request.headers["x-user-id"]` |
+| `request.cookies` | map of strings | `request.cookies.ssp_sid` |
+
+```toml statespace.toml
+subject = 'request.headers["x-user-id"]'
+eligibility = 'request.headers["cf-ipcountry"] == "US"'
+```
+
+- When `subject` gives no string, the request goes to live.
+- When `eligibility` has an error, the request goes to live, with the reason `eligibility-error`.
+
+## Event match
+
+Each `match` uses exactly one source. An expression with no source, or with two sources, fails in CI. A missing field is no match. It is not an error.
+
+### Request events
+
+The proxy evaluates request events after the response.
+
+| Field | Type | Example |
+| --- | --- | --- |
+| `request.method` | string | `"POST"` |
+| `request.path` | string | `"/api/signup"` |
+| `request.query` | map of strings | `request.query.plan == "pro"` |
+| `request.headers` | map of strings | `request.headers["x-client"]` |
+| `request.cookies` | map of strings | `request.cookies.theme` |
+| `request.status` | number | `request.status < 300` |
+| `request.ms` | number | `request.ms > 1000` |
+
+The proxy can match headers and cookies. Statespace never stores them.
+
+### Output events
+
+The proxy evaluates output events as the lines come.
+
+| Field | Type | Example |
+| --- | --- | --- |
+| `stdout.text`, `stderr.text` | string | `stderr.text.contains("FATAL")` |
+| `stdout.json`, `stderr.json` | map | `stdout.json.event == "payment_failed"` |
+
+`json` is the line as an object. When the line is not a JSON object, `json` is `{}`.
+
+## Metric value
+
+A metric uses the totals of one side: the arm or the control. All numbers are decimals.
+
+| Variable | Means |
+| --- | --- |
+| `subjects` | Assigned subjects. Overrides do not count |
+| `requests` | Requests |
+| `errors` | Requests with a status from 500 to 599 |
+| `p50_ms` | The median latency |
+| `p90_ms` | The 90th percentile of latency |
+| `events["x"].lines` | Rows of event `x` |
+| `events["x"].subjects` | Subjects with a row of event `x`. Request events only |
+
+```toml statespace.toml
+[[metric]]
+label = "checkout rate %"
+value = '100.0 * events["checkout"].subjects / subjects'
+```
+
+- An event without rows is `0`.
+- A side with no subjects shows `–`.
+- A metric that uses `.subjects` of an output event fails in CI.
+- A metric that uses an event that does not exist fails in CI.
