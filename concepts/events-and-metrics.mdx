@@ -1,23 +1,23 @@
 ---
 title: Events and metrics
-description: What the proxy records for the control and the arms, and how events and metrics count it.
+description: What the proxy records for the arms, and how shared and own events and metrics count it.
 ---
 
 What does Statespace record, and how do you turn it into numbers?
 
 ## Raw sources
 
-The proxy records the control and the arms. It never records live. Statespace keeps raw rows for 90 days.
+The proxy records the arms. It never records live. Statespace keeps raw rows for 90 days.
 
 | Source | One row for each | Holds |
 | --- | --- | --- |
-| `requests` | request | Subject, side, arm, version, method, path, query, status, time, time to first byte, sizes |
-| `stdout` | line | Side, arm, version, text, and `json` when the line is a JSON object |
+| `requests` | request | Subject, experiment, arm, version, method, path, query, status, time, time to first byte, sizes |
+| `stdout` | line | Experiment, arm, version, text, and `json` when the line is a JSON object |
 | `stderr` | line | The same as `stdout` |
 
-- Each row belongs to the copy that served or printed it.
+- Each row belongs to the copy of the arm that served or printed it.
 - Statespace never stores headers or bodies.
-- `redact` replaces matches in output lines with `[redacted]` before the lines leave the machine.
+- `redact` replaces matches in output lines, request paths, and queries with `[redacted]` before they leave the machine.
 
 ## Events
 
@@ -26,10 +26,10 @@ An event is a named count. You define it in `statespace.toml` with a CEL express
 ```toml statespace.toml
 # A request event: one row for each matching request.
 [[event]]
-name = "checkout"
+name = "purchase"
 match = '''
 request.method == "POST"
-  && request.path == "/api/checkout"
+  && request.path == "/checkout"
   && request.status < 300
 '''
 
@@ -40,39 +40,67 @@ match = 'stderr.text.contains("FATAL")'
 ```
 
 - The proxy checks request events after the response. It checks output events as the lines come.
-- A match adds one row to `events`: the name, the side, the arm, the version, the time, and the subject for request events.
+- A match adds one row to `events`: the name, the experiment, the arm, the version, the time, and the subject for request events.
 - A missing field is no match. It is not an error.
 - Output lines have no subject. So output events count lines only.
 
+## Shared and own
+
+Events and metrics at the top of `statespace.toml` are **shared**. They apply to every experiment. An experiment can also have its **own** events and metrics. They apply only to it.
+
+```toml statespace.toml
+[experiment.checkout]
+
+[[experiment.checkout.event]]
+name = "coupon"
+match = '''
+request.method == "POST"
+  && request.path == "/checkout/coupon"
+'''
+
+[[experiment.checkout.metric]]
+label = "coupon use %"
+value = '100.0 * events["coupon"].subjects / subjects'
+```
+
+- The arms of `checkout` count the shared events and `coupon`. The arms of `us-landing` count only the shared events.
+- Own events and metrics come after the shared ones.
+- The same event name or metric label two times is an error in CI: `event "coupon" is defined twice`.
+- The **headline** is the first own metric of the experiment. When the experiment has no own metric, it is the first shared metric. In the example, the headline of `checkout` is `coupon use %`.
+
 ## Totals
 
-Statespace adds up the rows for each app, arm, version, and side.
+Statespace adds up the rows for each app, experiment, version, and arm.
 
 | Total | Means |
 | --- | --- |
-| `subjects` | Assigned subjects. Overrides do not count |
+| `subjects` | Subjects, overrides included |
 | `requests` | Requests |
 | `errors` | Requests with a status from 500 to 599 |
 | `p50_ms`, `p90_ms` | Latency |
-| `events["checkout"].lines` | Rows of the event |
-| `events["checkout"].subjects` | Subjects with a row of the event. Request events only |
+| `events["purchase"].lines` | Rows of the event |
+| `events["purchase"].subjects` | Subjects with a row of the event. Request events only |
+
+Statespace keeps the totals of each version until you remove the app. So it can always compute the evidence again.
 
 ## Metrics
 
-A metric is a CEL formula over the totals of one side. Statespace computes each metric for the arm and for the control when it shows the evidence.
+A metric is a CEL formula over the totals of one arm. Statespace computes each metric for each arm when it shows the evidence. It uses the formula in the current live `statespace.toml`.
 
 ```toml statespace.toml
 [[metric]]
-label = "checkout rate %"
-value = '100.0 * events["checkout"].subjects / subjects'
+label = "purchase rate %"
+value = '100.0 * events["purchase"].subjects / subjects'
 ```
 
-- The first metric is the headline. The commit status shows it.
-- A side with no subjects shows `–`.
+- An arm with no subjects shows `–`.
+- Errors and latency always show. They need no metric.
 
 ## The split check
 
-Statespace checks that the arm and the control got subjects in the ratio of their shares. It uses a chi-square test, from 100 subjects. The result is `split OK` or, for example, `split off (p=0.003)`. When the split is off, do not trust the other numbers.
+Statespace checks that the arms got subjects in the ratio of their shares. It uses a chi-square test of the subjects of all arms, from 100 subjects. The result is `split OK` or, for example, `split off (p=0.0004)` when p is less than 0.001.
+
+The check uses subjects with the reason `assigned` or `arm-unavailable`. It does not use overrides, because the hash did not pick them. The check is a warning only. When the split is off, do not trust the other numbers.
 
 ## Next steps
 

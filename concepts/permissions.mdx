@@ -3,27 +3,22 @@ title: Permissions
 description: How roles on GitHub decide what each person, workflow, and agent can do in Statespace.
 ---
 
-Who can add arms, stop them, and run a proxy?
+Who can start experiments, stop them, and add apps?
 
-Each app is linked to a repo. Your role on that repo on GitHub decides what you can do with the app. There are no Statespace roles to manage.
+Each app is linked to a repo. Your role on that repo on GitHub decides what you can do with the app. There are no Statespace roles and no role settings.
 
 ## Levels
 
+One fixed rule maps GitHub roles to levels.
+
 | Level | Allows | GitHub role |
 | --- | --- | --- |
-| `read` | See apps, arms, and evidence | Read |
-| `write` | Stop and resume. Add and remove arms when `arm_role = "write"` | Write. Triage can stop and resume only |
-| `maintain` | Add and remove arms when `arm_role = "maintain"` | Maintain |
+| `read` | See apps, experiments, and evidence | Read, Triage |
+| `write` | Update, start, and stop experiments | Write, Maintain |
 | `admin` | Add and remove apps and runtime tokens | Admin |
 
-`arm_role` in `statespace.toml` sets the level that adds and removes arms of the app. The default is `write`.
-
-```toml statespace.toml
-[app.shop-prod]
-arm_role = "maintain"
-```
-
-Statespace keeps roles for 10 minutes. So stop and resume work while GitHub is down.
+- The CLI, the dashboard, and the API use the same rule.
+- Statespace keeps roles for 10 minutes. So stop works while GitHub is down.
 
 ## Credentials
 
@@ -35,9 +30,18 @@ People and agents use the GitHub credential that they have.
 | The OIDC token of a GitHub Actions job | Workflows of the app's repo. It counts as `write` |
 | A GitHub user token: `gho_`, `ghp_`, `ghu_`, or `github_pat_` | Agents and scripts. Statespace asks GitHub who it is, and its role on the repo |
 
+The CLI uses the first credential that it finds, in this order:
+
+1. `STATESPACE_TOKEN`;
+2. the session from `ssp login`;
+3. `GH_TOKEN` or `GITHUB_TOKEN`, when it is a user token;
+4. in GitHub Actions, the OIDC token of the job.
+
+`ssp whoami` says which credential the CLI uses. A GitHub user token of a person who never signed in to Statespace sends the header `Statespace-Workspace: <login>`.
+
 ## Runtime tokens
 
-A runtime token is the only kind of Statespace token. Each token is for one app. The proxy uses it.
+A runtime token is the only kind of Statespace token. Each token is for one app. The proxy uses it. An app can have several tokens, so you can rotate them.
 
 ```shell
 ssp token add --app shop-prod --note "Cloud Run proxy"
@@ -49,7 +53,7 @@ A runtime token can:
 - report, and hold the lease;
 - send events.
 
-It cannot add, remove, stop, or resume arms. It cannot read evidence.
+It cannot change experiments. It cannot read evidence.
 
 <Warning>
   The CLI shows the secret of a token only one time. Keep it in a secret manager, and keep it out of logs.
@@ -58,8 +62,8 @@ It cannot add, remove, stop, or resume arms. It cannot read evidence.
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Holds" icon="pause" href="/concepts/holds">
-    See how stop and resume work.
+  <Card title="Stop in an emergency" icon="octagon-x" href="/guides/emergency-stop">
+    Stop experiments from the CLI, the dashboard, or the API.
   </Card>
   <Card title="API" icon="code" href="/reference/api">
     Call Statespace with a GitHub token.

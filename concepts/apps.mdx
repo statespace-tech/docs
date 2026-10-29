@@ -1,7 +1,7 @@
 ---
-title: Apps, live, and the control
+title: Apps, builds, and live
 sidebarTitle: Apps and live
-description: What an app is, how Statespace finds the live commit, and what the control runs.
+description: What an app is, what a build is, and how Statespace finds the live commit.
 ---
 
 What is an app, and how does Statespace know which commit runs live?
@@ -16,6 +16,8 @@ ssp app add shop-prod --note "shop, production"
 
 - An app is linked to one repo and one folder: the folder of `statespace.toml`. Its builds come from that repo.
 - Several apps can come from one folder. Each app can have its own section in `statespace.toml`, such as `[app.shop-dev]`.
+- Each experiment in `statespace.toml` exists in each app of the folder. Its arms and its state are different for each app.
+- Each app is an independent layer. See [Apps are layers](/concepts/subjects#apps-are-layers).
 - Only `ssp app add` makes an app. `ssp proxy --app shop-prod` fails when the app does not exist.
 - A name has 1 to 63 characters: lowercase letters, digits, and `-`. It is unique in the workspace.
 
@@ -32,30 +34,21 @@ A build is a record "commit → image digest". Your CI makes it with `statespace
 
 Live is the service that you run and deploy as usual. Statespace does not deploy it.
 
-The proxy reports the image that live runs. Statespace finds the build of that image. The commit of that build is the **live commit**. For example, live runs `ghcr.io/acme/shop@sha256:2222…`, and its build is commit `9f1ce8a`.
+The proxy reports the image that live runs. Statespace finds the build of that image. The commit of that build is the **live commit**. For example, live runs `ghcr.io/acme/shop@sha256:2222…`, and its build is commit `c0ffee1`.
 
-The `statespace.toml` in the build of the live commit holds the settings of the app. So a change of a setting takes effect when its commit runs as live.
+The `statespace.toml` in the build of the live commit holds the settings and the experiments of the app. So a change takes effect when its commit runs as live. See [What a release does](/concepts/experiments#what-a-release-does).
+
+To compare a change with live, add the live commit as an arm. `ssp app show` prints the live commit.
 
 <Warning>
-  When live runs an image without a build, the app has no live commit, and its arms wait. `ssp app show` says "Live runs an image without a build. Add statespace-tech/action to the deploy workflow".
+  When live runs an image without a build, the app has no live commit, and no experiment can start. `ssp app show` says "Live runs an image without a build. Add statespace-tech/action to the deploy workflow".
 </Warning>
-
-## The control
-
-The control is a copy of the live image. It serves only the control's subjects. Each app has one control for all its arms.
-
-- The proxy starts the control with the first arm.
-- When the live image changes, the proxy replaces the control. Each arm starts a new version.
-- The proxy stops the control with the last arm.
-- The control gets as many subjects as the arm with the largest share.
-
-The control runs the same code as live. But Statespace records only the control. So each request and each output line belongs to one side.
 
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Arms and versions" icon="git-commit-horizontal" href="/concepts/arms">
-    See how an arm runs and when its evidence restarts.
+  <Card title="Experiments" icon="flask-conical" href="/concepts/experiments">
+    See arms, shares, the reference, and versions.
   </Card>
   <Card title="Build every push" icon="github" href="/guides/github-actions">
     Record builds from GitHub Actions.

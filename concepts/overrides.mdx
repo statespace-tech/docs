@@ -1,11 +1,11 @@
 ---
 title: Overrides
-description: How a tester opens a running arm with a URL parameter or a header.
+description: How a tester opens an arm of a running experiment with a URL parameter or a header.
 ---
 
-How do you look at a running arm yourself, without the random split?
+How do you look at an arm yourself, without the random split?
 
-An override is a request that names its arm. The app must allow overrides in `statespace.toml`. The default is `false`.
+An override is a request that names its experiment and arm. The app must allow overrides in `statespace.toml`. The default is `false`.
 
 ```toml statespace.toml
 [app.shop-dev]
@@ -16,24 +16,24 @@ overrides = true
 
 | Client | Send | The proxy |
 | --- | --- | --- |
-| Browser | `https://shop-dev.acme.com/?ssp_arm=a1b2c3d` | Sets the cookie `ssp_arm`, and redirects a `GET` to the same URL without the parameter |
-| API | The header `ssp-arm: a1b2c3d` on each request | Uses the arm for that request |
+| Browser | `https://shop-dev.acme.com/?ssp_arm=checkout:a1b2c3d` | Sets the cookie `ssp_arm`, and redirects a `GET` to the same URL without the parameter |
+| API | The header `ssp-arm: checkout:a1b2c3d` on each request | Uses the arm for that request |
 
-- The value is the commit: the full commit, or its first 7 characters or more. It must match one running arm of the app.
+- The value is `<experiment>:<commit>`. The commit is the full commit, or its first 7 characters or more. The value must match one arm of a running experiment of the app.
 - The cookie lasts 1 hour. Each request renews it.
 - An empty `?ssp_arm=` ends the override.
-- Another value gets a short page, such as "a1b2c3d is not running on shop-dev. Running arms: b2c3d4e, c3d4e5f".
-- Only running arms. You cannot pick the control or live.
+- Another value gets a short page, such as "checkout:a1b2c3d is not running on shop-dev. Running: checkout:c0ffee1, checkout:f6a7b8c, us-landing:b2c3d4e".
+- You cannot pick live.
 - Your app never sees `ssp_arm` or `ssp-arm`.
 
-`ssp arm show` and **Details** on the commit status show the override link when the app allows overrides.
+`ssp experiment show` and the dashboard show the override link of each arm when the app allows overrides.
 
 ## Records
 
-Statespace records override visits with the reason `override`. They do not count as subjects, and the split check ignores them.
+Statespace records override visits with the reason `override`. They count fully for the experiment: subjects, events, and metrics. So you can assign arms with your own `ssp_arm` links. Only the split check leaves them out.
 
 <Warning>
-  Anyone who can reach the proxy can open a running arm with an override. Turn on overrides only for apps that are not public, such as `shop-dev`.
+  Anyone who can reach the proxy can open an arm with an override. Turn on overrides only for apps that are not public, such as `shop-dev`.
 </Warning>
 
 ## Next steps
@@ -42,7 +42,7 @@ Statespace records override visits with the reason `override`. They do not count
   <Card title="statespace.toml" icon="file-cog" href="/reference/statespace-toml">
     Look up `overrides` and the per-app sections.
   </Card>
-  <Card title="Subjects and the cookie" icon="cookie" href="/concepts/subjects">
+  <Card title="Subjects and assignment" icon="cookie" href="/concepts/subjects">
     See the normal assignment.
   </Card>
 </CardGroup>

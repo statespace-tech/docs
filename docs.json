@@ -2,7 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Statespace",
-  "description": "Run a commit on a share of live traffic beside a control, and read the evidence on the commit.",
+  "description": "Run commits as arms of an experiment on a share of live traffic, and read the evidence on each commit.",
   "colors": {
     "primary": "#6B56C8",
     "light": "#9C8CE6",
@@ -46,11 +46,10 @@
         "pages": [
           "concepts/how-it-works",
           "concepts/apps",
-          "concepts/arms",
+          "concepts/experiments",
           "concepts/subjects",
           "concepts/events-and-metrics",
           "concepts/evidence",
-          "concepts/holds",
           "concepts/overrides",
           "concepts/permissions"
         ]
@@ -167,7 +166,7 @@
     },
     {
       "source": "/concepts/treatments-and-control-groups",
-      "destination": "/concepts/apps"
+      "destination": "/concepts/experiments"
     },
     {
       "source": "/concepts/random-assignment",
@@ -188,6 +187,14 @@
     {
       "source": "/examples/:slug*",
       "destination": "/guides/events-and-metrics"
+    },
+    {
+      "source": "/concepts/arms",
+      "destination": "/concepts/experiments"
+    },
+    {
+      "source": "/concepts/holds",
+      "destination": "/guides/emergency-stop"
     }
   ]
 }

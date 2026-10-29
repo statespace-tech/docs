@@ -1,0 +1,115 @@
+---
+title: Experiments, arms, and versions
+sidebarTitle: Experiments
+description: What an experiment is, how its arms and shares work, how it starts and stops, and what a release does to it.
+---
+
+What is an experiment, and when does its evidence start again?
+
+## Experiments
+
+An experiment is a named comparison of commits in one app. Its table in `statespace.toml` defines who can enter and how much traffic it can get. The CLI sets its arms.
+
+```toml statespace.toml
+[experiment.checkout]
+subject = 'request.headers["x-user-id"]'
+max_share = 0.2
+```
+
+- The experiment exists in an app when the `statespace.toml` of the app's live commit has its table. It begins `stopped`, with no arms.
+- Each app of the folder has its own arms and state for the experiment. `checkout` can run on `shop-dev` and be stopped on `shop-prod`.
+- An experiment can have its own events and metrics. See [Shared and own](/concepts/events-and-metrics#shared-and-own).
+- When a release removes the table, the experiment is `gone`. Statespace keeps its history and evidence. `ssp experiment list --all` shows it.
+
+## Arms
+
+An arm is one commit in one experiment, with an exact share of the app's subjects. The commit is the arm's ID.
+
+```shell
+ssp experiment update checkout \
+  --arm c0ffee1=0.05 --arm a1b2c3d=0.05
+```
+
+- The share is a fraction, such as `0.05`. It is never `5` or `5%`.
+- The shares of the arms add up to `max_share` or less.
+- Any commit with a build for the app can be an arm. This includes the live commit and older commits.
+- Each arm is a fixed commit. An arm never follows a branch or live.
+- One commit in two experiments runs as two copies, one for each experiment.
+
+## Change the arms
+
+`ssp experiment update` changes only the arms that you name. For example, `checkout` has the arms `c0ffee1=0.05` and `a1b2c3d=0.05`:
+
+| You run | Result |
+| --- | --- |
+| `--arm e5f6a7b=0.04` | `e5f6a7b` is added with `0.04`. The two other arms stay |
+| `--arm c0ffee1=0.06` | `c0ffee1` gets `0.06`. `a1b2c3d` stays |
+| `--arm a1b2c3d=0` | `a1b2c3d` is removed. Its evidence stays |
+| `--arm a1b2c3d=0 --arm f6a7b8c=0.05` | `f6a7b8c` replaces `a1b2c3d` |
+
+An arm that you do not name never changes. So when you forget an arm, Statespace does not remove it.
+
+You cannot change the arms of a running experiment. Stop it, update it, and start it again.
+
+## The reference
+
+The arm that was added first is the **reference**. Evidence shows each arm "vs" the reference. In the example above, `c0ffee1` is the reference. When you remove the reference, the next oldest arm becomes the reference.
+
+To compare a change with live, add the live commit first. Then live is the reference.
+
+## Start and stop
+
+An experiment has these states:
+
+| State | Means |
+| --- | --- |
+| `stopped` | No arm gets traffic. You can change the arms |
+| `starting` | The proxy starts one copy of each arm. No arm gets traffic yet |
+| `running` | Each arm gets its share |
+| `gone` | The table is not in the live `statespace.toml` |
+
+`ssp experiment start` makes these checks, in this order:
+
+1. The experiment has 2 or more arms.
+2. The shares add up to `max_share` or less.
+3. Each arm has a build for the app.
+4. The shares of all running experiments of the app, and of this one, add up to 1 or less.
+
+When a check fails, nothing changes, and the command says why. Then the experiment is `starting`, and the command waits. When each arm is ready, the experiment is `running`. When an arm is not ready in 5 minutes, the proxy stops the copies, and the experiment is `stopped` again. The command gives the reason for each arm.
+
+`ssp experiment stop` takes the arms out of traffic in seconds. There is no stop for one arm and no stop for a whole app. See [Stop in an emergency](/guides/emergency-stop).
+
+Each start and stop records who did it, how (`cli`, `dashboard`, or `api`), the note, and the time.
+
+## Versions
+
+A version is one run of an experiment, from `start` to `stop`. Each start begins a new version, such as `checkout` v3. A version keeps the same arms, shares, and definition from start to stop. So evidence of one version never mixes two setups.
+
+An arm that stays in the experiment from one version to the next keeps its ranges of the hash space. So its subjects see the same arm in the next version.
+
+## What a release does
+
+A release changes the live commit, and with it `statespace.toml`. Each running experiment then gets one of these results.
+
+| The release changes | Result |
+| --- | --- |
+| Only code | Nothing. The arms are fixed commits. `ssp experiment show` says "live is now f2f2f2f" |
+| `subject`, `eligibility`, or `max_share` of the experiment, or removes its table | The experiment stops |
+| A shared event | Every running experiment of the app stops |
+| An own event of the experiment | The experiment stops |
+| A metric, shared or own | Nothing stops. Evidence uses the new formula. The history records the change |
+
+When a release stops an experiment, the reason is "its definition changed in live d00d123". `ssp experiment show`, the commit statuses, and the audit log give the reason and the start command to run again.
+
+When the live commit contains an arm's commit, nothing changes. `ssp experiment show` says "live c0ffee1 contains a1b2c3d". You decide when to stop the experiment.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Subjects and assignment" icon="cookie" href="/concepts/subjects">
+    See why experiments in one app never overlap.
+  </Card>
+  <Card title="Evidence on the commit" icon="circle-check" href="/concepts/evidence">
+    Read the commit status of an arm.
+  </Card>
+</CardGroup>

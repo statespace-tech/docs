@@ -1,61 +1,87 @@
 ---
-title: Subjects and the cookie
-description: How the proxy assigns each request to live, the control, or an arm, and the visitor cookie.
+title: Subjects and assignment
+description: How the proxy assigns each request to an arm or to live, why experiments in one app never overlap, and the visitor cookie.
 ---
 
-How does the proxy pick the side of a request, and how does a visitor keep the same side?
+How does the proxy pick the arm of a request, and how does a visitor keep the same arm?
 
 ## Subjects
 
-A subject is whom the split assigns: a visitor, a user, or an account. The `subject` setting reads the subject ID from the request. The default is the visitor cookie `ssp_sid`.
+A subject is whom the split assigns: a visitor, a user, or an account. Each experiment reads the subject ID from the request with its `subject` key. The default is the visitor cookie `ssp_sid`.
 
 ```toml statespace.toml
 # Assign signed-in users by their user ID.
+[experiment.checkout]
 subject = 'request.headers["x-user-id"]'
+
+# Assign US visitors by the visitor cookie.
+[experiment.us-landing]
+eligibility = 'request.headers["cf-ipcountry"] == "US"'
 ```
 
-When the expression gives no string, the request goes to live.
+When `subject` gives no string, the experiment skips the request.
 
 ## Assignment
 
-For each request, the proxy does these steps:
+For each request, the proxy takes the running experiments of the app in the order of `statespace.toml`. For each experiment, it does these steps:
 
 1. It reads the subject ID with `subject`.
-2. It checks `eligibility`. A subject that is not eligible goes to live.
+2. It checks `eligibility`. When the subject is not eligible, or the expression has an error, the experiment skips the request. Statespace counts each eligibility error for the experiment.
 3. It hashes the subject ID. The point is the first 53 bits of `SHA-256(salt:subject_id)`, as a number from 0 to 1.
-4. It sends the request to the arm or the control whose range holds the point. All other points go to live.
+4. When the point is in the range of one of the experiment's arms, the request goes to that arm.
 
-The ranges of the arms do not overlap. The size of each range is the share of its arm. The control's ranges are as large as the largest share of a running arm. `max_traffic` limits the total of all arms and the control.
+When the request is not in an arm, the proxy tries the next experiment. When no experiment takes the request, it goes to live.
 
-The same subject ID always gives the same point. So a subject stays on one side, on every proxy instance, with no sticky sessions.
+Each app has one salt. The arms of all running experiments of an app hold ranges of the app's hash space that do not overlap. The size of each range is the share of its arm. So the shares of all running experiments of an app add up to 1 or less.
+
+The same subject ID always gives the same point. So a subject stays in one arm, on every proxy instance, with no sticky sessions.
+
+## Why experiments in one app never overlap
+
+Each arm is a full build of the app: one commit, one image. The proxy sends each request to one running copy. So each subject is in one experiment of an app at most, and in one arm of that experiment.
+
+Some platforms put one user in many experiments at the same time. They can do this because their arms are flags in one build. Statespace arms are not flags. No copy has the changes of two arms. To overlap, Statespace must make a build for each combination of arms:
+
+- 2 experiments with 2 arms each need 4 builds.
+- 3 experiments with 3 arms each need 27 builds.
+
+Statespace must also make the commits for these builds. You do not see these commits, so Statespace does not make them.
+
+The results in one app are these:
+
+1. Experiments with the same `subject` never claim the same subject, because their ranges do not overlap.
+2. Experiments with different `subject` keys can claim the same request. The experiment that is first in `statespace.toml` gets it. `ssp experiment start` tells you when this can occur, for example: "checkout and us-landing can claim the same requests; checkout is first in statespace.toml".
+3. To test changes that overlap in one app, put feature flags in one arm. Statespace measures the arm as one unit.
+
+## Apps are layers
+
+Each app has its own salt. So the splits of two apps are independent. A subject can be in an experiment of `shop-web` and in an experiment of `shop-api` at the same time.
 
 ## Reasons
 
-The proxy records a reason for each assignment.
+The proxy records a reason for each assignment to an arm.
 
 | Reason | Means |
 | --- | --- |
-| `assigned` | The subject is in the control or an arm |
-| `ineligible` | `eligibility` is false. The request goes to live |
-| `eligibility-error` | `eligibility` has an error. The request goes to live |
-| `arm-unavailable` | The arm or the control is not ready. The request goes to live |
+| `assigned` | The hash put the subject in the arm |
+| `arm-unavailable` | The hash put the subject in the arm, but the arm is not ready. The request goes to live |
 | `override` | The request names its arm. See [Overrides](/concepts/overrides) |
 
 ## Headers to your app
 
-The proxy adds these headers to each request to the control or an arm. It first removes all incoming `x-statespace-*` headers.
+The proxy first removes all incoming `x-statespace-*` headers. Then it adds these headers.
 
-| Header | Value |
-| --- | --- |
-| `x-statespace-subject` | The subject ID |
-| `x-statespace-side` | `control` or `arm` |
-| `x-statespace-arm` | The arm's commit. Only on arm requests |
+| Header | Value | Sent to |
+| --- | --- | --- |
+| `x-statespace-subject` | The subject ID | Each request |
+| `x-statespace-experiment` | The experiment, such as `checkout` | Requests of an arm |
+| `x-statespace-arm` | The arm's commit | Requests of an arm |
 
-Responses of the control and the arms have `Cache-Control: private`.
+Responses of the arms have `Cache-Control: private`.
 
 ## The visitor cookie
 
-With the default `subject`, a request without `ssp_sid` gets a new ID. The response sets this cookie:
+When a running experiment uses the default `subject`, a request without `ssp_sid` gets a new ID. The response sets this cookie:
 
 ```text
 ssp_sid=<id>; Path=/; Max-Age=7776000; HttpOnly;
@@ -70,7 +96,7 @@ ssp_sid=<id>; Path=/; Max-Age=7776000; HttpOnly;
 
 <CardGroup cols={2}>
   <Card title="Events and metrics" icon="chart-column" href="/concepts/events-and-metrics">
-    See what the proxy records for each side.
+    See what the proxy records for each arm.
   </Card>
   <Card title="CEL variables" icon="braces" href="/reference/cel">
     Look up the fields of `request`.

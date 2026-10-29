@@ -5,39 +5,48 @@ description: How Statespace puts the evidence of each arm on its commit as a com
 
 Where do you and your agents read the evidence of an arm?
 
-Statespace posts a commit status on each arm's commit, for each app. Its name is `statespace/<app>`, such as `statespace/shop-prod`. Statespace updates the status at each change, and about every 10 minutes.
+Statespace posts a commit status on the commit of each arm, the reference too. There is one status for each app and experiment. Its name is `statespace/<app>/<experiment>`, such as `statespace/shop-prod/checkout`. Your CI does nothing for this.
 
 ```text
-statespace/shop-prod  pending
-5% · 1,204 subjects · split OK · checkout rate % 3.4 vs 2.8
-· errors 0.3% vs 0.2%
+statespace/shop-prod/checkout  pending
+v1 running · 0.05 · 2,040 subjects · split OK
+· purchase rate % 3.4 vs 2.8 (c0ffee1)
 ```
 
 The running line has:
 
-1. the share of the arm;
-2. the subjects of the arm;
-3. the [split check](/concepts/events-and-metrics#the-split-check);
-4. the first metric, arm vs control;
-5. the errors, arm vs control.
+1. the version;
+2. the share of the arm;
+3. the subjects of the arm;
+4. the [split check](/concepts/events-and-metrics#the-split-check);
+5. the headline metric, this arm vs the reference, with the commit of the reference.
+
+The line of the reference compares it with the other arm. With 3 or more arms, it says `reference of 2 arms`.
+
+## When Statespace posts
+
+- At each change of state: start, stop, removal, and an arm that is not ready.
+- Every hour while the experiment runs, when the description changed.
+- Only for arms of running experiments, and one last time at stop or removal. Old lines stay as they were last written.
+
+GitHub accepts 1,000 statuses for each commit and name at most. Statespace stops the hourly posts at 950, to keep room for changes of state.
 
 ## The state says where the arm is
 
-The state of the status says where the arm is. It never says that the arm is good or bad.
+The state of the status says where the arm is. It never says that the arm is good or bad. It is never `failure`.
 
 | The arm | State |
 | --- | --- |
-| Starts, waits, or runs | `pending` |
-| Is not ready, or is stopped | `failure` |
-| Is removed | `success` |
+| Is in a running experiment | `pending` |
+| Is in a stopped experiment, or is removed | `success` |
 
 See [Commit status](/reference/commit-status) for each description.
 
 ## More evidence
 
-- **Details** on the status opens the arm in the dashboard.
-- `ssp arm show <commit> --app <app>` shows the totals and all metrics for each side, the split check, the top events, the versions, and the holds.
-- `ssp arm show --json` gives the same data to agents.
+- **Details** on the status opens the experiment in the dashboard.
+- `ssp experiment show <name>` shows the totals and all metrics of each arm, the split check, the top events, the versions, and the history.
+- `ssp experiment show <name> --json` gives the same data to agents.
 
 ## Next steps
 

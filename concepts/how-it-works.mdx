@@ -5,16 +5,17 @@ description: The parts of Statespace, and what each part does with a request.
 
 import TrafficDiagram from '/snippets/traffic-diagram.mdx';
 
-What runs when you add an arm, and who decides what?
+What runs when you start an experiment, and who decides what?
 
 ## The parts
 
 | Part | Where it runs | What it does |
 | --- | --- | --- |
 | Your CI | GitHub Actions | Builds images, and records each build with `statespace-tech/action@v1` |
-| `ssp proxy` | In front of your app | Assigns each request, and runs the control and the arms |
-| Statespace | `api.statespace.com` | Keeps apps, arms, builds, and evidence. Posts commit statuses |
-| `ssp` CLI | Your terminal or agent | Adds and removes apps, arms, and tokens. Stops and resumes |
+| `statespace.toml` | Your repo | Holds the settings, events, metrics, and experiments |
+| `ssp proxy` | In front of your app | Assigns each request, and runs the arms |
+| Statespace | `api.statespace.com` | Keeps apps, builds, experiments, and evidence. Posts commit statuses |
+| `ssp` CLI | Your terminal or agent | Adds apps and tokens. Sets arms, and starts and stops experiments |
 
 Your app does not know Statespace. It runs no proxy and needs no code change.
 
@@ -22,29 +23,29 @@ Your app does not know Statespace. It runs no proxy and needs no code change.
 
 <TrafficDiagram />
 
-For each request, the proxy does these steps:
+In this example, the app `shop-prod` runs two experiments. `checkout` has two arms of 5% each. `us-landing` has one arm of 5% that you can see. For each request, the proxy does these steps:
 
-1. It reads the subject ID, such as the `ssp_sid` cookie.
-2. It checks `eligibility`.
+1. It takes the running experiments in the order of `statespace.toml`.
+2. For each experiment, it reads the subject ID and checks `eligibility`.
 3. It hashes the subject ID to a point between 0 and 1.
-4. It sends the request to the arm or the control whose range holds the point. All other points go to live.
+4. When the point is in the range of an arm of the experiment, the request goes to that arm.
+5. When no experiment takes the request, it goes to live.
 
-The proxy never waits on Statespace during a request. It gets its configuration in the background. When something is wrong, the request goes to live. See [Subjects and the cookie](/concepts/subjects).
+The proxy never waits on Statespace during a request. It gets its configuration in the background. When something is wrong, the request goes to live. See [Subjects and assignment](/concepts/subjects).
 
-## Live, the control, and the arms
+## Live and the arms
 
-- **Live** is the service that you run now. It serves everyone outside the arms and the control. Statespace never records it.
-- **The control** is a copy of the live image. It serves only the control's subjects. Statespace records it.
-- **An arm** is a commit that runs on a share of the traffic. Statespace records it.
+- **Live** is the service that you run now. It serves every request outside the experiments. Statespace never records it.
+- **An arm** is one commit in one experiment. The proxy runs a copy of the commit's image for it. Statespace records it.
 
-The arm and the control get the same kind of subjects at the same time. So the difference between them comes from the commit.
+There is no special control arm. To compare a change with what runs now, add the live commit as an arm. Then both arms get the same kind of subjects at the same time, and Statespace records both the same way.
 
 ## Who decides
 
 - Your CI decides which images exist. The proxy runs only images of recorded builds.
-- A person or an agent with permission on the repo adds each arm. Statespace never starts an arm by itself.
-- `statespace.toml` in your repo holds the settings. A setting changes only with a commit.
-- Statespace shows numbers for each side. You and your agents decide what they mean.
+- A person or an agent with permission on the repo sets the arms and starts each experiment. Statespace never starts an experiment by itself.
+- `statespace.toml` in your repo defines the settings and the experiments. They change only with a commit.
+- Statespace shows numbers for each arm. You and your agents decide what they mean.
 
 ## Next steps
 
@@ -52,7 +53,7 @@ The arm and the control get the same kind of subjects at the same time. So the d
   <Card title="Apps and live" icon="box" href="/concepts/apps">
     See what an app is, and where live comes from.
   </Card>
-  <Card title="Arms and versions" icon="git-commit-horizontal" href="/concepts/arms">
-    See how an arm runs and when its evidence restarts.
+  <Card title="Experiments" icon="flask-conical" href="/concepts/experiments">
+    See arms, shares, the reference, and versions.
   </Card>
 </CardGroup>
