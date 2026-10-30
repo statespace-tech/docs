@@ -38,8 +38,8 @@ The documentation has four sections.
 - Get started: the introduction, the quickstart, and installation.
 - Concepts: how it works, apps and live, experiments, subjects and assignment, events and metrics,
   evidence, overrides, and permissions.
-- Guides: CI on GitHub Actions, the proxy on Docker, Cloud Run, and Kubernetes, events and metrics,
-  emergency stops, and agents.
+- Guides: CI on GitHub Actions, the proxy on Docker, Cloud Run, Kubernetes, ECS Fargate, and
+  Fly.io, events and metrics, emergency stops, and agents.
 - Reference: the CLI, `statespace.toml` with a starter file, the API, CEL variables, commit statuses,
   and limits.
 

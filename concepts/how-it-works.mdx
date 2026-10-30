@@ -37,6 +37,7 @@ The proxy never waits on Statespace during a request. It gets its configuration 
 
 - **Live** is the service that you run now. It serves every request outside the experiments. Statespace never records it.
 - **An arm** is one commit in one experiment. The proxy runs a copy of the commit's image for it. Statespace records it.
+- **A unit** is the running copy of one arm. The proxy runs units on the platform of live: Docker, Cloud Run, Kubernetes, ECS Fargate, or Fly.io.
 
 There is no special control arm. To compare a change with what runs now, add the live commit as an arm. Then both arms get the same kind of subjects at the same time, and Statespace records both the same way.
 

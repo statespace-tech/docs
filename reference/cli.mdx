@@ -9,7 +9,7 @@ description: Every ssp command, argument, and flag, and what each command prints
 ssp app         add | remove | list | show
 ssp experiment  list | show | update | start | stop
 ssp token       add | remove | list
-ssp proxy       docker | cloudrun | kubernetes
+ssp proxy       docker | cloudrun | kubernetes | fargate | fly
 ssp login | logout | whoami
 ```
 
@@ -324,6 +324,10 @@ ssp proxy cloudrun --app shop-prod \
   The region of the service, such as `us-east1`.
 </ParamField>
 
+<ParamField body="--project" type="string">
+  The Google Cloud project. Default: the project of the proxy.
+</ParamField>
+
 The [proxy flags](#proxy-flags) also apply.
 
 ## ssp proxy kubernetes
@@ -347,6 +351,80 @@ ssp proxy kubernetes --app shop-prod \
   The Service of live. Default: the name of the Deployment.
 </ParamField>
 
+<ParamField body="--container" type="string">
+  The container of the app in the pod. Default: the first container.
+</ParamField>
+
+The [proxy flags](#proxy-flags) also apply.
+
+## ssp proxy fargate
+
+Run the proxy in front of an ECS service on Fargate. Each arm runs as an ECS service in the same cluster, from a copy of the task definition with another image. See [ECS Fargate](/guides/fargate).
+
+```shell
+ssp proxy fargate --app shop-prod \
+  --cluster shop --service shop \
+  --live-url http://internal-shop.example.com
+```
+
+<ParamField body="--cluster" type="string" required>
+  The ECS cluster of the service.
+</ParamField>
+
+<ParamField body="--service" type="string" required>
+  The ECS service that runs live.
+</ParamField>
+
+<ParamField body="--region" type="string">
+  The AWS region of the cluster. Default: the region of the AWS configuration, such as `AWS_REGION`.
+</ParamField>
+
+<ParamField body="--live-url" type="string">
+  Where the proxy sends live traffic, such as the URL of the internal load balancer of live. Default: the first Service Connect name of live.
+</ParamField>
+
+<ParamField body="--container" type="string">
+  The container of the app in the task definition. Default: the first container with a port mapping.
+</ParamField>
+
+<ParamField body="--unit-ip" type="string" default="private">
+  The IP address of a task of an arm that the proxy sends to: `private` or `public`. Use `public` only when the proxy runs outside the VPC of the tasks, such as in a test.
+</ParamField>
+
+The proxy uses the AWS default credential chain. The [proxy flags](#proxy-flags) also apply.
+
+## ssp proxy fly
+
+Run the proxy in front of a Fly.io app. Each arm runs as a Machine of the app, without services. See [Fly.io](/guides/fly).
+
+```shell
+ssp proxy fly --app shop-prod --fly-app shop
+```
+
+<ParamField body="--fly-app" type="string" required>
+  The Fly.io app whose Machines run live.
+</ParamField>
+
+<ParamField body="--fly-token" type="string" required>
+  A Fly.io token that can manage the Machines of the app, such as a deploy token. Environment variable: `FLY_API_TOKEN`.
+</ParamField>
+
+<ParamField body="--process-group" type="string" default="app">
+  The process group of live.
+</ParamField>
+
+<ParamField body="--region" type="string">
+  The region of the Machines of the arms. Default: the region of a live Machine.
+</ParamField>
+
+<ParamField body="--port" type="number">
+  The port that the app listens on. Default: the internal port of the first service of live.
+</ParamField>
+
+<ParamField body="--live-url" type="string">
+  Where the proxy sends live traffic. Default: `http://<fly app>.flycast`.
+</ParamField>
+
 The [proxy flags](#proxy-flags) also apply.
 
 ## Proxy flags
@@ -354,7 +432,7 @@ The [proxy flags](#proxy-flags) also apply.
 Each `ssp proxy` command takes these flags. All other settings come from [`statespace.toml`](/reference/statespace-toml).
 
 <ParamField body="--app" type="string" required>
-  The app. The command fails when the app does not exist.
+  The app. The command fails when the app does not exist. Environment variable: `STATESPACE_APP`.
 </ParamField>
 
 <ParamField body="--listen" type="string" default="0.0.0.0:8080">

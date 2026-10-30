@@ -20,7 +20,7 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
   layers.
 - Live is the service that the customer runs. It is never recorded. There is no control arm: to compare
   with live, add the live commit as an arm.
-- `ssp proxy docker|cloudrun|kubernetes --app <app>` runs in front of the app. The instance that holds
+- `ssp proxy docker|cloudrun|kubernetes|fargate|fly --app <app>` runs in front of the app. The instance that holds
   the lease runs the arms.
 - Settings, events, metrics, and experiments live in `statespace.toml`, with `[app.<name>]` sections.
   Events and metrics are CEL.
