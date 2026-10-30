@@ -61,6 +61,8 @@
           "guides/docker",
           "guides/cloud-run",
           "guides/kubernetes",
+          "guides/fargate",
+          "guides/fly",
           "guides/events-and-metrics",
           "guides/emergency-stop",
           "guides/agents"

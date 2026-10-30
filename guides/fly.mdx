@@ -1,0 +1,162 @@
+---
+title: Run the proxy on Fly.io
+sidebarTitle: Fly.io
+description: Run ssp proxy fly as its own Fly.io app in front of your app, with each arm as a Machine of your app.
+---
+
+On Fly.io, the proxy runs as its own app in front of your app, in the same organization. Each arm runs as a Machine of your app, without services.
+
+```text
+                             ┌─► shop.flycast         (live)
+visitors ─► shop-statespace ─┼─► checkout c0ffee1 VM  (private IPv6)
+                             └─► checkout a1b2c3d VM  (private IPv6)
+```
+
+## How it works
+
+- Live is the Machines of your app in one process group, `app` by default, that the proxy did not make. The live image is the digest that they all run. During a deploy, the digests differ, and live is not known until the deploy ends.
+- The proxy sends live traffic to `http://<fly app>.flycast`, such as `http://shop.flycast`, or to `--live-url`.
+- For each arm, the proxy copies the config of a live Machine, changes only the image, and makes a Machine named `ssp-<experiment>-<commit 12>`, such as `ssp-checkout-a1b2c3d4e5f6`.
+- The copy keeps the guest size, the environment, the files, the init, and the restart policy. Fly.io gives it the secrets of the app.
+- The copy has no services. Thus Fly.io never sends it public or Flycast traffic. The health checks of the services become Machine checks.
+- The copy has no mounts, because a volume is for one Machine only. It has no `fly_*` metadata, so `fly deploy` and `fly scale` do not change it.
+- The metadata `statespace.com/app`, `statespace.com/experiment`, and `statespace.com/commit` keep the full values.
+- An arm is ready when its Machine is `started`, runs the image of the arm, passes all its checks, and accepts a connection.
+- The proxy sends the requests of an arm to the private IPv6 address of its Machine, on the 6PN network of the organization. It reads the output of the arms from the logs of the app.
+- When an experiment stops, the proxy destroys the Machines of its arms.
+
+Your deploy workflow does not change. `fly deploy` of your app changes live only. The arms stay.
+
+<Warning>
+  The arms get the secrets of your app. Never set a secret that starts with `STATESPACE_` on your app.
+</Warning>
+
+## Prerequisites
+
+- Your Fly.io app, such as `shop`, in the organization `acme`.
+- An app, such as `shop-prod`, and a recorded build of the image that live runs.
+- The `fly` CLI with rights to manage apps in the organization.
+
+## Set up the proxy
+
+<Steps>
+  <Step title="Make your app listen on IPv6">
+    The proxy reaches the arms on their private IPv6 addresses. Make `shop` listen on `[::]`, not only on `0.0.0.0`, and deploy it.
+
+    For example, start a Python app with `--host ::`.
+
+    ```dockerfile Dockerfile
+    CMD ["uvicorn", "main:app", "--host", "::", "--port", "8080"]
+    ```
+  </Step>
+
+  <Step title="Push the builds to a registry that Fly.io can use">
+    Fly.io must pull the image of each arm. Push the images that CI records to `registry.fly.io/shop` or to a public registry.
+  </Step>
+
+  <Step title="Give your app a private address">
+    The proxy sends live traffic to `http://shop.flycast`. Give `shop` a private Flycast address.
+
+    ```shell
+    fly ips allocate-v6 --private -a shop
+    ```
+  </Step>
+
+  <Step title="Make the proxy's app">
+    Make the app `shop-statespace` in the same organization as `shop`.
+
+    ```shell
+    fly apps create shop-statespace --org acme
+    ```
+  </Step>
+
+  <Step title="Give the proxy its tokens">
+    Add a runtime token for the app.
+
+    ```shell
+    ssp token add --app shop-prod --note "Fly.io proxy"
+    ```
+
+    Make a deploy token of `shop`. It can manage the Machines of `shop` only. This token expires in 90 days. Renew it before then.
+
+    ```shell
+    fly tokens create deploy -a shop -x 2160h
+    ```
+
+    Set both tokens as secrets of `shop-statespace`.
+
+    ```shell
+    fly secrets set -a shop-statespace --stage \
+      STATESPACE_TOKEN='<secret>' \
+      FLY_API_TOKEN='<deploy token>'
+    ```
+  </Step>
+
+  <Step title="Deploy the proxy">
+    Deploy the proxy with this `fly.toml`. Keep two Machines on at all times, because the proxy works between requests.
+
+    ```toml fly.toml
+    app = "shop-statespace"
+    primary_region = "iad"
+
+    [build]
+      image = "ghcr.io/statespace-tech/statespace:0.4.0"
+
+    # The command goes after the entry point of the image, ssp.
+    [processes]
+      app = "proxy fly --fly-app shop"
+
+    [env]
+      STATESPACE_APP = "shop-prod"
+
+    [http_service]
+      internal_port = 8080
+      force_https = true
+      auto_stop_machines = "off"
+      auto_start_machines = true
+      min_machines_running = 2
+
+    [[vm]]
+      size = "shared-cpu-1x"
+      memory = "512mb"
+    ```
+
+    ```shell
+    fly deploy -c fly.toml
+    ```
+  </Step>
+
+  <Step title="Send traffic to the proxy">
+    Point your domain, such as `shop.acme.com`, to `shop-statespace`. Then release the public addresses of `shop`, so that all visitors go through the proxy.
+
+    ```shell
+    fly ips list -a shop
+    fly ips release -a shop <public address>
+    ```
+
+    Check the app.
+
+    ```shell
+    ssp app show shop-prod
+    ```
+
+    The output shows live, the proxy instances, and the orchestrator `fly`.
+  </Step>
+</Steps>
+
+## Many Machines
+
+Every Machine of the proxy routes requests. Only the Machine that holds the app's lease makes and destroys the Machines of the arms. When that Machine stops, another Machine gets the lease in about 30 seconds.
+
+All Machines of the proxy must report the same settings and the same live image. While they do not, no experiment of the app can start, the running ones send their requests to live, and `ssp app show` says why.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="ECS Fargate" icon="server" href="/guides/fargate">
+    Run the proxy in front of an ECS service.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/reference/cli#ssp-proxy-fly">
+    Look up the flags of `ssp proxy fly`.
+  </Card>
+</CardGroup>
