@@ -35,7 +35,7 @@ value = '100.0 * events["purchase"].subjects / subjects'
 # Experiments, in priority order.
 [experiment.checkout]
 subject = 'request.headers["x-user-id"]'
-max_share = 0.2
+max_traffic = 0.2
 
 [[experiment.checkout.event]]
 name = "coupon"
@@ -50,14 +50,14 @@ value = '100.0 * events["coupon"].subjects / subjects'
 
 [experiment.us-landing]
 eligibility = 'request.headers["cf-ipcountry"] == "US"'
-max_share = 0.15
+max_traffic = 0.15
 
 # Per-app sections replace and extend the shared settings.
 [app.shop-dev]
 overrides = true
 
 [app.shop-dev.experiment.checkout]
-max_share = 1.0
+max_traffic = 1.0
 ```
 
 ## Settings
@@ -98,7 +98,7 @@ Each table `[experiment.<name>]` defines one experiment. An empty table is an ex
   Who can enter the experiment. When the expression is false or has an error, the experiment skips the request. Statespace counts each error.
 </ParamField>
 
-<ParamField path="max_share" type="number" default="0.2">
+<ParamField path="max_traffic" type="number" default="0.2">
   The largest total of the shares of the experiment's arms. A fraction: more than 0, and 1 at most.
 </ParamField>
 
@@ -171,7 +171,7 @@ A section that matches no app gives a warning in CI. It is not an error.
 | The release changes | Result |
 | --- | --- |
 | Only code | Nothing. `ssp experiment show` says "live is now f2f2f2f" |
-| `subject`, `eligibility`, or `max_share` of the experiment, or removes its table | The experiment stops |
+| `subject`, `eligibility`, or `max_traffic` of the experiment, or removes its table | The experiment stops |
 | A shared event | Every running experiment of the app stops |
 | An own event of the experiment | The experiment stops |
 | A metric, shared or own | Nothing stops. Evidence uses the new formula. The history says `metric "purchase rate %" changed in live d00d123` |

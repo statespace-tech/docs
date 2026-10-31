@@ -13,7 +13,7 @@ An experiment is a named comparison of commits in one app. Its table in `statesp
 ```toml statespace.toml
 [experiment.checkout]
 subject = 'request.headers["x-user-id"]'
-max_share = 0.2
+max_traffic = 0.2
 ```
 
 - The experiment exists in an app when the `statespace.toml` of the app's live commit has its table. It begins `stopped`, with no arms.
@@ -31,7 +31,7 @@ ssp experiment update checkout \
 ```
 
 - The share is a fraction, such as `0.05`. It is never `5` or `5%`.
-- The shares of the arms add up to `max_share` or less.
+- The shares of the arms add up to `max_traffic` or less.
 - Any commit with a build for the app can be an arm. This includes the live commit and older commits.
 - Each arm is a fixed commit. An arm never follows a branch or live.
 - One commit in two experiments runs as two copies, one for each experiment.
@@ -71,7 +71,7 @@ An experiment has these states:
 `ssp experiment start` makes these checks, in this order:
 
 1. The experiment has 2 or more arms.
-2. The shares add up to `max_share` or less.
+2. The shares add up to `max_traffic` or less.
 3. Each arm has a build for the app.
 4. The shares of all running experiments of the app, and of this one, add up to 1 or less.
 
@@ -94,7 +94,7 @@ A release changes the live commit, and with it `statespace.toml`. Each running e
 | The release changes | Result |
 | --- | --- |
 | Only code | Nothing. The arms are fixed commits. `ssp experiment show` says "live is now f2f2f2f" |
-| `subject`, `eligibility`, or `max_share` of the experiment, or removes its table | The experiment stops |
+| `subject`, `eligibility`, or `max_traffic` of the experiment, or removes its table | The experiment stops |
 | A shared event | Every running experiment of the app stops |
 | An own event of the experiment | The experiment stops |
 | A metric, shared or own | Nothing stops. Evidence uses the new formula. The history records the change |

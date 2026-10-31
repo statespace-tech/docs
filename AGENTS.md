@@ -66,7 +66,7 @@ Give each page one type (Diátaxis), and keep it to that type.
 
 - `<Steps>` for a sequence that the reader does in order. Each step title starts with a verb.
 - `<ParamField>` for each setting, flag, and argument in reference pages, with `type`, `default`, and
-  `required` where they apply: `<ParamField path="max_share" type="number" default="0.2">` for a
+  `required` where they apply: `<ParamField path="max_traffic" type="number" default="0.2">` for a
   `statespace.toml` key, and `<ParamField body="--app" type="string" required>` for a CLI flag or
   argument.
 - Tables for short comparisons and lists of names, such as states or fields. Not for flags.

@@ -187,7 +187,7 @@ checkout · shop-prod · stopped
   − a1b2c3d   0.05
   + f6a7b8c   0.05
     c0ffee1   0.06   (reference)
-  total 0.11 of max_share 0.2
+  total 0.11 of max_traffic 0.2
 ```
 
 Without `--arm`, the command prints the current list.
@@ -195,7 +195,7 @@ Without `--arm`, the command prints the current list.
 The command fails, and changes nothing, when:
 
 - the experiment runs: "checkout is running. Stop it first: ssp experiment stop checkout";
-- the shares add up to more than `max_share`;
+- the shares add up to more than `max_traffic`;
 - a commit has no build for the app: "No build of a1b2c3d for shop-prod. Push it so CI builds it.";
 - a prefix matches more than one build. The error lists the matches;
 - `=0` names a commit that is not an arm: "e5f6a7b is not an arm of checkout".
@@ -218,7 +218,7 @@ ssp experiment start checkout --app shop-prod \
 The command checks, in this order:
 
 1. The experiment has 2 or more arms.
-2. The shares add up to `max_share` or less.
+2. The shares add up to `max_traffic` or less.
 3. Each arm has a build for the app.
 4. The shares of all running experiments of the app, and of this one, add up to 1 or less.
 
