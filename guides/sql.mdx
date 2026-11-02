@@ -1,0 +1,150 @@
+---
+title: Query your data with SQL
+sidebarTitle: SQL
+description: Read the requests, events, and output of each arm with your own read-only PostgreSQL login.
+---
+
+This guide shows how to read the data of your apps with SQL. Each person has
+one PostgreSQL login. It only reads, and it reads only the apps whose repo
+you can read on GitHub.
+
+## Connect
+
+<Steps>
+  <Step title="Sign in">
+    The login comes from your session of `ssp login`.
+
+    ```shell
+    ssp login
+    ```
+  </Step>
+  <Step title="Open psql">
+    `ssp db url` prints only the connection string, so you can give it to
+    `psql`. Use psql 16 or later.
+
+    ```shell
+    psql "$(ssp db url)"
+    ```
+  </Step>
+  <Step title="Run a query">
+    Count the subjects of each arm that bought something.
+
+    ```sql
+    SELECT arm, count(DISTINCT subject) AS buyers
+    FROM statespace.events
+    WHERE app = 'shop-prod'
+      AND experiment = 'checkout'
+      AND version = 3
+      AND name = 'purchase'
+    GROUP BY arm;
+    ```
+  </Step>
+</Steps>
+
+`ssp db url` also prints, on standard error, the apps that the login reads.
+With more than one workspace, add `--account acme`.
+
+## Connect from other tools
+
+Get the fields one by one for tools such as DBeaver or a notebook.
+
+```shell
+ssp db url --json
+```
+
+```json
+{
+  "url": "postgresql://gh_ana:<secret>@gh-7.statespace.app:5432/…",
+  "account": "acme",
+  "host": "gh-7.statespace.app",
+  "port": 5432,
+  "database": "gh_7",
+  "user": "gh_ana",
+  "password": "<secret>",
+  "sslmode": "verify-full",
+  "apps": ["shop-dev", "shop-prod"]
+}
+```
+
+Use TLS with full verification. The server has a public certificate, so the
+trust store of the system verifies it.
+
+## Tables
+
+The tables are in the schema `statespace`. Each login sees only the rows of
+its apps.
+
+| Table | One row for each | Columns |
+| --- | --- | --- |
+| `requests` | Request to an arm | `id`, `timestamp`, `app`, `experiment`, `arm`, `version`, `subject`, `method`, `path`, `query`, `status`, `ms`, `first_byte_ms`, `request_bytes`, `response_bytes` |
+| `events` | Event of an arm | `id`, `timestamp`, `app`, `experiment`, `arm`, `version`, `name`, `subject` |
+| `stdout` | Line that an arm printed | `id`, `timestamp`, `app`, `experiment`, `arm`, `version`, `text`, `json` |
+| `stderr` | Error line of an arm | The columns of `stdout` |
+| `experiments` | Experiment | `app`, `name`, `state`, `version`, `metrics`, `starting_at`, `created_at` |
+| `experiment_versions` | Start of an experiment | `app`, `experiment`, `version`, `arms`, `definition`, `events`, `live_commit`, `started_by`, `started_at`, `ready_at`, `stopped_at`, `stopped_by`, `reason`, `totals` |
+| `arms` | Arm | `app`, `experiment`, `commit`, `share`, `added_by`, `added_at`, `removed_at`, `not_ready` |
+| `builds` | Build that CI recorded | `id`, `repo`, `commit`, `path`, `app`, `image`, `digest`, `config`, `created_at` |
+
+- `arm` is the full commit of the arm.
+- `subject` is empty for a request without a subject.
+- `json` is the line as a JSON object, or empty.
+- Statespace never records live, so live has no rows.
+- Rows expire after 90 days. The `totals` of each version stay.
+
+## Example queries
+
+Get the error rate and the median latency of each arm.
+
+```sql
+SELECT arm,
+  round(100.0 * avg((status >= 500)::int), 2)
+    AS error_rate,
+  percentile_cont(0.5)
+    WITHIN GROUP (ORDER BY ms) AS p50_ms
+FROM statespace.requests
+WHERE experiment = 'checkout' AND version = 3
+GROUP BY arm;
+```
+
+Find the most frequent error lines of one arm.
+
+```sql
+SELECT text, count(*) AS lines
+FROM statespace.stderr
+WHERE experiment = 'checkout'
+  AND arm LIKE 'a1b2c3d%'
+GROUP BY text
+ORDER BY lines DESC
+LIMIT 10;
+```
+
+## Rotate the password
+
+The password stays the same, so the tools that use it keep working. If the
+password leaks, rotate it.
+
+```shell
+ssp db rotate --note "pasted in a chat"
+```
+
+The old password stops at once, and its sessions end. The command prints the
+new connection string. Update your tools.
+
+## Access
+
+- You need the role Read or Triage on the repo of an app to read its rows.
+  See [Permissions](/concepts/permissions).
+- Each hour, Statespace checks your role. When you lose access to a repo,
+  your login stops reading its apps.
+- The login cannot write, and it cannot make tables.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Events and metrics" icon="chart-line" href="/guides/events-and-metrics">
+    Decide what each arm records.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/reference/cli#ssp-db-url">
+    Look up `ssp db url` and `ssp db rotate`.
+  </Card>
+</CardGroup>

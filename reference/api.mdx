@@ -78,6 +78,16 @@ curl -sS -X PATCH "$app/experiments/checkout/arms" \
 | `POST /v1/tokens` | `app`, `note`? | The token. Only this response has the secret |
 | `DELETE /v1/tokens/{id}` | | |
 
+## SQL access
+
+These routes need the session of a person, from `ssp login` or the
+dashboard.
+
+| Route | Body | Response |
+| --- | --- | --- |
+| `POST /v1/db/login` | | Your SQL login: `url`, `account`, `host`, `port`, `database`, `user`, `password`, `sslmode`, `apps` |
+| `POST /v1/db/login/rotate` | `note`? | The same, with a new password. The old password stops |
+
 ## Runtime
 
 Only runtime tokens use these routes. The proxy calls them.

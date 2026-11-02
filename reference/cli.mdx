@@ -3,12 +3,13 @@ title: CLI
 description: Every ssp command, argument, and flag, and what each command prints.
 ---
 
-`ssp` adds and removes apps and tokens, sets the arms of experiments, starts and stops experiments, and runs the proxy. Install it with the [install script](/getting-started/installation#cli).
+`ssp` adds and removes apps and tokens, sets the arms of experiments, starts and stops experiments, runs the proxy, and gives your SQL login. Install it with the [install script](/getting-started/installation#cli).
 
 ```text
 ssp app         add | remove | list | show
 ssp experiment  list | show | update | start | stop
 ssp token       add | remove | list
+ssp db          url | rotate
 ssp proxy       docker | cloudrun | kubernetes | fargate | fly
 ssp login | logout | whoami
 ```
@@ -287,6 +288,42 @@ List the runtime tokens, without their secrets.
 ```shell
 ssp token list
 ```
+
+## ssp db url
+
+Print the connection string of your PostgreSQL login. The login only reads.
+It reads the apps whose repo you can read. The command needs the session of
+`ssp login`. See [Query your data with SQL](/guides/sql).
+
+```shell
+psql "$(ssp db url)"
+```
+
+<ParamField body="--account" type="string">
+  The workspace, such as `acme`. Required when you are in more than one
+  workspace.
+</ParamField>
+
+Standard output has only the connection string. Standard error says which
+apps the login reads. With `--json`, it prints `url`, `account`, `host`,
+`port`, `database`, `user`, `password`, `sslmode`, and `apps`. The password
+stays the same until `ssp db rotate`.
+
+## ssp db rotate
+
+Give your PostgreSQL login a new password. The old password stops at once,
+and its sessions end.
+
+```shell
+ssp db rotate --note "pasted in a chat"
+```
+
+<ParamField body="--account" type="string">
+  The workspace, such as `acme`. Required when you are in more than one
+  workspace.
+</ParamField>
+
+It prints the new connection string, as `ssp db url` does.
 
 ## ssp proxy docker
 

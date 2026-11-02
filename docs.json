@@ -64,6 +64,7 @@
           "guides/fargate",
           "guides/fly",
           "guides/events-and-metrics",
+          "guides/sql",
           "guides/emergency-stop",
           "guides/agents"
         ]

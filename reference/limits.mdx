@@ -23,7 +23,7 @@ Statespace never records live.
 | One batch of rows from the proxy | 100 rows |
 | One account | 10 GiB. Statespace warns at 80% |
 
-Each account has its own PostgreSQL database. A subject can be erased with `POST /v1/subjects/erase`. See [API](/reference/api#other).
+Each account has its own PostgreSQL database. Each person reads it with a read-only login. See [Query your data with SQL](/guides/sql). A subject can be erased with `POST /v1/subjects/erase`. See [API](/reference/api#other).
 
 ## Names and values
 
