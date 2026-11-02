@@ -99,7 +99,7 @@ A release changes the live commit, and with it `statespace.toml`. Each running e
 | An own event of the experiment | The experiment stops |
 | A metric, shared or own | Nothing stops. Evidence uses the new formula. The history records the change |
 
-When a release stops an experiment, the reason is "its definition changed in live d00d123". `ssp experiment show`, the commit statuses, and the audit log give the reason and the start command to run again.
+When a release stops an experiment, the note of the stop is "definition changed in live d00d123". `ssp experiment show`, the commit statuses, and the audit log give the reason and the start command to run again.
 
 When the live commit contains an arm's commit, nothing changes. `ssp experiment show` says "live c0ffee1 contains a1b2c3d". You decide when to stop the experiment.
 

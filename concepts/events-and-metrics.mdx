@@ -65,6 +65,7 @@ value = '100.0 * events["coupon"].subjects / subjects'
 
 - The arms of `checkout` count the shared events and `coupon`. The arms of `us-landing` count only the shared events.
 - Own events and metrics come after the shared ones.
+- An event name is lowercase snake_case, such as `add_to_cart`. CI refuses `Add-To-Cart`.
 - The same event name or metric label two times is an error in CI: `event "coupon" is defined twice`.
 - The **headline** is the first own metric of the experiment. When the experiment has no own metric, it is the first shared metric. In the example, the headline of `checkout` is `coupon use %`.
 

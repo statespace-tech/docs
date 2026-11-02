@@ -216,7 +216,7 @@ An `Experiment`, with these fields:
 | `metrics` | `[{"label", "values"}]` |
 | `split` | `{"ok", "p"}`, or `null` |
 | `events` | `[{"name", "values"}]`: the top events |
-| `versions` | `[{"version", "arms", "started_at", "stopped_at", "stopped_by", "reason"}]` |
+| `versions` | `[{"version", "arms", "started_at", "stopped_at", "stopped_by", "stop_note"}]`. `stop_note` is the note of the stop, or why Statespace stopped the version |
 | `history` | Starts, stops, and metric changes |
 | `drift` | `{"live_commit"}`, or `null` |
 | `override_urls` | `{"<commit>": url}`, or `null` |

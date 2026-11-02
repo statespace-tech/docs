@@ -1,7 +1,7 @@
 ---
 title: Query your data with SQL
 sidebarTitle: SQL
-description: Read the requests, events, and output of each arm with your own read-only PostgreSQL login.
+description: Read the assignments, requests, logs, and events of each arm with your own read-only PostgreSQL login.
 ---
 
 This guide shows how to read the data of your apps with SQL. Each person has
@@ -31,7 +31,7 @@ you can read on GitHub.
 
     ```sql
     SELECT arm, count(DISTINCT subject) AS buyers
-    FROM statespace.events
+    FROM events
     WHERE app = 'shop-prod'
       AND experiment = 'checkout'
       AND version = 3
@@ -69,29 +69,103 @@ ssp db url --json
 Use TLS with full verification. The server has a public certificate, so the
 trust store of the system verifies it.
 
-## Tables
+## Views
 
-The tables are in the schema `statespace`. Each login sees only the rows of
-its apps.
+The login reads 8 views. They are in the default schema, so a query needs
+no schema name. Each view shows only the rows of your apps.
 
-| Table | One row for each | Columns |
-| --- | --- | --- |
-| `requests` | Request to an arm | `id`, `timestamp`, `app`, `experiment`, `arm`, `version`, `subject`, `method`, `path`, `query`, `status`, `ms`, `first_byte_ms`, `request_bytes`, `response_bytes` |
-| `events` | Event of an arm | `id`, `timestamp`, `app`, `experiment`, `arm`, `version`, `name`, `subject` |
-| `stdout` | Line that an arm printed | `id`, `timestamp`, `app`, `experiment`, `arm`, `version`, `text`, `json` |
-| `stderr` | Error line of an arm | The columns of `stdout` |
-| `experiments` | Experiment | `app`, `name`, `state`, `version`, `metrics`, `starting_at`, `created_at` |
-| `experiment_versions` | Start of an experiment | `app`, `experiment`, `version`, `arms`, `definition`, `events`, `live_commit`, `started_by`, `started_at`, `ready_at`, `stopped_at`, `stopped_by`, `reason`, `totals` |
-| `arms` | Arm | `app`, `experiment`, `commit`, `share`, `added_by`, `added_at`, `removed_at`, `not_ready` |
-| `builds` | Build that CI recorded | `id`, `repo`, `commit`, `path`, `app`, `image`, `digest`, `config`, `created_at` |
+| View | One row for each | Columns | Kept |
+| --- | --- | --- | --- |
+| `experiments` | Experiment | `app`, `name`, `state`, `latest_version` | Until the app is removed |
+| `versions` | Start of an experiment | `app`, `experiment`, `version`, `live_sha`, `started_at`, `started_by`, `start_note`, `stopped_at`, `stopped_by`, `stop_note` | Until the app is removed |
+| `arms` | Arm of a version | `app`, `experiment`, `version`, `arm`, `share`, `reference`, `image` | Until the app is removed |
+| `builds` | Build that CI recorded | `repo`, `path`, `app`, `sha`, `image`, `created_at` | Until the app is removed |
+| `assignments` | Subject in a version | `timestamp`, `app`, `experiment`, `version`, `arm`, `subject`, `reason` | 90 days |
+| `requests` | Request to an arm | `id`, `timestamp`, `app`, `experiment`, `version`, `arm`, `subject`, `method`, `path`, `query`, `status`, `duration_ms`, `first_byte_ms`, `request_bytes`, `response_bytes` | 90 days |
+| `logs` | Line that an arm printed | `id`, `timestamp`, `app`, `experiment`, `version`, `arm`, `stream`, `text`, `json` | 90 days |
+| `events` | Match of an event | `id`, `timestamp`, `app`, `experiment`, `version`, `arm`, `subject`, `name`, `request_id`, `log_id` | 90 days |
 
-- `arm` is the full commit of the arm.
-- `subject` is empty for a request without a subject.
-- `json` is the line as a JSON object, or empty.
+The keys:
+
+| View | Key |
+| --- | --- |
+| `experiments` | `app`, `name` |
+| `versions` | `app`, `experiment`, `version` |
+| `arms` | `app`, `experiment`, `version`, `arm` |
+| `builds` | `repo`, `path`, `app`, `sha` |
+| `assignments` | `app`, `experiment`, `version`, `subject` |
+| `requests`, `logs`, `events` | `id` |
+
+The rules of the names:
+
+1. A view has its own name in `name`. A column that refers to another view
+   has the singular name of that view, such as `app` or `experiment`.
+2. `app`, `experiment`, `version`, and `arm` join each view to the others.
+3. `arm` is the full commit of an arm. `sha` is the full commit of a build or
+   of live.
+4. `timestamp` is the time of a row. A name that ends in `_at` is a step,
+   such as `started_at`.
+5. `_ms` is milliseconds, and `_bytes` is bytes.
+
+Some details:
+
+- `assignments` has the first arm of each subject in each version. The
+  `reason` is `assigned` (the hash picked the arm), `override` (an
+  `ssp_arm` link), or `arm-unavailable` (the arm was not ready, so the
+  subject went to live).
+- `arms.reference` is true for the first arm of the version.
+- `logs.stream` is `stdout` or `stderr`. `json` is the line as a JSON
+  object, or empty.
+- An event has the `request_id` of the request that matched it, or the
+  `log_id` of the line that matched it. An event from a line has no
+  `subject`.
+- `versions.stop_note` is the note of the person who stopped the version. When
+  Statespace stops it, `stopped_by` is `statespace` and the note says why.
 - Statespace never records live, so live has no rows.
-- Rows expire after 90 days. The `totals` of each version stay.
 
 ## Example queries
+
+Count the purchases of each arm.
+
+```sql
+SELECT arm, count(*) AS purchases
+FROM events
+WHERE experiment = 'checkout' AND version = 3
+  AND name = 'purchase'
+GROUP BY arm;
+```
+
+Get the conversion rate of each arm. The assignments give the subjects, and
+the events give the subjects that bought.
+
+```sql
+SELECT a.arm,
+  round(100.0 * count(DISTINCT e.subject)
+    / count(DISTINCT a.subject), 2) AS conversion
+FROM assignments AS a
+LEFT JOIN events AS e
+  ON e.app = a.app
+  AND e.experiment = a.experiment
+  AND e.version = a.version
+  AND e.subject = a.subject
+  AND e.name = 'purchase'
+WHERE a.experiment = 'checkout' AND a.version = 3
+  AND a.reason = 'assigned'
+GROUP BY a.arm;
+```
+
+Get the revenue of each arm from the lines that matched an event. In this
+example, the app prints `{"event": "order", "amount": 42}`.
+
+```sql
+SELECT e.arm,
+  sum((l.json ->> 'amount')::numeric) AS revenue
+FROM events AS e
+JOIN logs AS l ON l.id = e.log_id
+WHERE e.experiment = 'checkout' AND e.version = 3
+  AND e.name = 'order'
+GROUP BY e.arm;
+```
 
 Get the error rate and the median latency of each arm.
 
@@ -100,8 +174,8 @@ SELECT arm,
   round(100.0 * avg((status >= 500)::int), 2)
     AS error_rate,
   percentile_cont(0.5)
-    WITHIN GROUP (ORDER BY ms) AS p50_ms
-FROM statespace.requests
+    WITHIN GROUP (ORDER BY duration_ms) AS p50_ms
+FROM requests
 WHERE experiment = 'checkout' AND version = 3
 GROUP BY arm;
 ```
@@ -110,8 +184,8 @@ Find the most frequent error lines of one arm.
 
 ```sql
 SELECT text, count(*) AS lines
-FROM statespace.stderr
-WHERE experiment = 'checkout'
+FROM logs
+WHERE experiment = 'checkout' AND stream = 'stderr'
   AND arm LIKE 'a1b2c3d%'
 GROUP BY text
 ORDER BY lines DESC
@@ -136,7 +210,8 @@ new connection string. Update your tools.
   See [Permissions](/concepts/permissions).
 - Each hour, Statespace checks your role. When you lose access to a repo,
   your login stops reading its apps.
-- The login cannot write, and it cannot make tables.
+- The login cannot write, and it cannot make tables. It cannot read the
+  tables behind the views.
 
 ## Next steps
 
