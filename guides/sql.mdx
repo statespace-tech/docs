@@ -61,26 +61,38 @@ ssp db url --json
   "database": "gh_7",
   "user": "gh_ana",
   "password": "<secret>",
-  "sslmode": "verify-full",
+  "sslmode": "require",
   "apps": ["shop-dev", "shop-prod"]
 }
 ```
 
-Use TLS with full verification. The server has a public certificate, so the
-trust store of the system verifies it. The URL has `sslrootcert=system` for
-this.
+The connection string has `sslmode=require`. The connection is always
+encrypted, and the string works with all PostgreSQL clients.
 
-<Note>
-  `sslrootcert=system` needs psql or libpq 16 or later. With an older client,
-  remove it from the URL, and give the trust store of the system:
+## Verify the server
 
-  ```shell
-  export PGSSLROOTCERT=/etc/ssl/cert.pem
-  psql "postgresql://gh_ana:…@…?sslmode=verify-full"
-  ```
+`sslmode=require` does not check the certificate of the server. To check it
+too, do one of these:
 
-  On Debian and Ubuntu, the file is `/etc/ssl/certs/ca-certificates.crt`.
-</Note>
+1. With psql or libpq 16 or later, add `--verify`:
+
+   ```shell
+   psql "$(ssp db url --verify)"
+   ```
+
+   The connection string then has `sslmode=verify-full` and
+   `sslrootcert=system`. The server has a public certificate, so the trust
+   store of the system verifies it.
+
+2. With an older client, set `sslmode=verify-full`, and set `sslrootcert`
+   to the file of trusted certificates on your system:
+
+   ```text
+   postgresql://gh_ana:…@gh-7.statespace.app:5432/gh_7
+     ?sslmode=verify-full&sslrootcert=/etc/ssl/cert.pem
+   ```
+
+   On Debian and Ubuntu, the file is `/etc/ssl/certs/ca-certificates.crt`.
 
 ## Views
 

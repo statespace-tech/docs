@@ -304,6 +304,12 @@ psql "$(ssp db url)"
   workspace.
 </ParamField>
 
+<ParamField body="--verify" type="flag">
+  Check the certificate of the server with the trust store of the system.
+  The connection string has `sslmode=verify-full&sslrootcert=system` in place
+  of `sslmode=require`. It needs psql or libpq 16 or later.
+</ParamField>
+
 Standard output has only the connection string. Standard error says which
 apps the login reads. With `--json`, it prints `url`, `account`, `host`,
 `port`, `database`, `user`, `password`, `sslmode`, and `apps`. The password
@@ -321,6 +327,11 @@ ssp db rotate --note "pasted in a chat"
 <ParamField body="--account" type="string">
   The workspace, such as `acme`. Required when you are in more than one
   workspace.
+</ParamField>
+
+<ParamField body="--verify" type="flag">
+  Print the new connection string with full verification, as
+  `ssp db url --verify` does.
 </ParamField>
 
 It prints the new connection string, as `ssp db url` does.
