@@ -136,68 +136,12 @@
   },
   "redirects": [
     {
-      "source": "/reference/host",
-      "destination": "/reference/cli"
-    },
-    {
       "source": "/reference/proxy",
       "destination": "/reference/cli"
     },
     {
-      "source": "/reference/controller",
-      "destination": "/guides/kubernetes"
-    },
-    {
-      "source": "/reference/experiment-definition",
-      "destination": "/reference/statespace-toml"
-    },
-    {
-      "source": "/reference/database-schema",
-      "destination": "/concepts/events-and-metrics"
-    },
-    {
       "source": "/getting-started/how-it-works",
       "destination": "/concepts/how-it-works"
-    },
-    {
-      "source": "/getting-started/deployment",
-      "destination": "/guides/docker"
-    },
-    {
-      "source": "/concepts/random-sampling",
-      "destination": "/concepts/subjects"
-    },
-    {
-      "source": "/concepts/treatments-and-control-groups",
-      "destination": "/concepts/experiments"
-    },
-    {
-      "source": "/concepts/random-assignment",
-      "destination": "/concepts/subjects"
-    },
-    {
-      "source": "/concepts/outcome-measures",
-      "destination": "/concepts/events-and-metrics"
-    },
-    {
-      "source": "/concepts/statistical-inference",
-      "destination": "/concepts/evidence"
-    },
-    {
-      "source": "/workflow/:slug*",
-      "destination": "/quickstart"
-    },
-    {
-      "source": "/examples/:slug*",
-      "destination": "/guides/events-and-metrics"
-    },
-    {
-      "source": "/concepts/arms",
-      "destination": "/concepts/experiments"
-    },
-    {
-      "source": "/concepts/holds",
-      "destination": "/guides/emergency-stop"
     }
   ]
 }
