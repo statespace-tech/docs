@@ -67,7 +67,20 @@ ssp db url --json
 ```
 
 Use TLS with full verification. The server has a public certificate, so the
-trust store of the system verifies it.
+trust store of the system verifies it. The URL has `sslrootcert=system` for
+this.
+
+<Note>
+  `sslrootcert=system` needs psql or libpq 16 or later. With an older client,
+  remove it from the URL, and give the trust store of the system:
+
+  ```shell
+  export PGSSLROOTCERT=/etc/ssl/cert.pem
+  psql "postgresql://gh_ana:…@…?sslmode=verify-full"
+  ```
+
+  On Debian and Ubuntu, the file is `/etc/ssl/certs/ca-certificates.crt`.
+</Note>
 
 ## Views
 
