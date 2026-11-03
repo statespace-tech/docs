@@ -39,7 +39,7 @@ The origin of the CDN is the address of the proxy, such as:
 - the URL of the proxy's Cloud Run service;
 - the load balancer of the proxy's Kubernetes Service.
 
-Do not use the bucket or the live service as the origin. Requests that do not go through the proxy are never in an arm.
+Do not use the bucket or the live service as the origin. Requests that do not go through the proxy are never in an arm. Use live only as a [fallback](/guides/fall-back-to-live).
 
 ### Redirects
 
@@ -98,18 +98,9 @@ The proxy makes no redirects. Make them in the CDN, such as with Cloudflare Redi
 
 Cloudflare sends all request headers to the origin, with the cookies. To get the header `cf-ipcountry` for `eligibility`, turn on the Managed Transform **Add visitor location headers**.
 
-## Health checks and failover
+## Fall back to live
 
-This part is optional.
-
-A CDN can send requests to a second origin when the proxy fails. For a file runtime, the second origin can serve the live files of the bucket. While the proxy is down, all visitors then get live. The arms get no traffic, and the proxy records nothing.
-
-The second origin serves keys as they are. It does not use the path rules of the proxy, such as `docs/index.html` for `/docs/`.
-
-- **CloudFront.** Make an origin group with two origins. The primary origin is the proxy. The secondary origin serves the live files. Choose the status codes 500, 502, 503, and 504 as failover criteria. With 503, CloudFront also fails over when it cannot connect to the proxy. With 504, it fails over when the proxy does not answer in time. CloudFront fails over only for `GET`, `HEAD`, and `OPTIONS` requests.
-- **Cloudflare.** Use Load Balancing. Make a pool for the proxy with a health monitor. Make the pool that serves the live files the fallback pool. When all other pools are unhealthy, Cloudflare sends the requests to the fallback pool.
-
-Without a failover, the site is down while the proxy is down. A container service restarts the proxy, such as ECS in about 1 to 2 minutes. Run two or more instances of the proxy to keep the site up during a restart.
+This part is optional. The CDN can send requests to live when the proxy is down, such as with a CloudFront origin group or a Cloudflare fallback pool. See [Fall back to live](/guides/fall-back-to-live).
 
 ## Next steps
 

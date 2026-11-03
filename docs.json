@@ -66,6 +66,7 @@
           "guides/s3",
           "guides/gcs",
           "guides/cdn",
+          "guides/fall-back-to-live",
           "guides/infrastructure-as-code",
           "guides/events-and-metrics",
           "guides/sql",

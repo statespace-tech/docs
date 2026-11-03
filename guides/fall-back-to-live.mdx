@@ -1,0 +1,162 @@
+---
+title: Fall back to live when the proxy is down
+sidebarTitle: Fall back to live
+description: Let the reverse proxy, load balancer, or CDN in front of ssp send traffic to the address of live when ssp is down. Examples for nginx, Caddy, Traefik, Cloudflare, and CloudFront.
+---
+
+import Planned from '/snippets/planned.mdx';
+
+<Planned />
+
+This page is optional. Live keeps its own address, so the part in front of `ssp` can send traffic to live when `ssp` is down. Use this page to set up that fallback.
+
+## What happens during a fallback
+
+- All visitors get live.
+- The arms get no traffic. The experiments stay `running`, but they pause: the proxy records nothing, and their evidence does not grow.
+- Overrides do not work.
+- When `ssp` is back, each subject gets the same arm as before. The arm comes from a hash of the subject ID. See [Subjects and assignment](/concepts/subjects).
+
+Without a fallback, your app is down while `ssp` is down. The platform restarts `ssp`, such as ECS in about 1 to 2 minutes. Run two or more instances of `ssp` to keep your app up during a restart.
+
+## The address of live
+
+The fallback sends requests to live without `ssp`. Use the address that `ssp` sends live traffic to:
+
+| Runtime | Address of live |
+| --- | --- |
+| Docker | The container of live, such as `shop:3000` on the Compose network |
+| Cloud Run | The URL of your service, such as `shop` |
+| Kubernetes | The Service of your Deployment, such as `shop` |
+| ECS Fargate | The internal load balancer of your service |
+| S3, Cloud Storage | An origin that serves the files at the root of the bucket |
+
+Live must accept requests from the fallback. For example, on Cloud Run, the ingress and the IAM policy of your service must let the load balancer in.
+
+A bucket origin serves keys as they are. It does not use the path rules of `ssp`, such as `docs/index.html` for `/docs/`.
+
+## nginx
+
+In this example, nginx and the services `ssp` and `shop` are on one Compose network. nginx sends each request to `ssp`. It uses `shop`, the backup server, only when `ssp` is not available.
+
+```nginx nginx.conf
+upstream shop_front {
+    server ssp:8080;
+    server shop:3000 backup;
+}
+
+server {
+    listen 80;
+
+    location / {
+        proxy_pass http://shop_front;
+        proxy_set_header Host $host;
+        proxy_connect_timeout 2s;
+        proxy_next_upstream error timeout http_502 http_503;
+    }
+}
+```
+
+- nginx sends a request to `shop` when it cannot connect to `ssp` in 2 seconds, when `ssp` does not answer in time, or when `ssp` answers 502 or 503. `ssp` answers 503 while it does not know the address of live.
+- After a failed request, nginx does not use `ssp` for 10 seconds. The `max_fails` and `fail_timeout` parameters of `server` change this.
+- nginx does not send a `POST`, `PATCH`, or `LOCK` request to `shop` after it sent the request to `ssp`.
+- An arm that answers 502 or 503 also sends that request to live.
+- nginx finds the addresses of `ssp` and `shop` when it starts. Start nginx after both services, such as with `depends_on`.
+
+## Caddy
+
+Caddy sends each request to the first available upstream, `ssp`. When `ssp` fails, it uses `shop`.
+
+```text Caddyfile
+shop.acme.com {
+    reverse_proxy ssp:8080 shop:3000 {
+        lb_policy first
+        lb_try_duration 5s
+        fail_duration 30s
+    }
+}
+```
+
+- `lb_policy first` picks the first available upstream, in the order of the list.
+- `fail_duration 30s` turns on passive health checks. Caddy keeps a failed request in memory for 30 seconds, and marks `ssp` down.
+- `lb_try_duration 5s` lets Caddy try the next upstream for up to 5 seconds when it cannot connect.
+
+## Traefik
+
+Traefik sends traffic to the fallback service when the health check of the main service fails. Define the failover service with the File provider or with Kubernetes CRDs.
+
+```yaml dynamic.yaml
+http:
+  routers:
+    shop:
+      rule: Host(`shop.acme.com`)
+      service: shop-front
+  services:
+    shop-front:
+      failover:
+        service: ssp
+        fallback: live
+    ssp:
+      loadBalancer:
+        healthCheck:
+          path: /health
+          interval: 5s
+          timeout: 2s
+        servers:
+          - url: http://ssp:8080
+    live:
+      loadBalancer:
+        servers:
+          - url: http://shop:3000
+```
+
+The health check goes through `ssp` to your app. Use a path that your app answers quickly, such as `/health`.
+
+## Cloudflare Load Balancing
+
+<Steps>
+  <Step title="Add a pool for ssp">
+    Add a pool with the origin of `ssp`, such as the load balancer of the proxy. Attach a health monitor to it.
+  </Step>
+
+  <Step title="Add a pool for live">
+    Add a pool with the origin of live.
+  </Step>
+
+  <Step title="Set the fallback pool">
+    In the load balancer, list the pool of `ssp`. Set the pool of live as the fallback pool. When all other pools are unhealthy, Cloudflare sends the requests to the fallback pool.
+  </Step>
+</Steps>
+
+## CloudFront origin group
+
+<Steps>
+  <Step title="Add the origins">
+    Add two origins to the distribution: the origin of `ssp`, and the origin of live.
+  </Step>
+
+  <Step title="Make an origin group">
+    Make an origin group. The primary origin is `ssp`. The secondary origin is live.
+  </Step>
+
+  <Step title="Choose the failover criteria">
+    Choose the status codes 500, 502, 503, and 504. With 503, CloudFront also fails over when it cannot connect to `ssp`. With 504, it fails over when `ssp` does not answer in time.
+  </Step>
+
+  <Step title="Use the group">
+    Set the origin group as the origin of the default cache behavior.
+  </Step>
+</Steps>
+
+CloudFront fails over only for `GET`, `HEAD`, and `OPTIONS` requests. It also sends a request to live when an arm answers with one of the status codes.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Behind a CDN" icon="globe" href="/guides/cdn">
+    Put CloudFront or Cloudflare in front of the proxy.
+  </Card>
+  <Card title="How it works" icon="workflow" href="/concepts/how-it-works#alongside-live">
+    See how the proxy runs alongside live.
+  </Card>
+</CardGroup>
