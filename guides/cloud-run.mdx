@@ -1,35 +1,40 @@
 ---
 title: Run the proxy on Cloud Run
 sidebarTitle: Cloud Run
-description: Run ssp proxy cloudrun as its own Cloud Run service in front of your service, with each arm as a tagged revision.
+description: Run ssp proxy cloudrun as its own Cloud Run service in front of your service, with each arm as its own Cloud Run service.
 ---
 
-On Cloud Run, the proxy runs as its own service in front of your service. Each arm runs as a revision of your service, with 0% of its traffic.
+import Planned from '/snippets/planned.mdx';
+
+<Planned />
+
+On Cloud Run, the proxy runs as its own service in front of your service. Each arm runs as its own Cloud Run service: a copy of your service with another image. The proxy never changes your service.
 
 ```text
-                        ┌─► shop                  (service URL)
-visitors ─► shop-proxy ─┼─► checkout c0ffee1 rev  (tag URL)
-                        └─► checkout a1b2c3d rev  (tag URL)
+                        ┌─► shop                           (live)
+visitors ─► shop-proxy ─┼─► shop-ssp-checkout-c0ffee1…     (arm)
+                        └─► shop-ssp-checkout-a1b2c3d…     (arm)
 ```
 
 ## How it works
 
 - Live is the URL of your service. The live image is the image of the revision that gets the most traffic.
-- For each arm, the proxy deploys a revision of your service with 0% traffic and the tag `ssp-<experiment>-<commit 12>`, such as `ssp-checkout-a1b2c3d4e5f6`.
-- The tag and the service name together have at most 46 characters. A longer tag ends with a short hash. The labels of the revision keep the full experiment and commit.
-- A new revision copies every setting of the service, such as secrets, the VPC connector, and the service account. Only the image changes.
-- While the proxy makes the revision of an arm, it pins the traffic of your service to the revision that has it now. When the revision exists, the proxy gives your service its own template and traffic again, and adds only the tag.
-- The proxy sends requests to the tag URL. It puts a Google ID token for the URL of your service in the header `X-Serverless-Authorization`, so your app keeps its own `Authorization` header.
+- For each arm, the proxy makes the service `<service>-ssp-<experiment>-<commit 12>`, such as `shop-ssp-checkout-a1b2c3d4e5f6`. It is in the project and the region of your service.
+- A name has at most 49 characters. A longer name ends with a short hash. The labels `statespace-app`, `statespace-experiment`, and `statespace-commit` keep the full values.
+- The service of an arm is a copy of the template of your service. Only the image changes. The copy keeps the containers, the environment, the resources, the service account, the VPC access, the scaling, the timeout, and the execution environment.
+- It also gets the ingress, the launch stage, the Binary Authorization policy, and the labels of your service. It gets no variable that starts with `STATESPACE_`.
+- It gets no traffic split, no custom domain, and no IAM policy of your service. Only the proxy's service account can call it: the proxy gives itself Cloud Run Invoker on it.
+- The proxy sends requests to the URL of the arm's service. It puts a Google ID token for that URL in the header `X-Serverless-Authorization`, so your app keeps its own `Authorization` header.
 - The proxy reads the output of the arms from Cloud Logging, with one query for all arms every 5 seconds.
 - The proxy uses the Cloud Run Admin API v2, with the service account of its own Cloud Run service.
-- An arm is ready when its revision is `Ready` and runs the image of the arm.
-- When an experiment stops, the proxy removes the tags of its arms and deletes their revisions.
+- An arm is ready when its service is `Ready`, serves its latest revision, and runs the image of the arm.
+- When an experiment stops, the proxy deletes the services of its arms.
 
-Your deploy workflow does not change. A deploy of a new live gets all the traffic, and the tags of the arms stay.
+Your deploy workflow does not change. Deploy a new live with `gcloud run deploy`, Terraform, or any other tool. The proxy changes nothing in your service, so your tool sees no difference. See [Infrastructure as code](/guides/infrastructure-as-code).
 
-<Warning>
-  The template of your service keeps the name of live's revision. A tool that sends the template back with a new image must clear `template.revision`. `gcloud run deploy` does this.
-</Warning>
+<Note>
+  The service of an arm has the ingress of your service. The proxy must be able to reach both, such as through the same VPC when the ingress is internal.
+</Note>
 
 ## Prerequisites
 
@@ -37,7 +42,7 @@ Your deploy workflow does not change. A deploy of a new live gets all the traffi
 - The images that CI records, in a registry that Cloud Run can use, such as the Artifact Registry repository `shop` in `us-east1`.
 - An app, such as `shop-prod`, and a recorded build of the image that live runs.
 - The `gcloud` CLI with rights to manage the project.
-- The proxy image `ghcr.io/statespace-tech/statespace:0.4.1` in a registry that Cloud Run can use.
+- The proxy image `ghcr.io/statespace-tech/statespace:0.4.3` in a registry that Cloud Run can use.
 
 ## Set up the proxy
 
@@ -54,17 +59,31 @@ In the commands, `acme-shop` is the project.
     ```
   </Step>
 
-  <Step title="Let the proxy deploy revisions">
-    Give the proxy's account Cloud Run Developer on your service.
+  <Step title="Add a role for the proxy">
+    Add a custom role with only the permissions that the proxy needs. With them, it makes, reads, and deletes the services of the arms, and calls your service and the arms.
 
     ```shell
-    gcloud run services add-iam-policy-binding shop \
-      --region us-east1 \
-      --member "serviceAccount:$proxy" \
-      --role roles/run.developer
+    gcloud iam roles create statespaceProxy \
+      --project acme-shop \
+      --title "Statespace proxy" \
+      --permissions=run.services.create,\
+run.services.delete,run.services.get,\
+run.services.list,run.services.getIamPolicy,\
+run.services.setIamPolicy,run.revisions.get,\
+run.operations.get,run.routes.invoke
     ```
 
-    Let it act as the runtime account of your service.
+    Give the role to the proxy's account on the project.
+
+    ```shell
+    gcloud projects add-iam-policy-binding acme-shop \
+      --member "serviceAccount:$proxy" \
+      --role projects/acme-shop/roles/statespaceProxy
+    ```
+  </Step>
+
+  <Step title="Let the arms run as your service">
+    Let the proxy's account act as the runtime account of your service. The services of the arms run as that account.
 
     ```shell
     gcloud iam service-accounts add-iam-policy-binding \
@@ -73,7 +92,7 @@ In the commands, `acme-shop` is the project.
       --role roles/iam.serviceAccountUser
     ```
 
-    Give it Artifact Registry Reader on the repository of the images. Cloud Run deploys a revision only when the caller can read its image.
+    Give it Artifact Registry Reader on the repository of the images. Cloud Run deploys an image only when the caller can read it.
 
     ```shell
     gcloud artifacts repositories add-iam-policy-binding shop \
@@ -83,17 +102,8 @@ In the commands, `acme-shop` is the project.
     ```
   </Step>
 
-  <Step title="Let the proxy call the arms and read their output">
-    Give the proxy's account Cloud Run Invoker on your service. The proxy sends requests to the tag URLs of the arms.
-
-    ```shell
-    gcloud run services add-iam-policy-binding shop \
-      --region us-east1 \
-      --member "serviceAccount:$proxy" \
-      --role roles/run.invoker
-    ```
-
-    Give it Logs Viewer on the project, to read the output of the arms.
+  <Step title="Let the proxy read the output of the arms">
+    Give the proxy's account Logs Viewer on the project.
 
     ```shell
     gcloud projects add-iam-policy-binding acme-shop \
@@ -129,12 +139,11 @@ In the commands, `acme-shop` is the project.
     ```shell
     gcloud run deploy shop-proxy \
       --region us-east1 \
-      --image <registry>/statespace-tech/statespace:0.4.1 \
+      --image <registry>/statespace-tech/statespace:0.4.3 \
       --service-account "$proxy" \
       --set-secrets STATESPACE_TOKEN=shop-statespace-token:latest \
       --no-cpu-throttling --min-instances 1 \
-      --args=proxy,cloudrun,--app,shop-prod,\
---service,shop,--region,us-east1 \
+      --args=proxy,cloudrun,--service,shop,--region,us-east1 \
       --allow-unauthenticated
     ```
   </Step>
@@ -147,18 +156,26 @@ In the commands, `acme-shop` is the project.
     ```
 
     The output shows live, the proxy instances, and the orchestrator `cloudrun`.
+
+    Your service keeps its own URL. So a load balancer in front of the proxy can send traffic to `shop` when the proxy is down. See [Fall back to live](/guides/fall-back-to-live).
   </Step>
 </Steps>
 
 ## Many instances
 
-Cloud Run can run many instances of the proxy. Every instance routes requests. Only the instance that holds the app's lease deploys and removes revisions. When that instance stops, another instance gets the lease in about 30 seconds.
+Cloud Run can run many instances of the proxy. Every instance routes requests. Only the instance that holds the app's lease makes and deletes the services of the arms. When that instance stops, another instance gets the lease in about 30 seconds.
 
 All instances must report the same settings and the same live image. While they do not, no experiment of the app can start, the running ones send their requests to live, and `ssp app show` says why.
 
 ## Next steps
 
 <CardGroup cols={2}>
+  <Card title="Infrastructure as code" icon="file-code" href="/guides/infrastructure-as-code">
+    See what your tools see.
+  </Card>
+  <Card title="Fall back to live" icon="life-buoy" href="/guides/fall-back-to-live">
+    Send traffic to live when the proxy is down.
+  </Card>
   <Card title="Kubernetes" icon="ship-wheel" href="/guides/kubernetes">
     Run the proxy in front of a Deployment.
   </Card>
