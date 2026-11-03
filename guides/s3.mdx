@@ -14,6 +14,9 @@ import Missing from '/snippets/files/missing.mdx';
 import Live from '/snippets/files/live.mdx';
 import Retention from '/snippets/files/retention.mdx';
 import Instances from '/snippets/files/instances.mdx';
+import Planned from '/snippets/planned.mdx';
+
+<Planned />
 
 Use `ssp proxy s3` for a static site in an S3 bucket. The proxy serves the files of the bucket, like a static website endpoint. Each subject can get a different build.
 
@@ -30,7 +33,7 @@ visitors ─► site-proxy ─┼─► s3://acme-site/builds/c0ffee1…/
 - An arm is the build folder of its commit. The proxy serves the files of that folder to the subjects of the arm.
 - The proxy only reads. It never writes to the bucket, and it never copies files.
 - The proxy records the requests and the events of the arms, as on every runtime. A static site has no output, so events on `stdout` and `stderr` never match.
-- The proxy works with S3-compatible stores too, such as Cloudflare R2, Backblaze B2, DigitalOcean Spaces, and MinIO. Give their address with `--endpoint`.
+- The proxy works with S3-compatible stores too, such as Cloudflare R2, Backblaze B2, DigitalOcean Spaces, and MinIO. Give their address with `--endpoint`, or with `AWS_ENDPOINT_URL_S3`.
 
 ## Prerequisites
 
@@ -93,6 +96,8 @@ jobs:
           --delete --exclude 'builds/*'
 ```
 
+`aws s3 sync --delete` does not delete the files that `--exclude` matches. So it keeps `builds/`.
+
 The role `acme-site-deploy` needs the permissions of `acme-site-ci`, and `s3:PutObject` and `s3:DeleteObject` on `arn:aws:s3:::acme-site/*`.
 
 <Warning>
@@ -142,7 +147,7 @@ The role `acme-site-deploy` needs the permissions of `acme-site-ci`, and `s3:Put
       --region us-east-1 --cache
     ```
 
-    For an S3-compatible store, add its address with `--endpoint`, such as for Cloudflare R2:
+    For an S3-compatible store, add its address with `--endpoint`, such as for Cloudflare R2. The proxy puts the bucket in the path of each request. With `--endpoint` and without `--region`, the region is `us-east-1`.
 
     ```shell
     ssp proxy s3 --app site-prod --bucket acme-site \

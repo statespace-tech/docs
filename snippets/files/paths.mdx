@@ -4,4 +4,6 @@ The proxy maps the path of a request to a key in the folder of the build, like a
 2. A path that ends with `/`, such as `/docs/`, gives `docs/index.html`.
 3. Another path, such as `/docs`, gives the first key that exists: `docs`, then `docs/index.html`, then `docs.html`.
 
-The proxy answers `GET` and `HEAD` only.
+The proxy decodes the path first. A path with a `.` or `..` segment, `//`, or `\` gets a plain 404.
+
+The proxy answers `GET` and `HEAD` only. Other methods get 405, with `Allow: GET, HEAD`.

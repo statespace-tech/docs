@@ -3,6 +3,8 @@ title: CLI
 description: Every ssp command, argument, and flag, and what each command prints.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 `ssp` adds and removes apps and tokens, sets the arms of experiments, starts and stops experiments, runs the proxy, and gives your SQL login. The proxy runs on Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io, S3, and Cloud Storage. Install it with the [install script](/getting-started/installation#cli).
 
 ```text
@@ -478,6 +480,8 @@ The [proxy flags](#proxy-flags) also apply.
 
 ## ssp proxy s3
 
+<Planned />
+
 Run the proxy in front of a static site in an S3 bucket, or in an S3-compatible store. Live is the root of the bucket. Each arm is the build folder of its commit. The proxy only reads the bucket. See [S3](/guides/s3).
 
 ```shell
@@ -490,11 +494,11 @@ ssp proxy s3 --app site-prod --bucket acme-site \
 </ParamField>
 
 <ParamField body="--endpoint" type="string">
-  The address of an S3-compatible store, such as Cloudflare R2, Backblaze B2, DigitalOcean Spaces, or MinIO. Default: Amazon S3.
+  The address of an S3-compatible store, such as Cloudflare R2, Backblaze B2, DigitalOcean Spaces, or MinIO. The proxy puts the bucket in the path of each request. Default: Amazon S3. Environment variable: `AWS_ENDPOINT_URL_S3`.
 </ParamField>
 
 <ParamField body="--region" type="string">
-  The region of the bucket. Default: the region of the AWS configuration, such as `AWS_REGION`.
+  The region of the bucket. Default: the region of the AWS configuration, such as `AWS_REGION`. With `--endpoint`, the default is `us-east-1`.
 </ParamField>
 
 <ParamField body="--cache" type="boolean">
@@ -508,6 +512,8 @@ ssp proxy s3 --app site-prod --bucket acme-site \
 The proxy uses the AWS default credential chain and SigV4. It needs `s3:ListBucket` and `s3:GetObject` on the bucket. The [proxy flags](#proxy-flags) also apply.
 
 ## ssp proxy gcs
+
+<Planned />
 
 Run the proxy in front of a static site in a Cloud Storage bucket. Live is the root of the bucket. Each arm is the build folder of its commit. The proxy only reads the bucket. See [Cloud Storage](/guides/gcs).
 
@@ -527,7 +533,7 @@ ssp proxy gcs --app site-prod --bucket acme-site --cache
   A file of each build for a single-page app, as for [`ssp proxy s3`](#ssp-proxy-s3).
 </ParamField>
 
-The proxy uses Google credentials: the metadata server, or application default credentials. Its account needs Storage Object Viewer on the bucket. The [proxy flags](#proxy-flags) also apply.
+The proxy uses Google credentials: the metadata server, or Application Default Credentials. Its account needs Storage Object Viewer on the bucket. The [proxy flags](#proxy-flags) also apply.
 
 ## Proxy flags
 

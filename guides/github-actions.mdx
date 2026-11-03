@@ -8,10 +8,13 @@ import BuildWorkflow from '/snippets/build-workflow.mdx';
 import BuildWorkflowFiles from '/snippets/build-workflow-files.mdx';
 import ActionStep from '/snippets/action-step.mdx';
 import ActionStepFiles from '/snippets/action-step-files.mdx';
+import Planned from '/snippets/planned.mdx';
 
 Statespace runs only builds that your CI recorded. This guide records builds from GitHub Actions.
 
 ## Kinds of build
+
+<Planned />
 
 A build is an image or a folder of files. The runtime of your app tells you which kind to record.
 
@@ -20,7 +23,7 @@ A build is an image or a folder of files. The runtime of your app tells you whic
 | An image, by digest | `image` | Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io |
 | A folder of files in a bucket | `files` | S3, Cloud Storage |
 
-A commit can have builds of both kinds. Each runtime uses only its own kind.
+Each runtime uses only its own kind. One commit, folder, and label holds one build. So an image build and a files build of one commit need different `app` labels. See [Build labels](#build-labels).
 
 ## Build every push
 
@@ -66,6 +69,8 @@ When live runs a build that is not recorded, no experiment of the app can start.
 
 ## Checks of the build
 
+<Planned />
+
 The action checks that the build exists before it records it. When a check fails, the step fails, and Statespace records nothing.
 
 - **Image.** The registry must have the image, by digest. The action checks it with `docker manifest inspect`. A wrong repository fails the step.
@@ -74,6 +79,8 @@ The action checks that the build exists before it records it. When a check fails
 So the job needs read access to the image or the folder. The credentials that pushed the build give this access.
 
 ## Inputs
+
+<Planned />
 
 Give exactly one of `image` and `files`.
 

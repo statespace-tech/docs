@@ -13,6 +13,9 @@ import Missing from '/snippets/files/missing.mdx';
 import Live from '/snippets/files/live.mdx';
 import Retention from '/snippets/files/retention.mdx';
 import Instances from '/snippets/files/instances.mdx';
+import Planned from '/snippets/planned.mdx';
+
+<Planned />
 
 Use `ssp proxy gcs` for a static site in a Cloud Storage bucket. The proxy serves the files of the bucket, like a static website endpoint. Each subject can get a different build.
 
@@ -29,7 +32,7 @@ visitors ─► site-proxy ─┼─► gs://acme-site/builds/c0ffee1…/
 - An arm is the build folder of its commit. The proxy serves the files of that folder to the subjects of the arm.
 - The proxy only reads. It never writes to the bucket, and it never copies files.
 - The proxy records the requests and the events of the arms, as on every runtime. A static site has no output, so events on `stdout` and `stderr` never match.
-- The proxy uses the Cloud Storage JSON API with Google credentials: the metadata server, or application default credentials. It uses no HMAC keys.
+- The proxy uses the Cloud Storage JSON API with Google credentials: the metadata server, or Application Default Credentials, such as a user, a service account key, or workload identity federation. It uses no HMAC keys.
 
 ## Prerequisites
 
@@ -131,11 +134,13 @@ jobs:
           gs://acme-site/
           --recursive
           --delete-unmatched-destination-objects
-          --exclude '^builds/'
+          --exclude 'builds/.*'
 ```
 
+`--exclude` takes a Python regular expression. It matches the path relative to the source and to the destination. So `rsync` does not copy, and does not delete, objects under `builds/`.
+
 <Warning>
-  A deploy that deletes unknown files, such as `--delete-unmatched-destination-objects` without `--exclude '^builds/'`, deletes the builds. Then the subjects of the arms get live.
+  A deploy that deletes unknown files, such as `--delete-unmatched-destination-objects` without `--exclude 'builds/.*'`, deletes the builds. Then the subjects of the arms get live.
 </Warning>
 
 ## Set up the proxy

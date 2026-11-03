@@ -4,4 +4,12 @@ The proxy checks the folder of each arm against the files hash that CI recorded:
 2. Every 60 seconds, the proxy lists each folder again. It reads again only the files that changed.
 3. When the folder is missing, or its hash changed, the arm is not ready. Its subjects get live, with the reason `arm-unavailable`.
 
-`ssp experiment show` says why, such as "the build of a1b2c3d is missing", or that it "changed after it was recorded". The experiment does not stop by itself. To stop it, run `ssp experiment stop`.
+`ssp experiment show` gives the reason of each arm that is not ready:
+
+| Cause | Reason |
+| --- | --- |
+| The folder has no files | `the build of a1b2c3d is missing at s3://acme-site/builds/a1b2c3d…/` |
+| The hash changed | `the build of a1b2c3d at s3://acme-site/builds/a1b2c3d…/ changed after it was recorded` |
+| The proxy cannot read the folder | `could not read the build of a1b2c3d at s3://acme-site/builds/a1b2c3d…/:` and the error |
+
+The experiment does not stop by itself. To stop it, run `ssp experiment stop`.
