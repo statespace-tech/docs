@@ -5,13 +5,14 @@ description: Run an experiment on Docker that compares the live commit with a ch
 
 import BuildWorkflow from '/snippets/build-workflow.mdx';
 import StarterToml from '/snippets/starter-toml.mdx';
+import Planned from '/snippets/planned.mdx';
 
 In this tutorial, you test a change to the app `shop-dev` on live traffic. The app runs on one machine with Docker. At the end, the experiment `checkout` runs: 5% of the visitors get the live commit, and 5% get your change. The commit status `statespace/shop-dev/checkout` on each commit shows the evidence.
 
 ## Prerequisites
 
-- A GitHub repo with a `Dockerfile`, such as `acme/shop`. The app listens on the port that the `Dockerfile` names with `EXPOSE`.
-- A Linux machine with Docker. The proxy runs the app on this machine.
+- A GitHub repo with a `Dockerfile`, such as `acme/shop`. The `Dockerfile` names one port with `EXPOSE`, such as `EXPOSE 3000`.
+- A Linux machine with Docker and Docker Compose. You run the app on this machine with Compose.
 - The admin role on the repo. You need it to add the app and its token.
 
 ## Run your first experiment
@@ -69,30 +70,52 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
     ssp token add --app shop-dev --note "Docker proxy"
     ```
 
-    On the machine, put the secret in `/etc/shop/env`.
+    On the machine, put the secret in `.env`, next to `compose.yaml`.
 
-    ```shell /etc/shop/env
+    ```shell .env
     STATESPACE_TOKEN=<secret>
     ```
   </Step>
 
   <Step title="Run the proxy">
-    On the machine, write the live image to a file. Use the digest of the build of `main`.
+    <Planned />
 
-    ```shell
-    echo "ghcr.io/acme/shop@sha256:<digest>" \
-      | sudo tee /etc/shop/image
+    On the machine, write `compose.yaml`. The service `shop` runs live: the build of `main`, by digest. The service `ssp` runs the proxy next to it, on port 80. When your app runs with Compose already, add `container_name: shop` and the service `ssp` to your file.
+
+    ```yaml compose.yaml
+    services:
+      shop:
+        image: ghcr.io/acme/shop@sha256:<digest>
+        container_name: shop
+        restart: unless-stopped
+
+      ssp:
+        image: ghcr.io/statespace-tech/statespace:0.4.3
+        command:
+          - proxy
+          - docker
+          - --live-container
+          - shop
+        environment:
+          STATESPACE_TOKEN: ${STATESPACE_TOKEN}
+        ports:
+          - "80:8080"
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+        user: root
+        restart: unless-stopped
+        stop_grace_period: 30s
     ```
 
-    Start the proxy. It runs live from the file, and it listens on port 8080. Point your traffic at port 8080.
+    Start the project. Point your traffic at port 80.
 
     ```shell
-    set -a; . /etc/shop/env; set +a
-    ssp proxy docker --app shop-dev \
-      --image-file /etc/shop/image
+    docker compose up -d
     ```
 
-    The commit of `main` is now the live commit. Its `statespace.toml` defines the experiment `checkout`. To run the proxy as a service, see [Docker](/guides/docker).
+    The proxy sends live traffic to the container `shop`. It runs each arm as a copy of that container. The socket gives `ssp` control of Docker on the machine. See [Docker](/guides/docker#the-docker-socket).
+
+    The commit of `main` is now the live commit. Its `statespace.toml` defines the experiment `checkout`.
   </Step>
 
   <Step title="Push a change">
