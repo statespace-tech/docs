@@ -4,6 +4,8 @@ sidebarTitle: SQL
 description: Read the assignments, requests, logs, and events of each arm with your own read-only PostgreSQL login.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 This guide shows how to read the data of your apps with SQL. Each person has
 one PostgreSQL login. It only reads, and it reads only the apps whose repo
 you can read on GitHub.
@@ -103,8 +105,8 @@ no schema name. Each view shows only the rows of your apps.
 | --- | --- | --- | --- |
 | `experiments` | Experiment | `app`, `name`, `state`, `latest_version` | Until the app is removed |
 | `versions` | Start of an experiment | `app`, `experiment`, `version`, `live_sha`, `started_at`, `started_by`, `start_note`, `stopped_at`, `stopped_by`, `stop_note` | Until the app is removed |
-| `arms` | Arm of a version | `app`, `experiment`, `version`, `arm`, `share`, `reference`, `image` | Until the app is removed |
-| `builds` | Build that CI recorded | `repo`, `path`, `app`, `sha`, `image`, `created_at` | Until the app is removed |
+| `arms` | Arm of a version | `app`, `experiment`, `version`, `arm`, `share`, `reference`, `image`, `files_location`, `files_hash` | Until the app is removed |
+| `builds` | Build that CI recorded | `repo`, `path`, `app`, `sha`, `image`, `created_at`, `files_location`, `files_hash` | Until the app is removed |
 | `assignments` | Subject in a version | `timestamp`, `app`, `experiment`, `version`, `arm`, `subject`, `reason` | 90 days |
 | `requests` | Request to an arm | `id`, `timestamp`, `app`, `experiment`, `version`, `arm`, `subject`, `method`, `path`, `query`, `status`, `duration_ms`, `first_byte_ms`, `request_bytes`, `response_bytes` | 90 days |
 | `logs` | Line that an arm printed | `id`, `timestamp`, `app`, `experiment`, `version`, `arm`, `stream`, `text`, `json` | 90 days |
@@ -132,8 +134,13 @@ The rules of the names:
    such as `started_at`.
 5. `_ms` is milliseconds, and `_bytes` is bytes.
 
+<Planned />
+
 Some details:
 
+- A build or an arm has `image`, or `files_location` and `files_hash`.
+  The other columns are null. New columns go at the end of a view, so
+  queries that name columns keep working.
 - `assignments` has the first arm of each subject in each version. The
   `reason` is `assigned` (the hash picked the arm), `override` (an
   `ssp` link), or `arm-unavailable` (the arm was not ready, so the

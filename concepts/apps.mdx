@@ -4,6 +4,8 @@ sidebarTitle: Apps and live
 description: What an app is, what a build is, and how Statespace finds the live commit.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 What is an app, and how does Statespace know which commit runs live?
 
 ## Apps
@@ -22,6 +24,8 @@ ssp app add shop-prod --note "shop, production"
 - A name has 1 to 63 characters: lowercase letters, digits, and `-`. It is unique in the workspace.
 
 ## Builds
+
+<Planned />
 
 A build is the record of what one commit runs. It is one of these:
 
@@ -47,7 +51,7 @@ The `statespace.toml` in the build of the live commit holds the settings and the
 To compare a change with live, add the live commit as an arm. `ssp app show` prints the live commit.
 
 <Warning>
-  When live runs an image or files without a build, the app has no live commit, and no experiment can start. For an image, `ssp app show` says "Live runs an image without a build. Add statespace-tech/action to the deploy workflow".
+  When live runs an image or files without a build, the app has no live commit, and no experiment can start. `ssp app show` says "Live runs an image without a build. Add statespace-tech/action to the deploy workflow", or "Live serves files without a build. Add statespace-tech/action to the deploy workflow".
 </Warning>
 
 ## Next steps
