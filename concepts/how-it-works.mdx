@@ -4,6 +4,7 @@ description: The parts of Statespace, and what each part does with a request.
 ---
 
 import TrafficDiagram from '/snippets/traffic-diagram.mdx';
+import Planned from '/snippets/planned.mdx';
 
 What runs when you start an experiment, and who decides what?
 
@@ -18,6 +19,22 @@ What runs when you start an experiment, and who decides what?
 | `ssp` CLI | Your terminal or agent | Adds apps and tokens. Sets arms, and starts and stops experiments |
 
 Your app does not know Statespace. It runs no proxy and needs no code change.
+
+## Alongside live
+
+<Planned />
+
+`ssp` runs alongside live, never inside it.
+
+- You run live as you do now, with your own deploys and your infrastructure as code. Live keeps its own address.
+- `ssp` runs next to live, in front of it. It never changes a resource that it did not create.
+- Each arm is a resource that `ssp` creates, labels, and deletes, such as a container, a Deployment, or a Cloud Run service.
+
+This gives you three things:
+
+1. The tools that manage live keep working with no setting, such as Terraform, Helm, Argo CD, or Compose. See [Infrastructure as code](/guides/infrastructure-as-code).
+2. When `ssp` is down, the load balancer or CDN in front of it can send traffic to the address of live. See [Fall back to live](/guides/fall-back-to-live).
+3. When you remove `ssp`, your setup stays as it is.
 
 ## A request
 

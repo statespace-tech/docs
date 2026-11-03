@@ -12,6 +12,8 @@ An **experiment** compares commits. Each commit is an **arm** with an exact shar
 
 <TrafficDiagram />
 
+The proxy runs alongside live. You run and deploy live as you do now, and the proxy never changes it. Each arm is a resource that the proxy creates, labels, and deletes.
+
 Your CI makes the builds: images, or folders of files for a static site. Statespace runs only builds that your CI recorded. Your settings, events, metrics, and experiments are in `statespace.toml`, in your repo.
 
 ## How you use it

@@ -38,7 +38,7 @@ Your CI makes the record with `statespace-tech/action@v1` after it pushes the im
 
 ## Live
 
-Live is the service that you run and deploy as usual. Statespace does not deploy it.
+Live is the service that you run and deploy as usual. Statespace does not deploy it, and the proxy never changes it.
 
 The proxy reports what live runs: an image, or a hash of the files at the root of the bucket. Statespace finds the build of that image or those files. The commit of that build is the **live commit**. For example, live runs `ghcr.io/acme/shop@sha256:2222…`, and its build is commit `c0ffee1`.
 
