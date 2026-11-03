@@ -135,8 +135,8 @@ The rules of the names:
 Some details:
 
 - `assignments` has the first arm of each subject in each version. The
-  `reason` is `assigned` (the hash picked the arm), `override` (an
-  `ssp_arm` link), or `arm-unavailable` (the arm was not ready, so the
+  `reason` is `assigned` (the hash picked the arm), `override` (a
+  signed `ssp` link), or `arm-unavailable` (the arm was not ready, so the
   subject went to live).
 - `arms.reference` is true for the first arm of the version.
 - `logs.stream` is `stdout` or `stderr`. `json` is the line as a JSON

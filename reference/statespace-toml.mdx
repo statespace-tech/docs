@@ -16,7 +16,6 @@ Write this file in the folder of your app's code. A person or a coding agent can
 ## Full example
 
 ```toml statespace.toml
-overrides = false
 redact = ['\b\d{16}\b']
 
 # Shared events and metrics: in every experiment.
@@ -53,18 +52,11 @@ eligibility = 'request.headers["cf-ipcountry"] == "US"'
 max_traffic = 0.15
 
 # Per-app sections replace and extend the shared settings.
-[app.shop-dev]
-overrides = true
-
 [app.shop-dev.experiment.checkout]
 max_traffic = 1.0
 ```
 
 ## Settings
-
-<ParamField path="overrides" type="boolean" default="false">
-  Let testers open an arm of a running experiment. See [Overrides](/concepts/overrides).
-</ParamField>
 
 <ParamField path="redact" type="string[]">
   Regular expressions. The proxy replaces their matches in output lines, request paths, and queries with `[redacted]` before they leave the machine.
@@ -153,7 +145,7 @@ Each metric is a formula over the totals of one arm.
 
 A section `[app.<name>]` holds settings for one app. It can hold:
 
-- `overrides` and `redact`. They replace the shared values.
+- `redact`. It replaces the shared value.
 - `[[app.<name>.event]]` and `[[app.<name>.metric]]`. They are added after the shared events and metrics.
 - `[app.<name>.experiment.<exp>]`, with experiment keys. They replace the shared keys of that experiment for that app.
 
