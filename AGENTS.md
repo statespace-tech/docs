@@ -20,8 +20,9 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
   layers.
 - Live is the service that the customer runs. It is never recorded. There is no control arm: to compare
   with live, add the live commit as an arm.
-- `ssp proxy docker|cloudrun|kubernetes|fargate|fly|s3|gcs --app <app>` runs in front of the app. The instance
-  that holds the lease runs the arms. `s3` and `gcs` serve static sites: live is the bucket root, and each arm
+- `ssp proxy docker|cloudrun|kubernetes|fargate|fly|s3|gcs` runs in front of the app. It gets its app from its
+  runtime token. It runs alongside live: it never changes what it did not create, and each arm is a resource
+  that it creates, labels, and deletes. The instance that holds the lease runs the arms. `s3` and `gcs` serve static sites: live is the bucket root, and each arm
   is a build folder. Any CDN can sit in front of the proxy.
 - Settings, events, metrics, and experiments live in `statespace.toml`, with `[app.<name>]` sections.
   Events and metrics are CEL.
