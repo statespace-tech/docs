@@ -47,8 +47,7 @@ Each account has its own PostgreSQL database. Each person reads it with a read-o
 | Arms of a starting experiment become ready | 5 minutes at most. Then the start fails |
 | Arms of a stopped experiment leave traffic | Seconds |
 | Visitor cookie `ssp_sid` | 90 days, renewed on each response |
-| Override cookie `ssp` | 1 hour, renewed on each request, until the link ends |
-| Override link from Statespace | 24 hours |
+| Override cookie `ssp` | 1 hour, renewed on each request |
 | Commit status update | At each change of state, and once an hour while the experiment runs |
 | Roles from GitHub | Kept 10 minutes |
 | Proxy lease | 30 seconds. The holder renews it every 10 seconds |

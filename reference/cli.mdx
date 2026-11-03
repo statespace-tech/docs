@@ -135,7 +135,7 @@ Show an experiment in full:
 - the evidence of the current or last version for each arm: totals, metrics, the split check, and the top events;
 - the versions, and the history of starts, stops, and metric changes;
 - the drift from live, such as "live is now f2f2f2f" or "live c0ffee1 contains a1b2c3d";
-- the signed override link of each arm while the experiment runs. Each link works for 24 hours.
+- the override link of each arm while the experiment runs, such as `?ssp=checkout:a1b2c3d`.
 
 ```shell
 ssp experiment show checkout --app shop-prod

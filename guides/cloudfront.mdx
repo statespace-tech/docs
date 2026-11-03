@@ -223,8 +223,8 @@ clear error when it does not.
   While `ssp proxy cloudfront` is down, the edge keeps the last shares, so
   a stop waits for the service. As a last resort, detach the functions
   from the distribution.
-- The functions verify [signed override links](/concepts/overrides) with
-  the override key of the app, from the KeyValueStore.
+- The functions read [override links](/concepts/overrides), such as
+  `?ssp=hero:a1b2c3d`.
 - CloudFront does not run the viewer-response function for an error
   status of 400 or more. Such a response sets no cookie.
 
@@ -248,7 +248,7 @@ configuration, or pulls a public image.
 
 <CardGroup cols={2}>
   <Card title="Overrides" icon="link" href="/concepts/overrides">
-    Open an arm with a signed link.
+    Open an arm with a link.
   </Card>
   <Card title="CLI" icon="terminal" href="/reference/cli#ssp-proxy-cloudfront">
     Look up the flags of `ssp proxy cloudfront`.

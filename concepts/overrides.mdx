@@ -1,34 +1,24 @@
 ---
 title: Overrides
-description: How a tester opens an arm of a running experiment with a signed link.
+description: How a tester opens an arm of a running experiment with a link.
 ---
 
 How do you look at an arm yourself, without the random split?
 
-An override is a request that names its experiment and arm with a signed
-link. Statespace makes the links. Each app has a secret override key, and
-only a link signed with that key works. Overrides are always on: there is
-no setting.
+An override is a request that names its experiment and arm. Overrides are
+always on: there is no setting.
 
 ## Get a link
 
-`ssp experiment show` and the dashboard show the override link of each arm
-of a running experiment. A link works for 24 hours.
+The value is `<experiment>:<commit>`. The commit is the full commit, or its
+first 7 characters or more.
 
 ```text
-https://shop.acme.com/?ssp=checkout:a1b2c3d.1762200000.<signature>
+https://shop.acme.com/?ssp=checkout:a1b2c3d
 ```
 
-The value has three parts, with a `.` between them:
-
-1. The arm: `<experiment>:<commit>`. The commit is the full commit, or its
-   first 7 characters or more.
-2. The end of the link, in Unix seconds.
-3. The signature of the first two parts, made with the override key of the
-   app.
-
-Add the part after `?ssp=` to any URL of the app. Send the link to the
-people who must see the arm.
+Add `?ssp=<experiment>:<commit>` to any URL of the app. `ssp experiment
+show` and the dashboard show the link of each arm of a running experiment.
 
 ## Open an arm
 
@@ -37,18 +27,15 @@ people who must see the arm.
 | Browser | `?ssp=<value>` on a URL | Sets the cookie `ssp`, and redirects a `GET` to the same URL without the parameter |
 | API | The header `ssp: <value>` on each request | Uses the arm for that request |
 
-- The cookie keeps the signed value. It lasts 1 hour, and each request
-  renews it. It ends when the link ends.
+- The cookie keeps the value. It lasts 1 hour, and each request renews it.
 - An empty `?ssp=` ends the override.
-- A value without a valid signature, or after its end, does nothing. The
-  request gets its usual arm, and the proxy shows no message.
-- A valid link to an arm that does not run gets a short page, such as
+- A link to an arm that does not run gets a short page, such as
   "checkout:a1b2c3d is not running on shop-prod. Running:
   checkout:c0ffee1, checkout:f6a7b8c".
 - You cannot pick live.
 - Your app never sees the `ssp` parameter, cookie, or header.
 
-On CloudFront, the edge functions verify the links. See
+On CloudFront, the edge functions read the links. See
 [CloudFront](/guides/cloudfront).
 
 ## Records
@@ -58,8 +45,8 @@ fully for the experiment: subjects, events, and metrics. Only the split
 check leaves them out.
 
 <Warning>
-  A person who has a link can open the arm until the link ends. Send
-  links only to the people who must see the arm.
+  A person who knows the experiment and the commit can open the arm while
+  the experiment runs. Do not put secrets in an arm that live does not have.
 </Warning>
 
 ## Next steps

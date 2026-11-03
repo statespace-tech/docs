@@ -129,7 +129,6 @@ The runtime configuration of the app.
 - `experiments` holds the `starting` and `running` experiments, in the order of `statespace.toml`.
 - The proxy routes only to `running` experiments. The lease holder starts the arms of both.
 - Before the first report, `live` is `null`. The proxy then sends all requests to live.
-- `override_key` signs the override links of the app. The proxy uses it to verify them. See [Overrides](/concepts/overrides).
 
 ### GET /v1/runtime/apps/\{app\}/builds
 
