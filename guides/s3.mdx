@@ -1,0 +1,258 @@
+---
+title: Run the proxy in front of S3
+sidebarTitle: S3
+description: Run ssp proxy s3 in front of a static site in an S3 bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
+---
+
+import BuildWorkflowFiles from '/snippets/build-workflow-files.mdx';
+import Paths from '/snippets/files/paths.mdx';
+import NotFound from '/snippets/files/not-found.mdx';
+import Fallback from '/snippets/files/fallback.mdx';
+import Headers from '/snippets/files/headers.mdx';
+import Cache from '/snippets/files/cache.mdx';
+import Missing from '/snippets/files/missing.mdx';
+import Live from '/snippets/files/live.mdx';
+import Retention from '/snippets/files/retention.mdx';
+import Instances from '/snippets/files/instances.mdx';
+
+Use `ssp proxy s3` for a static site in an S3 bucket. The proxy serves the files of the bucket, like a static website endpoint. Each subject can get a different build.
+
+```text
+                        ┌─► s3://acme-site/                 (live)
+visitors ─► site-proxy ─┼─► s3://acme-site/builds/c0ffee1…/
+                        └─► s3://acme-site/builds/a1b2c3d…/
+```
+
+## How it works
+
+- CI uploads the files of each commit to a folder, such as `builds/<commit>/`. Then it records the folder with `statespace-tech/action@v1`.
+- Live is the files at the root of the bucket, without the build folders.
+- An arm is the build folder of its commit. The proxy serves the files of that folder to the subjects of the arm.
+- The proxy only reads. It never writes to the bucket, and it never copies files.
+- The proxy records the requests and the events of the arms, as on every runtime. A static site has no output, so events on `stdout` and `stderr` never match.
+- The proxy works with S3-compatible stores too, such as Cloudflare R2, Backblaze B2, DigitalOcean Spaces, and MinIO. Give their address with `--endpoint`.
+
+## Prerequisites
+
+- A static site in the repo `acme/site` that builds its files to `dist/`.
+- The S3 bucket `acme-site` in `us-east-1`. In the commands, `123456789012` is the account.
+- An app, such as `site-prod`.
+- An IAM role that GitHub Actions can assume with OIDC, such as `acme-site-ci`.
+- A container service near the bucket for the proxy. See [Where to run the proxy](#where-to-run-the-proxy).
+- The proxy image `ghcr.io/statespace-tech/statespace` of the [latest release](https://github.com/statespace-tech/statespace/releases/latest).
+
+## Record each build
+
+This workflow builds each push to each branch. It uploads the files to a folder for the commit, and records the folder. Both lines name the full location.
+
+<BuildWorkflowFiles />
+
+You choose the folder. Statespace has no rule for its name. Put all builds in one folder, such as `builds/`. See [How Statespace finds live](#how-statespace-finds-live).
+
+The action lists the folder, downloads the files, and computes their files hash. An empty folder, or a folder that the job cannot read, fails the step. So give the role `acme-site-ci` these permissions:
+
+1. `s3:PutObject` and `s3:GetObject` on `arn:aws:s3:::acme-site/builds/*`.
+2. `s3:ListBucket` on `arn:aws:s3:::acme-site`.
+
+## Deploy live
+
+The deploy of live records its build too. It uploads the files to the folder of the commit, and records the folder. Then it copies the folder to the root of the bucket.
+
+```yaml .github/workflows/deploy.yml
+# Deploy main to live, and record its build.
+name: Deploy
+on:
+  push:
+    branches: ["main"]
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: npm ci && npm run build
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: >-
+            arn:aws:iam::123456789012:role/acme-site-deploy
+          aws-region: us-east-1
+      - run: >-
+          aws s3 sync dist/
+          s3://acme-site/builds/${{ github.sha }}/
+      - uses: statespace-tech/action@v1
+        with:
+          files: s3://acme-site/builds/${{ github.sha }}/
+          path: .
+      # Copy the build to the root. Keep builds/.
+      - run: >-
+          aws s3 sync
+          s3://acme-site/builds/${{ github.sha }}/
+          s3://acme-site/
+          --delete --exclude 'builds/*'
+```
+
+The role `acme-site-deploy` needs the permissions of `acme-site-ci`, and `s3:PutObject` and `s3:DeleteObject` on `arn:aws:s3:::acme-site/*`.
+
+<Warning>
+  A deploy that deletes unknown files, such as `aws s3 sync --delete` without `--exclude 'builds/*'`, deletes the builds. Then the subjects of the arms get live.
+</Warning>
+
+## Set up the proxy
+
+<Steps>
+  <Step title="Give the proxy its permissions">
+    Make the role `site-proxy` with this policy. The proxy only reads and lists the bucket.
+
+    ```json proxy-policy.json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "s3:ListBucket",
+          "Resource": "arn:aws:s3:::acme-site"
+        },
+        {
+          "Effect": "Allow",
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:::acme-site/*"
+        }
+      ]
+    }
+    ```
+
+    The proxy uses the AWS default credential chain and SigV4. On ECS, the credentials come from the task role.
+  </Step>
+
+  <Step title="Add a runtime token">
+    Add a runtime token for the app. Keep the secret in your secret store, such as Secrets Manager.
+
+    ```shell
+    ssp token add --app site-prod --note "S3 proxy"
+    ```
+  </Step>
+
+  <Step title="Run the proxy">
+    Run `ssp proxy s3` with the app and the bucket. Set `STATESPACE_TOKEN` to the secret.
+
+    ```shell
+    ssp proxy s3 --app site-prod --bucket acme-site \
+      --region us-east-1 --cache
+    ```
+
+    For an S3-compatible store, add its address with `--endpoint`, such as for Cloudflare R2:
+
+    ```shell
+    ssp proxy s3 --app site-prod --bucket acme-site \
+      --endpoint https://<account>.r2.cloudflarestorage.com \
+      --region auto
+    ```
+
+    For a single-page app, add `--fallback`. See [Single-page apps](#single-page-apps).
+  </Step>
+
+  <Step title="Send traffic to the proxy">
+    Point your domain, such as `site.acme.com`, to the proxy, not to the bucket. To put a CDN in front of the proxy, see [Behind a CDN](/guides/cdn). Then check the app.
+
+    ```shell
+    ssp app show site-prod
+    ```
+
+    The output shows the live commit, the proxy instances, and the orchestrator `s3`.
+  </Step>
+</Steps>
+
+## Where to run the proxy
+
+Run the proxy in any container service near the bucket, such as in the same region. The proxy reads the bucket for each request that is not in its cache. So a long distance makes each response slower.
+
+- **ECS Fargate**, behind an Application Load Balancer. Give the task the role `site-proxy`.
+- **Cloud Run.** Give the proxy AWS credentials in the environment, such as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from Secret Manager.
+- **Kubernetes**, such as Amazon EKS with an IAM role for the service account.
+
+The proxy works between requests: it renews its lease, checks the builds, and sends records. So keep at least one instance running, with CPU that is always allocated.
+
+This part of an ECS task definition runs the proxy on Fargate:
+
+```json proxy-task-definition.json
+"containerDefinitions": [
+  {
+    "name": "proxy",
+    "image": "ghcr.io/statespace-tech/statespace:<version>",
+    "command": [
+      "proxy", "s3",
+      "--bucket", "acme-site",
+      "--region", "us-east-1",
+      "--cache"
+    ],
+    "portMappings": [{"containerPort": 8080}],
+    "environment": [
+      {"name": "STATESPACE_APP", "value": "site-prod"}
+    ],
+    "secrets": [
+      {
+        "name": "STATESPACE_TOKEN",
+        "valueFrom": "site-statespace-token"
+      }
+    ]
+  }
+]
+```
+
+Send the target group of the load balancer to port 8080. A health check of `/` gets the `index.html` of live.
+
+## How the proxy serves files
+
+### Paths
+
+<Paths />
+
+### Not found
+
+<NotFound />
+
+### Single-page apps
+
+<Fallback />
+
+### Headers
+
+<Headers />
+
+### Cache
+
+<Cache />
+
+## Missing and changed builds
+
+<Missing />
+
+## How Statespace finds live
+
+<Live />
+
+## Keep the builds
+
+<Retention />
+
+For example, an S3 lifecycle rule that expires objects under `builds/` after 30 days also deletes the build of an arm that runs longer.
+
+## Many instances
+
+<Instances />
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Behind a CDN" icon="globe" href="/guides/cdn">
+    Put CloudFront or Cloudflare in front of the proxy.
+  </Card>
+  <Card title="Cloud Storage" icon="folder" href="/guides/gcs">
+    Run the proxy in front of a Cloud Storage bucket.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/reference/cli#ssp-proxy-s3">
+    Look up the flags of `ssp proxy s3`.
+  </Card>
+</CardGroup>

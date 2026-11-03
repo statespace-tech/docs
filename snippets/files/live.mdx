@@ -1,0 +1,8 @@
+Statespace finds the live commit from the files at the root of the bucket:
+
+1. The proxy lists the root of the bucket.
+2. It leaves out each folder that holds recorded builds of the app, such as `builds/`.
+3. It computes the files hash of the other files, and reports it.
+4. Statespace finds the build with that hash. Its commit is the live commit.
+
+So the files at the root must be the files of a recorded build. Put all builds in one folder, such as `builds/`. Do not add or change files at the root after the deploy: then the hash matches no build. While the hash matches no build, the app has no live commit, and no experiment can start. `ssp app show` says why.

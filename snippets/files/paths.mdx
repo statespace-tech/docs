@@ -1,0 +1,7 @@
+The proxy maps the path of a request to a key in the folder of the build, like a static website endpoint. For live, the folder is the root of the bucket.
+
+1. `/` gives `index.html`.
+2. A path that ends with `/`, such as `/docs/`, gives `docs/index.html`.
+3. Another path, such as `/docs`, gives the first key that exists: `docs`, then `docs/index.html`, then `docs.html`.
+
+The proxy answers `GET` and `HEAD` only.

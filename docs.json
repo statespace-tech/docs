@@ -63,6 +63,8 @@
           "guides/kubernetes",
           "guides/fargate",
           "guides/fly",
+          "guides/s3",
+          "guides/gcs",
           "guides/cloudfront",
           "guides/events-and-metrics",
           "guides/sql",

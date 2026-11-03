@@ -1,0 +1,3 @@
+- `Content-Type` comes from the metadata of the object. When the object has none, it comes from the extension of the key.
+- Live responses keep the `ETag` and `Last-Modified` of the object.
+- Arm responses get `Cache-Control: private, no-cache` and no `Last-Modified`, as on every runtime. Thus a browser checks again on each visit, and a shared cache keeps no copy.

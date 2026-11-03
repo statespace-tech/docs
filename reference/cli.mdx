@@ -476,6 +476,59 @@ ssp proxy fly --app shop-prod --fly-app shop
 
 The [proxy flags](#proxy-flags) also apply.
 
+## ssp proxy s3
+
+Run the proxy in front of a static site in an S3 bucket, or in an S3-compatible store. Live is the root of the bucket. Each arm is the build folder of its commit. The proxy only reads the bucket. See [S3](/guides/s3).
+
+```shell
+ssp proxy s3 --app site-prod --bucket acme-site \
+  --region us-east-1 --cache
+```
+
+<ParamField body="--bucket" type="string" required>
+  The bucket of the site. Live is its root.
+</ParamField>
+
+<ParamField body="--endpoint" type="string">
+  The address of an S3-compatible store, such as Cloudflare R2, Backblaze B2, DigitalOcean Spaces, or MinIO. Default: Amazon S3.
+</ParamField>
+
+<ParamField body="--region" type="string">
+  The region of the bucket. Default: the region of the AWS configuration, such as `AWS_REGION`.
+</ParamField>
+
+<ParamField body="--cache" type="boolean">
+  Keep files in memory, in one cache of 256 MB: the files of an arm until the arm stops, and the files of live for 10 seconds. Default: off.
+</ParamField>
+
+<ParamField body="--fallback" type="string">
+  A file of each build, such as `200.html`, for a single-page app. A path without a file extension that matches no file gets this file of the same build, with the status 200.
+</ParamField>
+
+The proxy uses the AWS default credential chain and SigV4. It needs `s3:ListBucket` and `s3:GetObject` on the bucket. The [proxy flags](#proxy-flags) also apply.
+
+## ssp proxy gcs
+
+Run the proxy in front of a static site in a Cloud Storage bucket. Live is the root of the bucket. Each arm is the build folder of its commit. The proxy only reads the bucket. See [Cloud Storage](/guides/gcs).
+
+```shell
+ssp proxy gcs --app site-prod --bucket acme-site --cache
+```
+
+<ParamField body="--bucket" type="string" required>
+  The bucket of the site. Live is its root.
+</ParamField>
+
+<ParamField body="--cache" type="boolean">
+  Keep files in memory, as for [`ssp proxy s3`](#ssp-proxy-s3). Default: off.
+</ParamField>
+
+<ParamField body="--fallback" type="string">
+  A file of each build for a single-page app, as for [`ssp proxy s3`](#ssp-proxy-s3).
+</ParamField>
+
+The proxy uses Google credentials: the metadata server, or application default credentials. Its account needs Storage Object Viewer on the bucket. The [proxy flags](#proxy-flags) also apply.
+
 ## ssp proxy cloudfront
 
 Run the experiments of a static site on CloudFront and S3. Two CloudFront
