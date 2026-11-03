@@ -21,11 +21,13 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
 - Live is the service that the customer runs. It is never recorded. There is no control arm: to compare
   with live, add the live commit as an arm.
 - `ssp proxy docker|cloudrun|kubernetes|fargate|fly --app <app>` runs in front of the app. The instance that holds
-  the lease runs the arms.
+  the lease runs the arms. `ssp proxy cloudfront` is never in the request path: CloudFront Functions assign
+  each request at the edge.
 - Settings, events, metrics, and experiments live in `statespace.toml`, with `[app.<name>]` sections.
   Events and metrics are CEL.
 - Evidence goes on each arm's commit as the commit status `statespace/<app>/<experiment>`.
-- Overrides (`?ssp_arm=<experiment>:<commit>`) let testers open an arm of a running experiment.
+- Overrides (`?ssp=<experiment>:<commit>.<expires>.<signature>`) let testers open an arm of a running
+  experiment. Statespace signs each link with the app's override key; there is no `overrides` setting.
 - Permissions come from GitHub roles. The only Statespace token is the runtime token of one app.
 
 Document current behavior only. Mark proposed behavior with a visible `Planned` warning. Do not document

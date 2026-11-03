@@ -100,8 +100,9 @@ The runtime configuration of the app.
 {
   "app": "shop-prod",
   "salt": "…",
+  "override_key": "<secret>",
   "settings_hash": "…",
-  "settings": {"overrides": false, "redact": []},
+  "settings": {"redact": []},
   "live": {"commit": "c0ffee1…", "image": "…@sha256:…"},
   "experiments": [
     {
@@ -128,6 +129,15 @@ The runtime configuration of the app.
 - `experiments` holds the `starting` and `running` experiments, in the order of `statespace.toml`.
 - The proxy routes only to `running` experiments. The lease holder starts the arms of both.
 - Before the first report, `live` is `null`. The proxy then sends all requests to live.
+- `override_key` signs the override links of the app. The proxy uses it to verify them. See [Overrides](/concepts/overrides).
+
+### GET /v1/runtime/apps/\{app\}/builds
+
+The 20 newest builds of the app, newest first, one for each commit. `ssp proxy cloudfront` finds live among them by its files.
+
+```json
+{"builds": [{"commit": "a1b2c3d…", "image": "…@sha256:…"}]}
+```
 
 ### POST /v1/runtime/apps/\{app\}/report
 
@@ -137,7 +147,7 @@ Each proxy instance reports. Only the lease holder sends `units`.
 | --- | --- |
 | `instance` | The ID of the instance |
 | `version` | The version of the proxy |
-| `orchestrator` | `docker`, `cloudrun`, `kubernetes`, `fargate`, or `fly` |
+| `orchestrator` | `docker`, `cloudrun`, `kubernetes`, `fargate`, `fly`, or `cloudfront` |
 | `live_image` | The image that live runs |
 | `settings_hash` | The hash of the settings that the instance uses |
 | `units` | `[{"experiment", "commit", "address", "ready", "reason"}]` |

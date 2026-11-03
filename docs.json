@@ -63,6 +63,7 @@
           "guides/kubernetes",
           "guides/fargate",
           "guides/fly",
+          "guides/cloudfront",
           "guides/events-and-metrics",
           "guides/sql",
           "guides/emergency-stop",
