@@ -84,9 +84,10 @@ You choose the folder. Statespace has no rule for its name. Put all builds in on
 The action lists the folder, downloads the files, and computes their files hash. An empty folder, or a folder that the job cannot read, fails the step. So give `site-ci` the role Storage Object Admin on the bucket. It uploads, reads, and lists.
 
 ```shell
+ci=site-ci@acme-web.iam.gserviceaccount.com
 gcloud storage buckets add-iam-policy-binding \
   gs://acme-site \
-  --member "serviceAccount:site-ci@acme-web.iam.gserviceaccount.com" \
+  --member "serviceAccount:$ci" \
   --role roles/storage.objectAdmin
 ```
 
