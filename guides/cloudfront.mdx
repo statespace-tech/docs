@@ -90,29 +90,38 @@ visitors ─► edge ───┼─► .../arms/c0ffee1…/          (checkout)
   </Step>
 
   <Step title="Deploy the template">
-    Deploy `deploy/cloudfront/template.yaml` of the
-    [CLI repository](https://github.com/statespace-tech/statespace).
-    It makes the KeyValueStore, the two functions, the Kinesis stream, the
-    real-time log configuration, an IAM role, and an ECS Fargate service
-    that runs `ssp proxy cloudfront`.
+    Download the template of the latest release and check it. The
+    template makes the KeyValueStore, the two functions, the Kinesis
+    stream, the real-time log configuration, an IAM role, and an ECS
+    Fargate service that runs `ssp proxy cloudfront`. It runs the `ssp`
+    image of the same release.
+
+    ```shell
+    base=https://github.com/statespace-tech/statespace/releases/latest/download
+    curl -fsSLO "$base/cloudfront-template.yaml"
+    curl -fsSLO "$base/cloudfront-template.yaml.sha256"
+    shasum -a 256 -c cloudfront-template.yaml.sha256
+    ```
+
+    Deploy it:
 
     ```shell
     aws cloudformation deploy \
       --stack-name shop-prod-statespace \
-      --template-file template.yaml \
+      --template-file cloudfront-template.yaml \
       --capabilities CAPABILITY_IAM \
       --parameter-overrides \
         AppName=shop-prod \
         DistributionId=E2EXAMPLE \
         BucketName=shop-prod-site \
         TokenSecretArn=<secret ARN> \
-        Image=ghcr.io/statespace-tech/statespace:0.4.1 \
         VpcId=vpc-0aaa \
         Subnets=subnet-0bbb,subnet-0ccc
     ```
 
     The service has 0.25 vCPU and 0.5 GB, a public IP address, and no load
-    balancer. It needs no NAT gateway.
+    balancer. It needs no NAT gateway. To upgrade, download the template of
+    the new release and deploy it again with the same stack name.
   </Step>
 
   <Step title="Attach the functions and the real-time log">
