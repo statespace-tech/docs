@@ -5,7 +5,7 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
 
 ## Product
 
-`statespace-tech/design.md` is the source of truth. The docs must match it.
+`statespace-tech/design/` is the source of truth. The docs must match it.
 
 - An app is one running copy of a service, such as `shop-dev` or `shop-prod`. `ssp app add` adds it. It is
   linked to one repo and one folder.
