@@ -52,6 +52,8 @@ Each account has its own PostgreSQL database. Each person reads it with a read-o
 | Roles from GitHub | Kept 10 minutes |
 | Proxy lease | 30 seconds. The holder renews it every 10 seconds |
 | Runtime configuration older than this sends every request to live | 5 minutes |
+| File runtimes check each build folder again | Every 60 seconds |
+| `--cache` of a file runtime | 256 MB for each proxy instance. Live files 10 seconds, arm files until the arm stops |
 
 ## Split check
 
