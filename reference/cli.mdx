@@ -11,7 +11,7 @@ ssp experiment  list | show | update | start | stop
 ssp token       add | remove | list
 ssp db          url | rotate
 ssp proxy       docker | cloudrun | kubernetes | fargate | fly
-                | cloudfront
+                | s3 | gcs
 ssp login | logout | whoami
 ```
 
@@ -529,64 +529,6 @@ ssp proxy gcs --app site-prod --bucket acme-site --cache
 
 The proxy uses Google credentials: the metadata server, or application default credentials. Its account needs Storage Object Viewer on the bucket. The [proxy flags](#proxy-flags) also apply.
 
-## ssp proxy cloudfront
-
-Run the experiments of a static site on CloudFront and S3. Two CloudFront
-Functions assign each request at the edge. The command keeps them current.
-It is never in the request path, and it listens on no port. See
-[CloudFront](/guides/cloudfront).
-
-```shell
-ssp proxy cloudfront --app shop-prod \
-  --distribution E2EXAMPLE \
-  --bucket shop-prod-site \
-  --stream ssp-shop-prod-requests
-```
-
-<ParamField body="--distribution" type="string" required>
-  The ID of the CloudFront distribution of the site. The command reads its
-  configuration. It never changes it.
-</ParamField>
-
-<ParamField body="--bucket" type="string" required>
-  The S3 bucket of the site's files. The command copies the files of each
-  arm to `arms/<commit>/` and keeps its own state in `arms/.statespace/`.
-</ParamField>
-
-<ParamField body="--stream" type="string" required>
-  The Kinesis data stream of the real-time log of the distribution, by name
-  or ARN.
-</ParamField>
-
-<ParamField body="--region" type="string">
-  The AWS region of the bucket and the stream. Default: the region of the
-  AWS configuration, such as `AWS_REGION`.
-</ParamField>
-
-<ParamField body="--key-value-store" type="string">
-  The CloudFront KeyValueStore of the functions, by name or ARN. Default:
-  `ssp-<app>`.
-</ParamField>
-
-<ParamField body="--viewer-request-function" type="string">
-  The name of your own viewer-request function. The command publishes one
-  function that runs the Statespace step first, then your handler. Attach
-  that function in place of yours.
-</ParamField>
-
-<ParamField body="--request-function" type="string">
-  The viewer-request function that the command publishes. Default:
-  `ssp-<app>-request`.
-</ParamField>
-
-<ParamField body="--response-function" type="string">
-  The viewer-response function that the command publishes. Default:
-  `ssp-<app>-response`.
-</ParamField>
-
-The command uses the AWS default credential chain. `--app`, `--token`, and
-`--api` of the [proxy flags](#proxy-flags) also apply. `--listen` does not.
-
 ## Proxy flags
 
 Each `ssp proxy` command takes these flags. All other settings come from [`statespace.toml`](/reference/statespace-toml).
@@ -596,8 +538,7 @@ Each `ssp proxy` command takes these flags. All other settings come from [`state
 </ParamField>
 
 <ParamField body="--listen" type="string" default="0.0.0.0:8080">
-  The address that the proxy listens on. `ssp proxy cloudfront` does not
-  take it.
+  The address that the proxy listens on.
 </ParamField>
 
 <ParamField body="--token" type="string">

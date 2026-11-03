@@ -9,8 +9,8 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
 
 - An app is one running copy of a service, such as `shop-dev` or `shop-prod`. `ssp app add` adds it. It is
   linked to one repo and one folder.
-- CI builds images and records each build ("commit → image digest") with `statespace-tech/action@v1` and
-  GitHub OIDC. The proxy runs only images of recorded builds.
+- CI makes builds and records each one with `statespace-tech/action@v1` and GitHub OIDC. A build is an
+  image by digest (`image:`) or a folder of files in a bucket (`files:`). The proxy runs only recorded builds.
 - An experiment is a named comparison of commits in one app. Its table `[experiment.<name>]` is in
   `statespace.toml`. Its arms are commits with exact shares, set with
   `ssp experiment update <name> --arm <commit>=<share>`. The first arm is the reference.
@@ -20,14 +20,14 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
   layers.
 - Live is the service that the customer runs. It is never recorded. There is no control arm: to compare
   with live, add the live commit as an arm.
-- `ssp proxy docker|cloudrun|kubernetes|fargate|fly --app <app>` runs in front of the app. The instance that holds
-  the lease runs the arms. `ssp proxy cloudfront` is never in the request path: CloudFront Functions assign
-  each request at the edge.
+- `ssp proxy docker|cloudrun|kubernetes|fargate|fly|s3|gcs --app <app>` runs in front of the app. The instance
+  that holds the lease runs the arms. `s3` and `gcs` serve static sites: live is the bucket root, and each arm
+  is a build folder. Any CDN can sit in front of the proxy.
 - Settings, events, metrics, and experiments live in `statespace.toml`, with `[app.<name>]` sections.
   Events and metrics are CEL.
 - Evidence goes on each arm's commit as the commit status `statespace/<app>/<experiment>`.
-- Overrides (`?ssp=<experiment>:<commit>.<expires>.<signature>`) let testers open an arm of a running
-  experiment. Statespace signs each link with the app's override key; there is no `overrides` setting.
+- Overrides (`?ssp=<experiment>:<commit>`) let testers open an arm of a running experiment. They are always
+  on; there is no setting.
 - Permissions come from GitHub roles. The only Statespace token is the runtime token of one app.
 
 Document current behavior only. Mark proposed behavior with a visible `Planned` warning. Do not document

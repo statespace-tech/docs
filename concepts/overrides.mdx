@@ -35,8 +35,8 @@ show` and the dashboard show the link of each arm of a running experiment.
 - You cannot pick live.
 - Your app never sees the `ssp` parameter, cookie, or header.
 
-On CloudFront, the edge functions read the links. See
-[CloudFront](/guides/cloudfront).
+Overrides work on every runtime, and behind a CDN when the CDN sends the
+`ssp` parameter and cookie to the proxy. See [Behind a CDN](/guides/cdn).
 
 ## Records
 

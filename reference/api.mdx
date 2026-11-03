@@ -107,7 +107,6 @@ The runtime configuration of the app.
 {
   "app": "shop-prod",
   "salt": "…",
-  "override_key": "<secret>",
   "settings_hash": "…",
   "settings": {"redact": []},
   "live": {"commit": "c0ffee1…", "image": "…@sha256:…"},
@@ -137,14 +136,6 @@ The runtime configuration of the app.
 - The proxy routes only to `running` experiments. The lease holder starts the arms of both.
 - Before the first report, `live` is `null`. The proxy then sends all requests to live.
 
-### GET /v1/runtime/apps/\{app\}/builds
-
-The 20 newest builds of the app, newest first, one for each commit. `ssp proxy cloudfront` finds live among them by its files.
-
-```json
-{"builds": [{"commit": "a1b2c3d…", "image": "…@sha256:…"}]}
-```
-
 ### POST /v1/runtime/apps/\{app\}/report
 
 Each proxy instance reports. Only the lease holder sends `units`.
@@ -153,8 +144,9 @@ Each proxy instance reports. Only the lease holder sends `units`.
 | --- | --- |
 | `instance` | The ID of the instance |
 | `version` | The version of the proxy |
-| `orchestrator` | `docker`, `cloudrun`, `kubernetes`, `fargate`, `fly`, or `cloudfront` |
-| `live_image` | The image that live runs |
+| `orchestrator` | `docker`, `cloudrun`, `kubernetes`, `fargate`, `fly`, `s3`, or `gcs` |
+| `live_image` | The image that live runs, for an image runtime |
+| `live_files` | The files hash of the root of the bucket, such as `sha256:…`, for a file runtime |
 | `settings_hash` | The hash of the settings that the instance uses |
 | `units` | `[{"experiment", "commit", "address", "ready", "reason"}]` |
 
