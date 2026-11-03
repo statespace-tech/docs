@@ -1,0 +1,119 @@
+---
+title: Put a CDN in front of the proxy
+sidebarTitle: Behind a CDN
+description: Put CloudFront or Cloudflare in front of ssp proxy on any runtime. Send pages to the proxy, and keep hashed static files in the cache.
+---
+
+A CDN can sit in front of `ssp proxy` on any runtime. The CDN keeps static files near your visitors. The proxy picks the arm of each page request. A request goes through these parts:
+
+1. The CDN gets the request from the visitor.
+2. The CDN sends it to the load balancer of the proxy.
+3. The proxy sends it to an arm or to live.
+
+## Rules for any CDN
+
+### Send pages to the proxy
+
+One URL gives different pages to different subjects. So the CDN must send each page request to the proxy, and must not keep a copy of a page for other visitors.
+
+- Do not cache pages in the CDN.
+- Send cookies to the proxy, at least `ssp_sid` and `ssp`. The proxy reads the subject from `ssp_sid`, and overrides from `ssp`.
+- Send the query parameter `ssp` to the proxy. It opens an [override](/concepts/overrides).
+- Send the headers that `subject` and `eligibility` read, such as `x-user-id`.
+
+The proxy marks arm responses `Cache-Control: private, no-cache`. A CDN that obeys `Cache-Control` keeps no copy of them.
+
+### Cache hashed static files
+
+A file with a hash of its content in its name, such as `/assets/app.3f9a1c.js`, is the same in each build that has it. So a cached copy is correct for every arm and for live. Keep these files in the CDN cache, such as for one year.
+
+<Warning>
+  Do not cache a file without a hash in its name that two builds can have with different content, such as `/favicon.ico` or `/robots.txt`. A visitor can then get the file of another arm or of live. Send such files to the proxy without caching, or give them hashed names.
+</Warning>
+
+### Use the proxy as the origin
+
+The origin of the CDN is the address of the proxy, such as:
+
+- the Application Load Balancer in front of the proxy on ECS Fargate;
+- the URL of the proxy's Cloud Run service;
+- the load balancer of the proxy's Kubernetes Service.
+
+Do not use the bucket or the live service as the origin. Requests that do not go through the proxy are never in an arm.
+
+### Redirects
+
+The proxy makes no redirects. Make them in the CDN, such as with Cloudflare Redirect Rules or CloudFront Functions.
+
+## CloudFront
+
+<Steps>
+  <Step title="Add the origin">
+    In the distribution, add an origin with the domain of the proxy, such as the DNS name of the load balancer. Use HTTPS when the load balancer has a certificate.
+  </Step>
+
+  <Step title="Send pages to the proxy">
+    In the default cache behavior (`*`), set these policies:
+
+    1. The cache policy `CachingDisabled`.
+    2. The origin request policy `AllViewer`. It sends all cookies, query parameters, and headers to the proxy.
+
+    When the origin is a Cloud Run service, use `AllViewerExceptHostHeader`. Cloud Run needs its own host name.
+  </Step>
+
+  <Step title="Cache hashed static files">
+    Add a cache behavior for the folder of the hashed files, such as `/assets/*`. Set the cache policy `CachingOptimized`.
+  </Step>
+
+  <Step title="Send viewer headers that the rules read">
+    When `eligibility` reads a CloudFront header, such as `cloudfront-viewer-country`, use the origin request policy `AllViewerAndCloudFrontHeaders-2022-06` in the default behavior.
+  </Step>
+</Steps>
+
+## Cloudflare
+
+<Steps>
+  <Step title="Point the domain to the proxy">
+    Add a DNS record for your domain, such as a `CNAME` from `site.acme.com` to the DNS name of the load balancer. Turn on the proxy status (orange cloud).
+  </Step>
+
+  <Step title="Set the encryption mode">
+    Set SSL/TLS to **Full (strict)**. The origin then needs a valid certificate.
+  </Step>
+
+  <Step title="Keep pages out of the cache">
+    By default, Cloudflare does not cache HTML. Do not add a cache rule that caches pages, such as **Eligible for cache** on all URLs.
+  </Step>
+
+  <Step title="Cache hashed static files">
+    Add a cache rule for the folder of the hashed files, such as when the URI path starts with `/assets/`. Set **Eligible for cache** and a long edge TTL.
+  </Step>
+
+  <Step title="Bypass the cache for shared names">
+    Add a cache rule for files without a hash that two builds can have, such as `/favicon.ico`. Set **Bypass cache**.
+  </Step>
+</Steps>
+
+Cloudflare sends all cookies and query parameters to the origin. It also adds the header `cf-ipcountry`, which `eligibility` can read.
+
+## Health checks and failover
+
+This part is optional.
+
+A CDN can check the proxy, and send requests to a second origin when the proxy fails. For a file runtime, the second origin can be the live files in the bucket. While the proxy is down, all visitors then get live. The arms get no traffic, and the proxy records nothing.
+
+- **CloudFront.** Make an origin group. The primary origin is the proxy. The secondary origin is the bucket, with origin access control. Fail over on the status codes 500, 502, 503, and 504.
+- **Cloudflare.** Use Load Balancing. Add a pool for the proxy with a health monitor, and a fallback pool for the bucket.
+
+Without a failover, the site is down while the proxy is down. A container service restarts the proxy, such as ECS in about 1 to 2 minutes. Run two or more instances of the proxy to keep the site up during a restart.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="S3" icon="folder" href="/guides/s3">
+    Run the proxy in front of an S3 bucket.
+  </Card>
+  <Card title="Overrides" icon="link" href="/concepts/overrides">
+    Open an arm with a link.
+  </Card>
+</CardGroup>
