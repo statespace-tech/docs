@@ -38,7 +38,7 @@ The same subject ID always gives the same point. So a subject stays in one arm, 
 
 ## Why experiments in one app never overlap
 
-Each arm is a full build of the app: one commit, one image. The proxy sends each request to one running copy. So each subject is in one experiment of an app at most, and in one arm of that experiment.
+Each arm is a full build of the app: one commit, one image or one folder of files. The proxy sends each request to one running copy. So each subject is in one experiment of an app at most, and in one arm of that experiment.
 
 Some platforms put one user in many experiments at the same time. They can do this because their arms are flags in one build. Statespace arms are not flags. No copy has the changes of two arms. To overlap, Statespace must make a build for each combination of arms:
 

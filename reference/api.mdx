@@ -29,12 +29,19 @@ Record a build. The credential is the OIDC token of the GitHub Actions job. The 
 
 | Body | Type | Means |
 | --- | --- | --- |
-| `image` | string | The image, by digest |
+| `image` | string | The image, by digest. Send `image` or `files` |
+| `files` | object | `{"location", "hash"}`: the folder of the files, such as `s3://acme-site/builds/a1b2c3d…/`, and the files hash. Send `image` or `files` |
 | `path` | string | The folder of `statespace.toml` |
 | `app` | string, optional | The app that the build is for |
 | `config` | string | The text of `statespace.toml` |
 
-The response has `repo`, `commit`, `path`, `app`, `image`, and `warnings`, a list.
+The response has `repo`, `commit`, `path`, `app`, `image` or `files`, and `warnings`, a list.
+
+The files hash is `sha256:` and the hex SHA-256 of a list of lines, one for each file under the location:
+
+1. Each line is `<sha256 hex of the content>  <relative path>` and a newline. Two spaces separate the parts.
+2. The relative path is the key of the object without the location. Keys that end with `/` are not files.
+3. The lines are sorted by relative path, in byte order.
 
 ## Apps
 

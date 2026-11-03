@@ -5,15 +5,41 @@ description: Build the commits that can become arms, and record each build with 
 ---
 
 import BuildWorkflow from '/snippets/build-workflow.mdx';
+import BuildWorkflowFiles from '/snippets/build-workflow-files.mdx';
 import ActionStep from '/snippets/action-step.mdx';
+import ActionStepFiles from '/snippets/action-step-files.mdx';
 
-Statespace runs only images that your CI built and recorded. This guide records builds from GitHub Actions.
+Statespace runs only builds that your CI recorded. This guide records builds from GitHub Actions.
+
+## Kinds of build
+
+A build is an image or a folder of files. The runtime of your app tells you which kind to record.
+
+| Build | Input | Runtimes |
+| --- | --- | --- |
+| An image, by digest | `image` | Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io |
+| A folder of files in a bucket | `files` | S3, Cloud Storage |
+
+A commit can have builds of both kinds. Each runtime uses only its own kind.
 
 ## Build every push
 
 Build each commit that can become an arm. The simplest way is to build each push to each branch.
 
-<BuildWorkflow />
+<Tabs>
+  <Tab title="Image">
+    The workflow builds the image, pushes it, and records it by digest.
+
+    <BuildWorkflow />
+  </Tab>
+  <Tab title="Files">
+    The workflow builds the site, uploads the files to a folder for the commit, and records the folder. Both lines name the full location.
+
+    <BuildWorkflowFiles />
+
+    You choose the folder. Statespace has no rule for its name. For Cloud Storage, see [Cloud Storage](/guides/gcs#record-each-build).
+  </Tab>
+</Tabs>
 
 To build fewer commits, use a branch pattern, such as `branches: ["main", "try/**"]`. A branch name means nothing to Statespace. Only the build record counts.
 
@@ -21,16 +47,42 @@ The job needs `id-token: write`. The action sends the job's GitHub OIDC token, a
 
 ## Record the build of live
 
-Statespace finds the live commit from the build of the live image. So the workflow that builds the image that you deploy must record it too. Add the action step after the build in that workflow.
+Statespace finds the live commit from the build that live runs. So the workflow that deploys live must record that build too. Add the action step to that workflow.
 
-<ActionStep />
+<Tabs>
+  <Tab title="Image">
+    Record the image after the build.
 
-When live runs an image without a build, no experiment of the app can start.
+    <ActionStep />
+  </Tab>
+  <Tab title="Files">
+    Upload the files to the folder of the commit, and record the folder. Then copy the folder to the root of the bucket. See [Deploy live](/guides/s3#deploy-live).
+
+    <ActionStepFiles />
+  </Tab>
+</Tabs>
+
+When live runs a build that is not recorded, no experiment of the app can start.
+
+## Checks of the build
+
+The action checks that the build exists before it records it. When a check fails, the step fails, and Statespace records nothing.
+
+- **Image.** The registry must have the image, by digest. The action checks it with `docker manifest inspect`. A wrong repository fails the step.
+- **Files.** The action lists the folder, downloads the files, and computes a hash of them. An empty folder, or a folder that the job cannot read, fails the step.
+
+So the job needs read access to the image or the folder. The credentials that pushed the build give this access.
 
 ## Inputs
 
-<ParamField body="image" type="string" required>
-  The image, by digest, such as `ghcr.io/acme/shop@sha256:2222…`.
+Give exactly one of `image` and `files`.
+
+<ParamField body="image" type="string">
+  The image, by digest, such as `ghcr.io/acme/shop@sha256:2222…`. The action resolves a tag to its digest with `docker`.
+</ParamField>
+
+<ParamField body="files" type="string">
+  The folder of the files, as `s3://<bucket>/<folder>/` or `gs://<bucket>/<folder>/`, such as `s3://acme-site/builds/a1b2c3d…/`. It ends with `/`. It cannot be the root of the bucket: the root holds live.
 </ParamField>
 
 <ParamField body="path" type="string">
@@ -52,7 +104,7 @@ So a commit with a bad file gets no build, and cannot become an arm.
 
 ## Build labels
 
-Some builds put different values in the image for each app. For example, a web app can put its API address in the bundle at build time. Then build one image for each app, and give each build its app.
+Some builds put different values in the build for each app. For example, a web app can put its API address in the bundle at build time. Then make one build for each app, and give each build its app. This example builds images. A folder of files takes `app` in the same way.
 
 ```yaml .github/workflows/build.yml
 jobs:
@@ -89,7 +141,7 @@ These rules choose the build of a commit for an app:
 2. For `shop-prod`, a build with `app: shop-prod` wins over a build without `app`.
 3. A build without `app` serves every app of the repo and folder.
 
-Two builds of one commit and folder without `app` must have the same image. The same image again is accepted. A different image fails with this message:
+Two builds of one commit and folder without `app` must be the same: the same image, or the same files. The same build again is accepted. A different build fails with this message:
 
 ```text
 a1b2c3d has a build without app already. Add app: so
@@ -103,6 +155,9 @@ Statespace knows which build is for which app
 <CardGroup cols={2}>
   <Card title="Docker" icon="container" href="/guides/docker">
     Run the proxy on one machine.
+  </Card>
+  <Card title="S3" icon="folder" href="/guides/s3">
+    Run the proxy in front of a static site in a bucket.
   </Card>
   <Card title="statespace.toml" icon="file-cog" href="/reference/statespace-toml">
     Look up every key.

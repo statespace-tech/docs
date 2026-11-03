@@ -1,0 +1,32 @@
+```yaml .github/workflows/build.yml
+# Build each push to each branch, upload the files,
+# and record the build.
+name: Build
+on:
+  push:
+    branches: ["**"]
+permissions:
+  contents: read
+  # AWS and the Statespace action use OIDC.
+  id-token: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: npm ci && npm run build
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: >-
+            arn:aws:iam::123456789012:role/acme-site-ci
+          aws-region: us-east-1
+      # Upload the files of this commit to its own folder.
+      - run: >-
+          aws s3 sync dist/
+          s3://acme-site/builds/${{ github.sha }}/
+      # Record the folder. Keep this step after the upload.
+      - uses: statespace-tech/action@v1
+        with:
+          files: s3://acme-site/builds/${{ github.sha }}/
+          path: .
+```

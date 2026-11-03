@@ -11,7 +11,7 @@ What runs when you start an experiment, and who decides what?
 
 | Part | Where it runs | What it does |
 | --- | --- | --- |
-| Your CI | GitHub Actions | Builds images, and records each build with `statespace-tech/action@v1` |
+| Your CI | GitHub Actions | Builds images or files, and records each build with `statespace-tech/action@v1` |
 | `statespace.toml` | Your repo | Holds the settings, events, metrics, and experiments |
 | `ssp proxy` | In front of your app | Assigns each request, and runs the arms |
 | Statespace | `api.statespace.com` | Keeps apps, builds, experiments, and evidence. Posts commit statuses |
@@ -36,14 +36,14 @@ The proxy never waits on Statespace during a request. It gets its configuration 
 ## Live and the arms
 
 - **Live** is the service that you run now. It serves every request outside the experiments. Statespace never records it.
-- **An arm** is one commit in one experiment. The proxy runs a copy of the commit's image for it. Statespace records it.
+- **An arm** is one commit in one experiment. The proxy runs a copy of the commit's image for it, or serves the commit's files. Statespace records it.
 - **A unit** is the running copy of one arm. The proxy runs units on the platform of live: Docker, Cloud Run, Kubernetes, ECS Fargate, or Fly.io. For a static site on CloudFront, a unit is a copy of the arm's files in S3.
 
 There is no special control arm. To compare a change with what runs now, add the live commit as an arm. Then both arms get the same kind of subjects at the same time, and Statespace records both the same way.
 
 ## Who decides
 
-- Your CI decides which images exist. The proxy runs only images of recorded builds.
+- Your CI decides which builds exist. The proxy runs only recorded builds.
 - A person or an agent with permission on the repo sets the arms and starts each experiment. Statespace never starts an experiment by itself.
 - `statespace.toml` in your repo defines the settings and the experiments. They change only with a commit.
 - Statespace shows numbers for each arm. You and your agents decide what they mean.

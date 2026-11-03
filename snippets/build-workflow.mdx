@@ -25,7 +25,7 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/acme/shop:${{ github.sha }}
-      # Record "commit -> image digest". Keep this step
+      # Record the image of this commit. Keep this step
       # after the build.
       - uses: statespace-tech/action@v1
         with:

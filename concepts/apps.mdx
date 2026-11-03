@@ -23,25 +23,31 @@ ssp app add shop-prod --note "shop, production"
 
 ## Builds
 
-A build is a record "commit → image digest". Your CI makes it with `statespace-tech/action@v1` after it builds the image. GitHub's OIDC token proves the repo and the commit, so CI keeps no Statespace secret.
+A build is the record of what one commit runs. It is one of these:
+
+- **An image**, by digest, such as `ghcr.io/acme/shop@sha256:2222…`. Docker, Kubernetes, Cloud Run, ECS Fargate, and Fly.io run images.
+- **A folder of files** in a bucket, such as `s3://acme-site/builds/a1b2c3d…/`, with a hash of the files. S3 and Cloud Storage serve files.
+
+Your CI makes the record with `statespace-tech/action@v1` after it pushes the image or uploads the files. GitHub's OIDC token proves the repo and the commit, so CI keeps no Statespace secret. The action fails the step when the image or the folder does not exist.
 
 - Statespace records builds of every branch. A branch name means nothing to Statespace.
 - Statespace never changes a build.
-- The proxy runs only images of recorded builds. A stolen runtime token cannot put new code in front of your users.
-- A build can be for one app. Use this when your build puts different values in the image for each app. See [Build labels](/guides/github-actions#build-labels).
+- The proxy runs only recorded builds. A stolen runtime token cannot put new code in front of your users.
+- Statespace never deletes a build. You decide how long your registry and your bucket keep them.
+- A build can be for one app. Use this when your build puts different values in the build for each app. See [Build labels](/guides/github-actions#build-labels).
 
 ## Live
 
 Live is the service that you run and deploy as usual. Statespace does not deploy it.
 
-The proxy reports the image that live runs. Statespace finds the build of that image. The commit of that build is the **live commit**. For example, live runs `ghcr.io/acme/shop@sha256:2222…`, and its build is commit `c0ffee1`.
+The proxy reports what live runs: an image, or a hash of the files at the root of the bucket. Statespace finds the build of that image or those files. The commit of that build is the **live commit**. For example, live runs `ghcr.io/acme/shop@sha256:2222…`, and its build is commit `c0ffee1`.
 
 The `statespace.toml` in the build of the live commit holds the settings and the experiments of the app. So a change takes effect when its commit runs as live. See [What a release does](/concepts/experiments#what-a-release-does).
 
 To compare a change with live, add the live commit as an arm. `ssp app show` prints the live commit.
 
 <Warning>
-  When live runs an image without a build, the app has no live commit, and no experiment can start. `ssp app show` says "Live runs an image without a build. Add statespace-tech/action to the deploy workflow".
+  When live runs an image or files without a build, the app has no live commit, and no experiment can start. For an image, `ssp app show` says "Live runs an image without a build. Add statespace-tech/action to the deploy workflow".
 </Warning>
 
 ## Next steps
