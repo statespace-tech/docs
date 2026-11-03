@@ -53,20 +53,22 @@ The proxy makes no redirects. Make them in the CDN, such as with Cloudflare Redi
   </Step>
 
   <Step title="Send pages to the proxy">
-    In the default cache behavior (`*`), set these policies:
+    In the default cache behavior (`*`), set these managed policies:
 
-    1. The cache policy `CachingDisabled`.
-    2. The origin request policy `AllViewer`. It sends all cookies, query parameters, and headers to the proxy.
+    1. The cache policy `CachingDisabled`. Its TTLs are 0, so CloudFront keeps no page.
+    2. The origin request policy `AllViewer`. It sends all headers, cookies, and query strings to the proxy.
 
-    When the origin is a Cloud Run service, use `AllViewerExceptHostHeader`. Cloud Run needs its own host name.
+    When the origin needs its own host name in the `Host` header, use `AllViewerExceptHostHeader`. CloudFront then sends the domain of the origin as `Host`.
+
+    Do not use `CachingOptimized` for pages. Its minimum TTL is 1 second, so CloudFront keeps a page for at least 1 second, also with `private` or `no-cache`.
   </Step>
 
   <Step title="Cache hashed static files">
-    Add a cache behavior for the folder of the hashed files, such as `/assets/*`. Set the cache policy `CachingOptimized`.
+    Add a cache behavior for the folder of the hashed files, such as `/assets/*`. Set the managed cache policy `CachingOptimized`. Its default TTL is 24 hours, and its maximum TTL is 365 days.
   </Step>
 
   <Step title="Send viewer headers that the rules read">
-    When `eligibility` reads a CloudFront header, such as `cloudfront-viewer-country`, use the origin request policy `AllViewerAndCloudFrontHeaders-2022-06` in the default behavior.
+    When `eligibility` reads a CloudFront header, such as `cloudfront-viewer-country`, use the managed origin request policy `AllViewerAndCloudFrontHeaders-2022-06` in the default behavior. It sends all viewer values and the CloudFront headers, such as `CloudFront-Viewer-Country`.
   </Step>
 </Steps>
 
@@ -78,32 +80,34 @@ The proxy makes no redirects. Make them in the CDN, such as with Cloudflare Redi
   </Step>
 
   <Step title="Set the encryption mode">
-    Set SSL/TLS to **Full (strict)**. The origin then needs a valid certificate.
+    Set the SSL/TLS encryption mode to **Full (strict)**. The certificate of the origin must be valid, from a public certificate authority or from Cloudflare's Origin CA, and must match the host name.
   </Step>
 
   <Step title="Keep pages out of the cache">
-    By default, Cloudflare does not cache HTML. Do not add a cache rule that caches pages, such as **Eligible for cache** on all URLs.
+    By default, Cloudflare does not cache HTML or JSON. It also does not cache a response with `private`, `no-store`, `no-cache`, or `max-age=0`. Do not add a cache rule that makes pages **Eligible for cache**.
   </Step>
 
   <Step title="Cache hashed static files">
-    Add a cache rule for the folder of the hashed files, such as when the URI path starts with `/assets/`. Set **Eligible for cache** and a long edge TTL.
+    Add a cache rule for the folder of the hashed files, such as when the URI path starts with `/assets/`. Set the cache eligibility to **Eligible for cache**.
   </Step>
 
   <Step title="Bypass the cache for shared names">
-    Add a cache rule for files without a hash that two builds can have, such as `/favicon.ico`. Set **Bypass cache**.
+    By default, Cloudflare caches some files without a hash in their names, such as `/favicon.ico` and `/robots.txt`. Add a cache rule for these files. Set the cache eligibility to **Bypass cache**.
   </Step>
 </Steps>
 
-Cloudflare sends all cookies and query parameters to the origin. It also adds the header `cf-ipcountry`, which `eligibility` can read.
+Cloudflare sends all request headers to the origin, with the cookies. To get the header `cf-ipcountry` for `eligibility`, turn on the Managed Transform **Add visitor location headers**.
 
 ## Health checks and failover
 
 This part is optional.
 
-A CDN can check the proxy, and send requests to a second origin when the proxy fails. For a file runtime, the second origin can be the live files in the bucket. While the proxy is down, all visitors then get live. The arms get no traffic, and the proxy records nothing.
+A CDN can send requests to a second origin when the proxy fails. For a file runtime, the second origin can serve the live files of the bucket. While the proxy is down, all visitors then get live. The arms get no traffic, and the proxy records nothing.
 
-- **CloudFront.** Make an origin group. The primary origin is the proxy. The secondary origin is the bucket, with origin access control. Fail over on the status codes 500, 502, 503, and 504.
-- **Cloudflare.** Use Load Balancing. Add a pool for the proxy with a health monitor, and a fallback pool for the bucket.
+The second origin serves keys as they are. It does not use the path rules of the proxy, such as `docs/index.html` for `/docs/`.
+
+- **CloudFront.** Make an origin group with two origins. The primary origin is the proxy. The secondary origin serves the live files. Choose the status codes 500, 502, 503, and 504 as failover criteria. With 503, CloudFront also fails over when it cannot connect to the proxy. With 504, it fails over when the proxy does not answer in time. CloudFront fails over only for `GET`, `HEAD`, and `OPTIONS` requests.
+- **Cloudflare.** Use Load Balancing. Make a pool for the proxy with a health monitor. Make the pool that serves the live files the fallback pool. When all other pools are unhealthy, Cloudflare sends the requests to the fallback pool.
 
 Without a failover, the site is down while the proxy is down. A container service restarts the proxy, such as ECS in about 1 to 2 minutes. Run two or more instances of the proxy to keep the site up during a restart.
 
