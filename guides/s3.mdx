@@ -14,7 +14,6 @@ import Missing from '/snippets/files/missing.mdx';
 import Live from '/snippets/files/live.mdx';
 import Retention from '/snippets/files/retention.mdx';
 import Instances from '/snippets/files/instances.mdx';
-import Planned from '/snippets/planned.mdx';
 
 Use `ssp proxy s3` for a static site in an S3 bucket. The proxy serves the files of the bucket, like a static website endpoint. Each subject can get a different build.
 
@@ -138,7 +137,6 @@ The role `acme-site-deploy` needs the permissions of `acme-site-ci`, and `s3:Put
   </Step>
 
   <Step title="Run the proxy">
-    <Planned />
 
     Run `ssp proxy s3` with the bucket. Set `STATESPACE_TOKEN` to the secret. The proxy asks Statespace which app the token is for.
 

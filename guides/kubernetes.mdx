@@ -4,8 +4,6 @@ sidebarTitle: Kubernetes
 description: Run ssp proxy kubernetes as its own Deployment in front of your app, with each arm as a copy of your Deployment.
 ---
 
-import Planned from '/snippets/planned.mdx';
-
 On Kubernetes, the proxy runs as its own Deployment in front of your app. Each arm runs as a copy of your Deployment with another image.
 
 ```text
@@ -30,8 +28,6 @@ visitors ─► shop-proxy ──┼─► checkout c0ffee1 (arm)
 - `kubectl` with rights to make a Role in the namespace.
 
 ## Set up the proxy
-
-<Planned />
 
 The proxy asks Statespace which app its runtime token is for.
 

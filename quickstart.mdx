@@ -5,7 +5,6 @@ description: Run an experiment on Docker that compares the live commit with a ch
 
 import BuildWorkflow from '/snippets/build-workflow.mdx';
 import StarterToml from '/snippets/starter-toml.mdx';
-import Planned from '/snippets/planned.mdx';
 
 In this tutorial, you test a change to the app `shop-dev` on live traffic. The app runs on one machine with Docker. At the end, the experiment `checkout` runs: 5% of the visitors get the live commit, and 5% get your change. The commit status `statespace/shop-dev/checkout` on each commit shows the evidence.
 
@@ -78,7 +77,6 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
   </Step>
 
   <Step title="Run the proxy">
-    <Planned />
 
     On the machine, write `compose.yaml`. The service `shop` runs live: the build of `main`, by digest. The service `ssp` runs the proxy next to it, on port 80. When your app runs with Compose already, add `container_name: shop` and the service `ssp` to your file.
 

@@ -4,8 +4,6 @@ sidebarTitle: Fly.io
 description: Run ssp proxy fly as its own Fly.io app in front of your app, with each arm as a Machine of your app.
 ---
 
-import Planned from '/snippets/planned.mdx';
-
 On Fly.io, the proxy runs as its own app in front of your app, in the same organization. Each arm runs as a Machine of your app, without services.
 
 ```text
@@ -40,8 +38,6 @@ Your deploy workflow does not change. `fly deploy` of your app changes live only
 - The `fly` CLI with rights to manage apps in the organization.
 
 ## Set up the proxy
-
-<Planned />
 
 The proxy asks Statespace which app its runtime token is for.
 

@@ -4,10 +4,6 @@ sidebarTitle: Cloud Run
 description: Run ssp proxy cloudrun as its own Cloud Run service in front of your service, with each arm as its own Cloud Run service.
 ---
 
-import Planned from '/snippets/planned.mdx';
-
-<Planned />
-
 On Cloud Run, the proxy runs as its own service in front of your service. Each arm runs as its own Cloud Run service: a copy of your service with another image. The proxy never changes your service.
 
 ```text
