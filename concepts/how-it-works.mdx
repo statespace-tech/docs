@@ -4,7 +4,6 @@ description: The parts of Statespace, and what each part does with a request.
 ---
 
 import TrafficDiagram from '/snippets/traffic-diagram.mdx';
-import Planned from '/snippets/planned.mdx';
 
 What runs when you start an experiment, and who decides what?
 
@@ -35,8 +34,6 @@ In this example, the app `shop-prod` runs two experiments. `checkout` has two ar
 The proxy never waits on Statespace during a request. It gets its configuration in the background. When something is wrong, the request goes to live. See [Subjects and assignment](/concepts/subjects).
 
 ## Live and the arms
-
-<Planned />
 
 - **Live** is the service that you run now. It serves every request outside the experiments. Statespace never records it.
 - **An arm** is one commit in one experiment. The proxy runs a copy of the commit's image for it, or serves the commit's files. Statespace records it.

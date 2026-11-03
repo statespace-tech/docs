@@ -3,8 +3,6 @@ title: API
 description: Every route of the Statespace API, its body, and its response.
 ---
 
-import Planned from '/snippets/planned.mdx';
-
 The CLI, the dashboard, the action, and the proxy use this API. Agents and scripts can use it too.
 
 ```text
@@ -28,8 +26,6 @@ curl -sS https://api.statespace.com/v1/apps \
 ### POST /v1/ci/builds
 
 Record a build. The credential is the OIDC token of the GitHub Actions job. The repo and the commit come from the token. `statespace-tech/action` calls this route.
-
-<Planned />
 
 | Body | Type | Means |
 | --- | --- | --- |
@@ -170,8 +166,6 @@ The runtime configuration of the app.
   "poll_interval_seconds": 5
 }
 ```
-
-<Planned />
 
 Each build in the runtime API, in `live`, in each arm, and in each item of `/builds`, has exactly one of `image` and `files`:
 

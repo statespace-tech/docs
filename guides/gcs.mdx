@@ -13,9 +13,6 @@ import Missing from '/snippets/files/missing.mdx';
 import Live from '/snippets/files/live.mdx';
 import Retention from '/snippets/files/retention.mdx';
 import Instances from '/snippets/files/instances.mdx';
-import Planned from '/snippets/planned.mdx';
-
-<Planned />
 
 Use `ssp proxy gcs` for a static site in a Cloud Storage bucket. The proxy serves the files of the bucket, like a static website endpoint. Each subject can get a different build.
 
@@ -41,7 +38,7 @@ visitors ─► site-proxy ─┼─► gs://acme-site/builds/c0ffee1…/
 - An app, such as `site-prod`.
 - A Workload Identity Federation provider for GitHub Actions, and the service account `site-ci` that CI uses.
 - A container service near the bucket for the proxy. See [Where to run the proxy](#where-to-run-the-proxy).
-- The proxy image `ghcr.io/statespace-tech/statespace` of the [latest release](https://github.com/statespace-tech/statespace/releases/latest), in a registry that your container service can use.
+- The proxy image `ghcr.io/statespace-tech/statespace:0.4.1`, in a registry that your container service can use.
 
 ## Record each build
 
@@ -196,7 +193,7 @@ In the commands, the proxy runs on Cloud Run in `us-east1`.
     ```shell
     gcloud run deploy site-proxy \
       --region us-east1 \
-      --image <registry>/statespace-tech/statespace:<version> \
+      --image <registry>/statespace-tech/statespace:0.4.1 \
       --service-account "$proxy" \
       --set-secrets STATESPACE_TOKEN=site-statespace-token:latest \
       --no-cpu-throttling --min-instances 1 \

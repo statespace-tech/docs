@@ -4,8 +4,6 @@ sidebarTitle: SQL
 description: Read the assignments, requests, logs, and events of each arm with your own read-only PostgreSQL login.
 ---
 
-import Planned from '/snippets/planned.mdx';
-
 This guide shows how to read the data of your apps with SQL. Each person has
 one PostgreSQL login. It only reads, and it reads only the apps whose repo
 you can read on GitHub.
@@ -133,8 +131,6 @@ The rules of the names:
 4. `timestamp` is the time of a row. A name that ends in `_at` is a step,
    such as `started_at`.
 5. `_ms` is milliseconds, and `_bytes` is bytes.
-
-<Planned />
 
 Some details:
 

@@ -14,9 +14,6 @@ import Missing from '/snippets/files/missing.mdx';
 import Live from '/snippets/files/live.mdx';
 import Retention from '/snippets/files/retention.mdx';
 import Instances from '/snippets/files/instances.mdx';
-import Planned from '/snippets/planned.mdx';
-
-<Planned />
 
 Use `ssp proxy s3` for a static site in an S3 bucket. The proxy serves the files of the bucket, like a static website endpoint. Each subject can get a different build.
 
@@ -42,7 +39,7 @@ visitors ─► site-proxy ─┼─► s3://acme-site/builds/c0ffee1…/
 - An app, such as `site-prod`.
 - An IAM role that GitHub Actions can assume with OIDC, such as `acme-site-ci`.
 - A container service near the bucket for the proxy. See [Where to run the proxy](#where-to-run-the-proxy).
-- The proxy image `ghcr.io/statespace-tech/statespace` of the [latest release](https://github.com/statespace-tech/statespace/releases/latest).
+- The proxy image `ghcr.io/statespace-tech/statespace:0.4.1`.
 
 ## Record each build
 
@@ -185,7 +182,7 @@ This part of an ECS task definition runs the proxy on Fargate:
 "containerDefinitions": [
   {
     "name": "proxy",
-    "image": "ghcr.io/statespace-tech/statespace:<version>",
+    "image": "ghcr.io/statespace-tech/statespace:0.4.1",
     "command": [
       "proxy", "s3",
       "--bucket", "acme-site",

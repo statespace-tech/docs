@@ -37,7 +37,7 @@ Your deploy workflow does not change. A deploy of a new live gets all the traffi
 - The images that CI records, in a registry that Cloud Run can use, such as the Artifact Registry repository `shop` in `us-east1`.
 - An app, such as `shop-prod`, and a recorded build of the image that live runs.
 - The `gcloud` CLI with rights to manage the project.
-- The proxy image `ghcr.io/statespace-tech/statespace:0.4.0` in a registry that Cloud Run can use.
+- The proxy image `ghcr.io/statespace-tech/statespace:0.4.1` in a registry that Cloud Run can use.
 
 ## Set up the proxy
 
@@ -129,7 +129,7 @@ In the commands, `acme-shop` is the project.
     ```shell
     gcloud run deploy shop-proxy \
       --region us-east1 \
-      --image <registry>/statespace-tech/statespace:0.4.0 \
+      --image <registry>/statespace-tech/statespace:0.4.1 \
       --service-account "$proxy" \
       --set-secrets STATESPACE_TOKEN=shop-statespace-token:latest \
       --no-cpu-throttling --min-instances 1 \
