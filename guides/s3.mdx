@@ -94,7 +94,7 @@ jobs:
           --delete --exclude 'builds/*'
 ```
 
-`aws s3 sync --delete` does not delete the files that `--exclude` matches. So it keeps `builds/`.
+`aws s3 sync --delete` does not delete the files that `--exclude` matches. So it keeps `builds/`. See [Infrastructure as code](/guides/infrastructure-as-code).
 
 The role `acme-site-deploy` needs the permissions of `acme-site-ci`, and `s3:PutObject` and `s3:DeleteObject` on `arn:aws:s3:::acme-site/*`.
 

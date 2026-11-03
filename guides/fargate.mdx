@@ -26,7 +26,7 @@ visitors ─► shop-proxy ─┼─► checkout c0ffee1 service     (task IP)
 - The proxy sends the requests of an arm to the private IP address of a task. It reads the output of the arms from CloudWatch Logs.
 - When an experiment stops, the proxy deletes the services of its arms and their task definitions.
 
-Your deploy workflow does not change. Deploy a new live as usual, such as with `aws ecs update-service`. The arms stay.
+Your deploy workflow does not change. Deploy a new live as usual, such as with `aws ecs update-service`, Terraform, or CloudFormation. The arms stay. See [Infrastructure as code](/guides/infrastructure-as-code).
 
 <Note>
   ECS must be able to pull the images of the arms. Push the images that CI records to a registry that the execution role of `shop` can read, such as Amazon ECR.

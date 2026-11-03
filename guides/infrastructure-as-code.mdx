@@ -1,0 +1,97 @@
+---
+title: Use Statespace with infrastructure as code
+sidebarTitle: Infrastructure as code
+description: Keep Terraform, OpenTofu, Pulumi, CloudFormation, Helm, Argo CD, Flux, and Compose as they are. The proxy never changes what you deployed.
+---
+
+import Planned from '/snippets/planned.mdx';
+
+<Planned />
+
+Use this page to see what your infrastructure tools see when `ssp proxy` runs. You need no setting in any tool.
+
+## Why your tools keep working
+
+- The proxy never changes a resource that it did not create. Your service, your Deployment, your container, and your bucket stay as you deployed them.
+- Each arm is a separate resource that the proxy creates, labels, and deletes. Your tools do not manage it.
+- The labels of an arm are `statespace.com/app`, `statespace.com/experiment`, and `statespace.com/commit`. On Cloud Run, they are `statespace-app`, `statespace-experiment`, and `statespace-commit`.
+- When an experiment stops, the proxy deletes its arms.
+
+| Runtime | Each arm is |
+| --- | --- |
+| Docker | A container, `<live container>-ssp-…`, with no Compose labels |
+| Cloud Run | A service, `<service>-ssp-<experiment>-<commit 12>` |
+| Kubernetes | A Deployment and a Service, `<deployment>-ssp-…` |
+| ECS Fargate | An ECS service and a task definition, `<service>-ssp-…` |
+| Fly.io | A Machine, `ssp-<experiment>-<commit 12>` |
+| S3, Cloud Storage | A build folder that your CI uploads, such as `builds/<commit>/` |
+
+The proxy itself is a resource that you deploy. Manage it with the same tool as live.
+
+## Before you delete live
+
+Stop the experiments of the app before you delete the infrastructure of live. Then the proxy deletes the arms. An arm that stays can block a delete, such as the delete of an ECS cluster that still has services.
+
+```shell
+ssp experiment list --app shop-prod --running
+ssp experiment stop checkout --app shop-prod \
+  --note "remove the stack"
+```
+
+## Terraform, OpenTofu, and Pulumi
+
+- `terraform plan`, `tofu plan`, and `pulumi preview` show no change for your resources. The proxy does not change them.
+- A full apply of your service while arms run does not change the arms.
+- The arms are not in your state. `terraform destroy` and `pulumi destroy` do not delete them. See [Before you delete live](#before-you-delete-live).
+- Keep the IAM bindings of the proxy in your code too, such as the custom role on Cloud Run. See [Cloud Run](/guides/cloud-run).
+
+## AWS CloudFormation and CDK
+
+- Drift detection shows no drift for the resources of your stack.
+- On ECS Fargate, the services and task definitions of the arms are not in your stack.
+- CloudFormation cannot delete an ECS cluster that has services. Stop the experiments before you delete the stack.
+
+## Helm
+
+- `helm upgrade` and `helm uninstall` change only the objects of the release. The Deployments and Services of the arms are not in the release.
+- `helm diff` shows no change for your objects.
+
+## Argo CD
+
+- Argo CD does not track the Deployments and Services of the arms, so it never prunes them. Your Application stays `Synced`.
+- When the project of the Application monitors orphaned resources, Argo CD lists the arms as orphaned resources in the namespace. This is expected. The proxy deletes them when the experiment stops.
+- The proxy's own Deployment can be part of the Application.
+
+## Flux
+
+- A Kustomization or a HelmRelease with `prune: true` deletes only the objects that Flux applied. The arms are not among them.
+- Your Deployment stays as Flux applied it, so Flux finds no drift.
+
+## Docker Compose
+
+- `docker compose up -d` creates the container of live again when its image changes. The proxy sends live traffic to the new container within seconds.
+- `docker compose up --remove-orphans` and `docker compose down` do not remove the arms, because the arms have no Compose labels.
+- `docker compose down` stops the proxy. When the proxy stops, it removes its arms.
+
+See [Docker](/guides/docker).
+
+## S3 and Cloud Storage
+
+The builds are folders in the bucket of live, such as `builds/`. A deploy that deletes unknown files also deletes the builds, and then the subjects of the arms get live.
+
+- With `aws s3 sync --delete`, add `--exclude 'builds/*'`.
+- With `gcloud storage rsync --delete-unmatched-destination-objects`, add `--exclude 'builds/.*'`.
+- A tool that manages each object of the bucket, such as Terraform with one resource for each file, must leave out `builds/`.
+
+See [S3](/guides/s3#deploy-live) and [Cloud Storage](/guides/gcs).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="How it works" icon="workflow" href="/concepts/how-it-works#alongside-live">
+    See how the proxy runs alongside live.
+  </Card>
+  <Card title="Fall back to live" icon="life-buoy" href="/guides/fall-back-to-live">
+    Send traffic to live when the proxy is down.
+  </Card>
+</CardGroup>

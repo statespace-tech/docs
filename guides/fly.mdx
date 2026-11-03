@@ -27,7 +27,7 @@ visitors ─► shop-statespace ─┼─► checkout c0ffee1 VM  (private IPv6)
 - The proxy sends the requests of an arm to the private IPv6 address of its Machine, on the 6PN network of the organization. It reads the output of the arms from the logs of the app.
 - When an experiment stops, the proxy destroys the Machines of its arms.
 
-Your deploy workflow does not change. `fly deploy` of your app changes live only. The arms stay.
+Your deploy workflow does not change. `fly deploy` of your app changes live only. The arms stay. See [Infrastructure as code](/guides/infrastructure-as-code).
 
 <Warning>
   The arms get the secrets of your app. Never set a secret that starts with `STATESPACE_` on your app.

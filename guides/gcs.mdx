@@ -135,7 +135,7 @@ jobs:
           --exclude 'builds/.*'
 ```
 
-`--exclude` takes a Python regular expression. It matches the path relative to the source and to the destination. So `rsync` does not copy, and does not delete, objects under `builds/`.
+`--exclude` takes a Python regular expression. It matches the path relative to the source and to the destination. So `rsync` does not copy, and does not delete, objects under `builds/`. See [Infrastructure as code](/guides/infrastructure-as-code).
 
 <Warning>
   A deploy that deletes unknown files, such as `--delete-unmatched-destination-objects` without `--exclude 'builds/.*'`, deletes the builds. Then the subjects of the arms get live.
