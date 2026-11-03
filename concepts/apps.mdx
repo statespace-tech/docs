@@ -18,7 +18,7 @@ ssp app add shop-prod --note "shop, production"
 - Several apps can come from one folder. Each app can have its own section in `statespace.toml`, such as `[app.shop-dev]`.
 - Each experiment in `statespace.toml` exists in each app of the folder. Its arms and its state are different for each app.
 - Each app is an independent layer. See [Apps are layers](/concepts/subjects#apps-are-layers).
-- Only `ssp app add` makes an app. `ssp proxy --app shop-prod` fails when the app does not exist.
+- Only `ssp app add` makes an app. A runtime token is for one app, and the proxy gets its app from its token.
 - A name has 1 to 63 characters: lowercase letters, digits, and `-`. It is unique in the workspace.
 
 ## Builds

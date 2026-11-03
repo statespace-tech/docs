@@ -14,6 +14,7 @@ import Missing from '/snippets/files/missing.mdx';
 import Live from '/snippets/files/live.mdx';
 import Retention from '/snippets/files/retention.mdx';
 import Instances from '/snippets/files/instances.mdx';
+import Planned from '/snippets/planned.mdx';
 
 Use `ssp proxy s3` for a static site in an S3 bucket. The proxy serves the files of the bucket, like a static website endpoint. Each subject can get a different build.
 
@@ -137,17 +138,19 @@ The role `acme-site-deploy` needs the permissions of `acme-site-ci`, and `s3:Put
   </Step>
 
   <Step title="Run the proxy">
-    Run `ssp proxy s3` with the app and the bucket. Set `STATESPACE_TOKEN` to the secret.
+    <Planned />
+
+    Run `ssp proxy s3` with the bucket. Set `STATESPACE_TOKEN` to the secret. The proxy asks Statespace which app the token is for.
 
     ```shell
-    ssp proxy s3 --app site-prod --bucket acme-site \
+    ssp proxy s3 --bucket acme-site \
       --region us-east-1 --cache
     ```
 
     For an S3-compatible store, add its address with `--endpoint`, such as for Cloudflare R2. The proxy puts the bucket in the path of each request. With `--endpoint` and without `--region`, the region is `us-east-1`.
 
     ```shell
-    ssp proxy s3 --app site-prod --bucket acme-site \
+    ssp proxy s3 --bucket acme-site \
       --endpoint https://<account>.r2.cloudflarestorage.com \
       --region auto
     ```
@@ -190,9 +193,6 @@ This part of an ECS task definition runs the proxy on Fargate:
       "--cache"
     ],
     "portMappings": [{"containerPort": 8080}],
-    "environment": [
-      {"name": "STATESPACE_APP", "value": "site-prod"}
-    ],
     "secrets": [
       {
         "name": "STATESPACE_TOKEN",

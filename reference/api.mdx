@@ -3,6 +3,8 @@ title: API
 description: Every route of the Statespace API, its body, and its response.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 The CLI, the dashboard, the action, and the proxy use this API. Agents and scripts can use it too.
 
 ```text
@@ -133,6 +135,18 @@ dashboard.
 ## Runtime
 
 Only runtime tokens use these routes. The proxy calls them.
+
+### GET /v1/runtime/app
+
+<Planned />
+
+The app of the runtime token in `Authorization: Bearer`. The proxy calls it at start.
+
+```json
+{"app": "shop-prod"}
+```
+
+An invalid token gets 401 or 403, as on the other runtime routes.
 
 ### GET /v1/runtime/apps/\{app\}
 

@@ -3,6 +3,8 @@ title: CLI
 description: Every ssp command, argument, and flag, and what each command prints.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 `ssp` adds and removes apps and tokens, sets the arms of experiments, starts and stops experiments, runs the proxy, and gives your SQL login. The proxy runs on Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io, S3, and Cloud Storage. Install it with the [install script](/getting-started/installation#cli).
 
 ```text
@@ -18,7 +20,7 @@ ssp login | logout | whoami
 ## Conventions
 
 - Commands have the form `ssp <noun> <verb> <object>`. The object is positional, such as the app name or the experiment name.
-- `--app` names the app of an experiment, a token, or a proxy. You can leave it out when the current folder is linked to exactly one app. `ssp proxy` always needs it.
+- `--app` names the app of an experiment or a token. You can leave it out when the current folder is linked to exactly one app. `ssp proxy` takes no `--app`: it gets the app from its runtime token.
 - A commit is the full commit or its first 7 characters or more.
 - A share is a fraction, such as `0.05`. It is never `5` or `5%`.
 - No command asks a question, except `ssp login`.
@@ -339,30 +341,39 @@ It prints the new connection string, as `ssp db url` does.
 
 ## ssp proxy docker
 
-Run the proxy on a machine with Docker. Live and the arms run as containers. See [Docker](/guides/docker).
+<Planned />
+
+Run the proxy next to a live container that you run, such as the container of a Compose service. The proxy sends live traffic to it, and runs each arm as a copy of it with another image. See [Docker](/guides/docker).
 
 ```shell
-ssp proxy docker --app shop-dev \
-  --image-file /etc/shop/image
+ssp proxy docker --live-container shop \
+  --health /health
 ```
 
-<ParamField body="--image-file" type="string" required>
-  A file that holds the live image. When the file changes, the proxy deploys the new live.
+<ParamField body="--live-container" type="string" required>
+  The container that runs live, by name or ID. The proxy never changes it. When you create it again, the proxy sends live traffic to the new container.
+</ParamField>
+
+<ParamField body="--live-port" type="number">
+  The port that live listens on in its container. Default: the only TCP port that the container exposes.
 </ParamField>
 
 <ParamField body="--health" type="string">
   A path, such as `/health`. An arm is ready when this path answers with a 2xx status. Without it, an arm is ready when it accepts a TCP connection.
 </ParamField>
 
+The proxy uses the Docker Engine API at `DOCKER_HOST` (`unix://`, or `tcp://` without TLS), or at `/var/run/docker.sock`.
+
 The [proxy flags](#proxy-flags) also apply.
 
 ## ssp proxy cloudrun
 
-Run the proxy in front of a Cloud Run service. Each arm runs as a tagged revision of the service. See [Cloud Run](/guides/cloud-run).
+<Planned />
+
+Run the proxy in front of a Cloud Run service. Each arm runs as its own Cloud Run service, a copy of the service with another image. See [Cloud Run](/guides/cloud-run).
 
 ```shell
-ssp proxy cloudrun --app shop-prod \
-  --service shop --region us-east1
+ssp proxy cloudrun --service shop --region us-east1
 ```
 
 <ParamField body="--service" type="string" required>
@@ -384,8 +395,8 @@ The [proxy flags](#proxy-flags) also apply.
 Run the proxy in front of a Kubernetes Deployment. Each arm runs as a copy of the Deployment. See [Kubernetes](/guides/kubernetes).
 
 ```shell
-ssp proxy kubernetes --app shop-prod \
-  --deployment shop --namespace prod
+ssp proxy kubernetes --deployment shop \
+  --namespace prod
 ```
 
 <ParamField body="--deployment" type="string" required>
@@ -411,8 +422,7 @@ The [proxy flags](#proxy-flags) also apply.
 Run the proxy in front of an ECS service on Fargate. Each arm runs as an ECS service in the same cluster, from a copy of the task definition with another image. See [ECS Fargate](/guides/fargate).
 
 ```shell
-ssp proxy fargate --app shop-prod \
-  --cluster shop --service shop \
+ssp proxy fargate --cluster shop --service shop \
   --live-url http://internal-shop.example.com
 ```
 
@@ -447,7 +457,7 @@ The proxy uses the AWS default credential chain. The [proxy flags](#proxy-flags)
 Run the proxy in front of a Fly.io app. Each arm runs as a Machine of the app, without services. See [Fly.io](/guides/fly).
 
 ```shell
-ssp proxy fly --app shop-prod --fly-app shop
+ssp proxy fly --fly-app shop
 ```
 
 <ParamField body="--fly-app" type="string" required>
@@ -481,7 +491,7 @@ The [proxy flags](#proxy-flags) also apply.
 Run the proxy in front of a static site in an S3 bucket, or in an S3-compatible store. Live is the root of the bucket. Each arm is the build folder of its commit. The proxy only reads the bucket. See [S3](/guides/s3).
 
 ```shell
-ssp proxy s3 --app site-prod --bucket acme-site \
+ssp proxy s3 --bucket acme-site \
   --region us-east-1 --cache
 ```
 
@@ -512,7 +522,7 @@ The proxy uses the AWS default credential chain and SigV4. It needs `s3:ListBuck
 Run the proxy in front of a static site in a Cloud Storage bucket. Live is the root of the bucket. Each arm is the build folder of its commit. The proxy only reads the bucket. See [Cloud Storage](/guides/gcs).
 
 ```shell
-ssp proxy gcs --app site-prod --bucket acme-site --cache
+ssp proxy gcs --bucket acme-site --cache
 ```
 
 <ParamField body="--bucket" type="string" required>
@@ -531,18 +541,18 @@ The proxy uses Google credentials: the metadata server, or Application Default C
 
 ## Proxy flags
 
+<Planned />
+
 Each `ssp proxy` command takes these flags. All other settings come from [`statespace.toml`](/reference/statespace-toml).
 
-<ParamField body="--app" type="string" required>
-  The app. The command fails when the app does not exist. Environment variable: `STATESPACE_APP`.
-</ParamField>
+The proxy gets its app from its runtime token. At start, it asks Statespace which app the token is for, with [`GET /v1/runtime/app`](/reference/api#runtime). When Statespace refuses the token, the proxy stops with an error.
 
 <ParamField body="--listen" type="string" default="0.0.0.0:8080">
   The address that the proxy listens on.
 </ParamField>
 
-<ParamField body="--token" type="string">
-  The runtime token of the app. Environment variable: `STATESPACE_TOKEN`.
+<ParamField body="--token" type="string" required>
+  The runtime token of the app, from `ssp token add`. Environment variable: `STATESPACE_TOKEN`.
 </ParamField>
 
 <ParamField body="--api" type="string" default="https://api.statespace.com">

@@ -4,6 +4,8 @@ sidebarTitle: ECS Fargate
 description: Run ssp proxy fargate as its own ECS service in front of your service, with each arm as an ECS service in the same cluster.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 On ECS Fargate, the proxy runs as its own ECS service in front of your service. Each arm runs as an ECS service in the same cluster, from a copy of your task definition with another image.
 
 ```text
@@ -39,6 +41,10 @@ Your deploy workflow does not change. Deploy a new live as usual, such as with `
 - The AWS CLI with rights to manage IAM, ECS, and Secrets Manager. In the commands, `123456789012` is the account.
 
 ## Set up the proxy
+
+<Planned />
+
+The proxy asks Statespace which app its runtime token is for.
 
 <Steps>
   <Step title="Give the proxy its permissions">
@@ -135,9 +141,6 @@ Your deploy workflow does not change. Deploy a new live as usual, such as with `
             "--live-url", "http://internal-shop.example.com"
           ],
           "portMappings": [{"containerPort": 8080}],
-          "environment": [
-            {"name": "STATESPACE_APP", "value": "shop-prod"}
-          ],
           "secrets": [
             {
               "name": "STATESPACE_TOKEN",

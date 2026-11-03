@@ -13,6 +13,7 @@ import Missing from '/snippets/files/missing.mdx';
 import Live from '/snippets/files/live.mdx';
 import Retention from '/snippets/files/retention.mdx';
 import Instances from '/snippets/files/instances.mdx';
+import Planned from '/snippets/planned.mdx';
 
 Use `ssp proxy gcs` for a static site in a Cloud Storage bucket. The proxy serves the files of the bucket, like a static website endpoint. Each subject can get a different build.
 
@@ -142,6 +143,10 @@ jobs:
 
 ## Set up the proxy
 
+<Planned />
+
+The proxy asks Statespace which app its runtime token is for.
+
 In the commands, the proxy runs on Cloud Run in `us-east1`.
 
 <Steps>
@@ -197,12 +202,11 @@ In the commands, the proxy runs on Cloud Run in `us-east1`.
       --service-account "$proxy" \
       --set-secrets STATESPACE_TOKEN=site-statespace-token:latest \
       --no-cpu-throttling --min-instances 1 \
-      --args=proxy,gcs,--app,site-prod,\
---bucket,acme-site,--cache \
+      --args=proxy,gcs,--bucket,acme-site,--cache \
       --allow-unauthenticated
     ```
 
-    The command runs `ssp proxy gcs --app site-prod --bucket acme-site --cache`. For a single-page app, add `--fallback`. See [Single-page apps](#single-page-apps).
+    The command runs `ssp proxy gcs --bucket acme-site --cache`. The proxy asks Statespace which app its runtime token is for. For a single-page app, add `--fallback`. See [Single-page apps](#single-page-apps).
   </Step>
 
   <Step title="Send traffic to the proxy">
