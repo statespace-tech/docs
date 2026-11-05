@@ -23,7 +23,8 @@ Statespace never keeps data about live or overrides. See [What Statespace keeps]
 
 | Limit | Value |
 | --- | --- |
-| One account | 10 GiB. Statespace warns at 80% |
+| One account on the free plan | 1 GiB. Statespace warns at 80% |
+| One account on another plan | 10 GiB, unless Statespace gives the account its own limit. Statespace warns at 80% |
 | One visitor of a running version | 256 bytes of the storage of the account |
 | Visitors in the memory of one proxy instance, before it sends them | 50,000. Above this, the proxy drops the oldest |
 
