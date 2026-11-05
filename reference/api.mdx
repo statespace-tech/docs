@@ -364,8 +364,6 @@ An `App`, with these fields:
 | `image` or `files` | The build: an image, or `{"location", "hash"}`. An arm has one of the two, never both |
 | `ready` | `true` when the copy of the arm is ready |
 | `reason` | Why the arm is not ready, or `null` |
-| `ahead`, `behind` | Commits ahead of and behind the live commit |
-| `live_contains` | `true` when the live commit contains the arm's commit |
 | `added_by`, `added_at` | Who added the arm, and when |
 
 ### ExperimentDetail
@@ -378,7 +376,6 @@ An `Experiment`, with these fields:
 | `results` | The results of one version, or `null` before the first start. See [Results](#results) |
 | `versions` | `[{"version", "arms", "started_at", "started_by", "stopped_at", "stopped_by", "stop_note"}]`. `stop_note` is the note of the stop, or why Statespace stopped the version |
 | `history` | `[{"at", "actor", "via", "text", "note"}]`: what changed, who changed it, and how. `actor`, `via`, and `note` can be `null` |
-| `drift` | `{"live_commit"}`, or `null` |
 | `override_urls` | `{"<commit>": url}`, or `null` |
 
 ### Results
