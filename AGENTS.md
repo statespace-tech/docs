@@ -13,7 +13,7 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
   image by digest (`image:`) or a folder of files in a bucket (`files:`). The proxy runs only recorded builds.
 - An experiment is a named comparison of commits in one app. Its table `[experiment.<name>]` is in
   `statespace.toml`. Its arms are commits with exact shares, set with
-  `ssp experiment update <name> --arm <commit>=<share>`. The first arm is the reference.
+  `ssp experiment update <name> --arm <commit>=<share>`. The first arm shows first.
 - `ssp experiment start` and `ssp experiment stop` run an experiment. Each start is a new version. A
   running experiment does not change.
 - Experiments in one app never overlap, because each arm is a full build. Different apps are independent
@@ -24,8 +24,13 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
   runtime token. It runs alongside live: it never changes what it did not create, and each arm is a resource
   that it creates, labels, and deletes. The instance that holds the lease runs the arms. `s3` and `gcs` serve static sites: live is the bucket root, and each arm
   is a build folder. Any CDN can sit in front of the proxy.
-- Settings, events, metrics, and experiments live in `statespace.toml`, with `[app.<name>]` sections.
-  Events and metrics are CEL.
+- Events and experiments live in `statespace.toml`, with `[app.<name>]` sections. An event is a CEL rule
+  over one request and its response.
+- The proxy counts the visitors of each arm. Results per arm: visitors, requests per visitor, error rate,
+  latency p50 and p90, and each event's % of visitors, with 95% margins, and the split check. Statespace
+  keeps no requests, bodies, headers, cookies, logs, or visitor IDs.
+- Each arm carries labels for the customer's own tools: resource labels, `SSP_*` variables,
+  `OTEL_RESOURCE_ATTRIBUTES`, `ssp-experiment`/`ssp-arm` headers, and the `ssp_arms` cookie.
 - Evidence goes on each arm's commit as the commit status `statespace/<app>/<experiment>`.
 - Overrides (`?ssp=<experiment>:<commit>`) let testers open an arm of a running experiment. They are always
   on; there is no setting.
@@ -40,11 +45,11 @@ models that were removed. When the spec is silent, do not invent behavior.
   second person, present tense. Keep sentences in procedures to 20 words or fewer.
 - Do not use filler such as "simply", "just", "please note", or "it's worth noting".
 - Use one term for each thing: **app**, **live**, **live commit**, **build**, **experiment**, **arm**
-  (never "variant"), **reference**, **subject**, **share**, **version**, **unit**, **override**,
-  **event**, **metric**, **orchestrator**.
+  (never "variant"), **subject**, **share**, **version**, **unit**, **override**,
+  **event**, **visitor**, **orchestrator**.
 - Use one example everywhere: the organization `acme`, the repo `acme/shop`, the apps `shop-dev` and
   `shop-prod`, the experiments `checkout` and `us-landing`, the live commit `c0ffee1`, the commit
-  `a1b2c3d`, the event `purchase`, the metric `purchase rate %`, and the image
+  `a1b2c3d`, the event `purchase`, and the image
   `ghcr.io/acme/shop@sha256:…`. Use only neutral, invented names. Never
   use the names of customers. Write secrets as `<secret>`.
 

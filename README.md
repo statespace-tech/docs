@@ -36,10 +36,11 @@ Pushes and pull requests run both checks in GitHub Actions.
 The documentation has four sections.
 
 - Get started: the introduction, the quickstart, and installation.
-- Concepts: how it works, apps and live, experiments, subjects and assignment, events and metrics,
-  evidence, overrides, and permissions.
+- Concepts: how it works, apps and live, experiments, subjects and assignment, events, results and
+  evidence, what Statespace keeps, overrides, and permissions.
 - Guides: CI on GitHub Actions; the proxy on Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io,
-  S3, and Cloud Storage; a CDN in front of the proxy; events and metrics; emergency stops; and agents.
+  S3, and Cloud Storage; a CDN in front of the proxy; fallback to live; infrastructure as code; events;
+  arms in your own tools; emergency stops; and agents.
 - Reference: the CLI, `statespace.toml` with a starter file, the API, CEL variables, commit statuses,
   and limits.
 
