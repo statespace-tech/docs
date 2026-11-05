@@ -4,8 +4,9 @@ description: Every key of statespace.toml, the experiment tables, the per-app se
 ---
 
 import StarterToml from '/snippets/starter-toml.mdx';
+import Planned from '/snippets/planned.mdx';
 
-`statespace.toml` holds the settings, events, metrics, and experiments of the apps that run from its folder. It has no app name: the name comes from `ssp app add` and the runtime token of the proxy. Several apps can run from one folder, such as `shop-dev` and `shop-prod`.
+`statespace.toml` holds the events and experiments of the apps that run from its folder. It has no app name: the name comes from `ssp app add` and the runtime token of the proxy. Several apps can run from one folder, such as `shop-dev` and `shop-prod`.
 
 ## Starter file
 
@@ -16,20 +17,14 @@ Write this file in the folder of your app's code. A person or a coding agent can
 ## Full example
 
 ```toml statespace.toml
-redact = ['\b\d{16}\b']
-
-# Shared events and metrics: in every experiment.
+# Shared events: in every experiment.
 [[event]]
 name = "purchase"
 match = '''
 request.method == "POST"
   && request.path == "/checkout"
-  && request.status < 300
+  && response.status < 300
 '''
-
-[[metric]]
-label = "purchase rate %"
-value = '100.0 * events["purchase"].subjects / subjects'
 
 # Experiments, in priority order.
 [experiment.checkout]
@@ -43,10 +38,6 @@ request.method == "POST"
   && request.path == "/checkout/coupon"
 '''
 
-[[experiment.checkout.metric]]
-label = "coupon use %"
-value = '100.0 * events["coupon"].subjects / subjects'
-
 [experiment.us-landing]
 eligibility = 'request.headers["cf-ipcountry"] == "US"'
 max_traffic = 0.15
@@ -58,16 +49,8 @@ max_traffic = 1.0
 
 ## Settings
 
-<ParamField path="redact" type="string[]">
-  Regular expressions. The proxy replaces their matches in output lines, request paths, and queries with `[redacted]` before they leave the machine.
-</ParamField>
-
 <ParamField path="[[event]]" type="table">
   A shared event, with `name` and `match`. It applies to every experiment. See [Events](#events).
-</ParamField>
-
-<ParamField path="[[metric]]" type="table">
-  A shared metric, with `label` and `value`. It applies to every experiment. See [Metrics](#metrics).
 </ParamField>
 
 <ParamField path="[experiment.<name>]" type="table">
@@ -87,7 +70,7 @@ Each table `[experiment.<name>]` defines one experiment. An empty table is an ex
 </ParamField>
 
 <ParamField path="eligibility" type="CEL → bool" default="everyone">
-  Who can enter the experiment. When the expression is false or has an error, the experiment skips the request. Statespace counts each error.
+  Who can enter the experiment. When the expression is false or has an error, the experiment skips the request.
 </ParamField>
 
 <ParamField path="max_traffic" type="number" default="0.2">
@@ -98,13 +81,9 @@ Each table `[experiment.<name>]` defines one experiment. An empty table is an ex
   An own event of the experiment, with `name` and `match`. It applies only to this experiment.
 </ParamField>
 
-<ParamField path="[[experiment.<name>.metric]]" type="table">
-  An own metric of the experiment, with `label` and `value`. It applies only to this experiment.
-</ParamField>
-
 - A name has 1 to 40 characters: lowercase letters, digits, and `-`.
 - Each experiment exists in every app of the folder. Its arms and its state are different for each app.
-- `subject` and `eligibility` use `request` with `method`, `path`, `query`, `headers`, and `cookies`. See [CEL variables](/reference/cel).
+- `subject` and `eligibility` use `request` with `method`, `host`, `path`, `query`, `headers`, and `cookies`. They run before the response exists, so they cannot use `response`. See [CEL variables](/reference/cel).
 
 ### Priority order
 
@@ -112,41 +91,31 @@ The order of the `[experiment.*]` tables is the priority order. When two running
 
 ## Events
 
-Each event defines a named count. See [Events and metrics](/concepts/events-and-metrics).
+<Planned />
+
+Each event defines a named count. See [Events](/concepts/events).
 
 <ParamField path="name" type="string" required>
-  The name of the event, such as `purchase` or `add_to_cart`. Metrics use it in `events["purchase"]`. A name is lowercase snake_case: a lowercase letter, then lowercase letters, digits, or `_`, at most 64 characters.
+  The name of the event, such as `purchase` or `add_to_cart`. The results show it as `purchase %`. A name is lowercase snake_case: a lowercase letter, then lowercase letters, digits, or `_`, at most 64 characters.
 </ParamField>
 
 <ParamField path="match" type="CEL → bool" required>
-  The rule. It uses exactly one source: `request`, `stdout`, or `stderr`.
-</ParamField>
-
-## Metrics
-
-Each metric is a formula over the totals of one arm.
-
-<ParamField path="label" type="string" required>
-  The name that the evidence shows, such as `purchase rate %`.
-</ParamField>
-
-<ParamField path="value" type="CEL → number" required>
-  The formula. See [CEL variables](/reference/cel#metric-value).
+  The rule, over one request and its response. It can use `request` and `response`. See [CEL variables](/reference/cel#event-match).
 </ParamField>
 
 ## Shared and own
 
-- Shared events and metrics apply to every experiment.
-- Own events and metrics of an experiment come after the shared ones, and apply only to it.
-- The same event name or metric label two times is an error in CI: `event "coupon" is defined twice`.
-- The **headline** is the first own metric of the experiment. When it has no own metric, the headline is the first shared metric.
+- Shared events apply to every experiment.
+- Own events of an experiment come after the shared ones, and apply only to it.
+- The same event name two times is an error in CI: `event "coupon" is defined twice`.
+- The results show one row for each event, in this order.
+- The **headline** is the first event of the experiment, shared events first. When the experiment has no events, the headline is the error rate.
 
 ## Per-app sections
 
 A section `[app.<name>]` holds settings for one app. It can hold:
 
-- `redact`. It replaces the shared value.
-- `[[app.<name>.event]]` and `[[app.<name>.metric]]`. They are added after the shared events and metrics.
+- `[[app.<name>.event]]`. They are added after the shared events.
 - `[app.<name>.experiment.<exp>]`, with experiment keys. They replace the shared keys of that experiment for that app.
 
 A section that matches no app gives a warning in CI. It is not an error.
@@ -166,7 +135,6 @@ A section that matches no app gives a warning in CI. It is not an error.
 | `subject`, `eligibility`, or `max_traffic` of the experiment, or removes its table | The experiment stops |
 | A shared event | Every running experiment of the app stops |
 | An own event of the experiment | The experiment stops |
-| A metric, shared or own | Nothing stops. Evidence uses the new formula. The history says `metric "purchase rate %" changed in live d00d123` |
 
 The note of the stop is "definition changed in live d00d123". `ssp experiment show`, the commit statuses, and the audit log give it, with the start command to run again. See [What a release does](/concepts/experiments#what-a-release-does).
 
@@ -176,7 +144,7 @@ The note of the stop is "definition changed in live d00d123". `ssp experiment sh
   <Card title="CEL variables" icon="braces" href="/reference/cel">
     Look up every variable and field.
   </Card>
-  <Card title="Write events and metrics" icon="pencil" href="/guides/events-and-metrics">
-    See examples for common measures.
+  <Card title="Write events" icon="pencil" href="/guides/events">
+    See examples for common events.
   </Card>
 </CardGroup>
