@@ -69,7 +69,7 @@
           "guides/cdn",
           "guides/fall-back-to-live",
           "guides/infrastructure-as-code",
-          "guides/events-and-metrics",
+          "guides/events",
           "guides/sql",
           "guides/emergency-stop",
           "guides/agents"
@@ -152,6 +152,10 @@
     {
       "source": "/concepts/events-and-metrics",
       "destination": "/concepts/events"
+    },
+    {
+      "source": "/guides/events-and-metrics",
+      "destination": "/guides/events"
     }
   ]
 }

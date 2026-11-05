@@ -5,6 +5,7 @@ description: Run an experiment on Docker that compares the live commit with a ch
 
 import BuildWorkflow from '/snippets/build-workflow.mdx';
 import StarterToml from '/snippets/starter-toml.mdx';
+import Planned from '/snippets/planned.mdx';
 
 In this tutorial, you test a change to the app `shop-dev` on live traffic. The app runs on one machine with Docker. At the end, the experiment `checkout` runs: 5% of the visitors get the live commit, and 5% get your change. The commit status `statespace/shop-dev/checkout` on each commit shows the evidence.
 
@@ -22,7 +23,7 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
   </Step>
 
   <Step title="Write statespace.toml">
-    In the root folder of the repo, write this starter file. It has one event, one metric, and one experiment. A coding agent can write this file for you.
+    In the root folder of the repo, write this starter file. It has one event and one experiment. A coding agent can write this file for you.
 
     <StarterToml />
 
@@ -88,7 +89,7 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
         restart: unless-stopped
 
       ssp:
-        image: ghcr.io/statespace-tech/statespace:0.4.3
+        image: ghcr.io/statespace-tech/statespace:0.5.0
         command:
           - proxy
           - docker
@@ -127,7 +128,7 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
   </Step>
 
   <Step title="Set the arms">
-    When the workflow is done, set the arms of `checkout`. The live commit is the first arm, so it is the reference. Your change is the second arm. Each arm gets 5% of the visitors.
+    When the workflow is done, set the arms of `checkout`. The live commit is the first arm. Your change is the second arm. Each arm gets 5% of the visitors.
 
     ```shell
     ssp app show shop-dev
@@ -151,7 +152,9 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
   </Step>
 
   <Step title="Read the evidence">
-    Show the experiment.
+    <Planned />
+
+    Show the experiment. It prints the results of each arm: visitors, requests per visitor, the error rate, latency, and the percent of visitors with each event.
 
     ```shell
     ssp experiment show checkout --app shop-dev
@@ -160,15 +163,15 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
     Each arm's commit on GitHub has the status `statespace/shop-dev/checkout`. While the experiment runs, the status of your change says, for example:
 
     ```text
-    v1 running · 0.05 · 2,040 subjects · split OK
-    · purchase rate % 3.4 vs 2.8 (c0ffee1)
+    v1 running · 0.05 · purchase 3.4% (±0.5)
+    · 2,040 visitors · split OK
     ```
 
     Statespace updates the status at each change of state, and every hour. Select **Details** to see the experiment in the dashboard.
   </Step>
 
   <Step title="Stop the experiment">
-    When you have the evidence that you need, stop the experiment. The arms leave traffic in seconds. Statespace keeps the evidence.
+    When you have the evidence that you need, stop the experiment. The arms leave traffic in seconds. Statespace keeps the results.
 
     ```shell
     ssp experiment stop checkout --app shop-dev \
@@ -183,9 +186,9 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
 
 <CardGroup cols={2}>
   <Card title="Experiments" icon="flask-conical" href="/concepts/experiments">
-    See arms, the reference, and versions.
+    See arms, shares, and versions.
   </Card>
-  <Card title="Events and metrics" icon="chart-column" href="/guides/events-and-metrics">
+  <Card title="Events" icon="chart-column" href="/guides/events">
     Count what matters to you.
   </Card>
   <Card title="Stop in an emergency" icon="octagon-x" href="/guides/emergency-stop">

@@ -1,0 +1,155 @@
+---
+title: Write events
+sidebarTitle: Events
+description: Count what the visitors of each arm do with CEL rules over a request and its response.
+---
+
+import Planned from '/snippets/planned.mdx';
+
+This guide shows how to write events in `statespace.toml`. See [Events](/concepts/events) for the model.
+
+<Planned />
+
+## Steps
+
+1. Choose what to count. Find the request that shows it, or let your app name it in a response header.
+2. Choose where the event applies. Write a shared `[[event]]` for every experiment, or an own `[[experiment.<name>.event]]` for one experiment.
+3. Put the most important event first. It is the headline on the commit status.
+4. Push the commit. CI checks every rule when it records the build.
+5. The change applies when the commit runs as live.
+
+<Warning>
+  A release that changes a shared event stops every running experiment of the app. A release that changes an own event stops its experiment. See [What a release does](/concepts/experiments#what-a-release-does).
+</Warning>
+
+## Count requests
+
+A rule can use the request: `method`, `host`, `path`, `query`, `headers`, and `cookies`. It can also use the response: `status`, `headers`, and `ms`.
+
+```toml statespace.toml
+# A visitor signs up.
+[[event]]
+name = "signup"
+match = '''
+request.method == "POST"
+  && request.path == "/signup"
+  && response.status < 300
+'''
+
+# A visitor sends an order.
+[[event]]
+name = "purchase"
+match = '''
+request.method == "POST"
+  && request.path == "/checkout"
+  && response.status < 300
+'''
+
+# A visitor comes from a mail campaign.
+[[event]]
+name = "from_mail"
+match = 'request.query.ref == "mail"'
+
+# A visitor opens the shop from the mobile app.
+[[event]]
+name = "mobile"
+match = 'request.headers["x-client"] == "mobile"'
+```
+
+The results show each event as the percent of visitors with the event. So a visitor with 3 orders counts one time in `purchase %`.
+
+## Count slow pages and client errors
+
+`response.ms` is the time to the response headers, in milliseconds. `response.status` is the status that the visitor got.
+
+```toml statespace.toml
+# A visitor waits more than one second for a page.
+[[event]]
+name = "slow_page"
+match = 'response.ms > 1000.0'
+
+# A visitor gets a page that does not exist.
+[[event]]
+name = "not_found"
+match = 'response.status == 404'
+```
+
+The results always show the error rate and the latency of each arm. You do not need an event for them.
+
+## Count what only your app knows
+
+Some events do not show in the request or the status, such as a payment that the app accepts after a check. Let your app name the event in a response header. Then match that header.
+
+This FastAPI handler names a paid order:
+
+```python main.py
+@app.post("/checkout")
+def checkout(response: Response):
+    order = pay()
+    if order.paid:
+        response.headers["x-shop-event"] = "purchase"
+    return order
+```
+
+This event matches the header:
+
+```toml statespace.toml
+[[event]]
+name = "purchase"
+match = '''
+response.headers["x-shop-event"] == "purchase"
+'''
+```
+
+The proxy sends the header on to the visitor. Use a header name that tells nothing private.
+
+## Count for one experiment
+
+An own event applies only to its experiment. Use it for an event that only one experiment needs.
+
+```toml statespace.toml
+[experiment.checkout]
+max_traffic = 0.2
+
+# Only the arms of checkout count coupons.
+[[experiment.checkout.event]]
+name = "coupon"
+match = '''
+request.method == "POST"
+  && request.path == "/checkout/coupon"
+'''
+```
+
+The shared events come first. So the headline of `checkout` is the first shared event. When there is no shared event, the headline is `coupon`.
+
+## Count for one app
+
+Events in a section `[app.<name>]` are added after the shared ones, for that app only.
+
+```toml statespace.toml
+[[app.shop-prod.event]]
+name = "refund"
+match = '''
+request.path == "/refund"
+  && response.status < 300
+'''
+```
+
+## Rules
+
+- A rule gives a boolean. Another type fails in CI.
+- A rule that uses a field that is not in [the list](/reference/cel#event-match) fails in CI.
+- The same event name two times fails in CI.
+- A missing field is no match. It is not an error.
+- An event name is lowercase snake_case, at most 64 characters.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="CEL variables" icon="braces" href="/reference/cel">
+    Look up every variable and field.
+  </Card>
+  <Card title="Results and evidence" icon="circle-check" href="/concepts/evidence">
+    See where the events show.
+  </Card>
+</CardGroup>

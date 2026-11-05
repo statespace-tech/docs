@@ -4,6 +4,8 @@ sidebarTitle: Agents
 description: Let a coding agent write statespace.toml, run commits as arms of an experiment, read the evidence, and stop it.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 A coding agent can run the whole loop: change the code, run the change as an arm, read the evidence, and decide. Every command works without questions and prints JSON with `--json`.
 
 ## Give the agent the skill
@@ -43,7 +45,7 @@ In this example, the live `statespace.toml` of `shop-prod` has the table `[exper
        --json databaseId --jq '.[0].databaseId')"
    ```
 
-3. The agent finds the live commit. It is the reference arm.
+3. The agent finds the live commit. It is the first arm.
 
    ```shell
    ssp app show shop-prod --json
@@ -66,23 +68,27 @@ In this example, the live `statespace.toml` of `shop-prod` has the table `[exper
 
 6. The agent reads the evidence from time to time.
 
+   <Planned />
+
    ```shell
    ssp experiment show search --app shop-prod --json
    ```
 
-   The JSON has `state`, `reason`, `version`, `totals`, `metrics`, `split`, and `versions`. The commit status `statespace/shop-prod/search` has the same headline.
+   The JSON has `state`, `reason`, `results_version`, `results`, `split`, `lookup`, and `versions`. Each item of `results` has `visitors`, `requests_per_visitor`, `error_rate`, `latency_p50_ms`, `latency_p90_ms`, and `events`. A rate has a `value` and a 95% `margin`. The commit status `statespace/shop-prod/search` has the same headline.
 
 7. The agent or a person decides, and stops the experiment.
 
    ```shell
    ssp experiment stop search --app shop-prod \
-     --note "p90 412 vs 455 ms, open a pull request"
+     --note "p90 412 and 455 ms, open a pull request"
    ```
 
 ## Rules for agents
 
 - Read `split` first. When the split is off, do not trust the other numbers.
-- Compare numbers of one version only. Each start begins a new version.
+- Compare numbers of one version only. Each start begins a new version. `--version N` shows an earlier version.
+- Read the margins. When the intervals of two arms overlap, the data does not show a difference yet.
+- Find the detail of an arm in the user's own tools with the keys in `lookup`. See [Find it in your own tools](/guides/own-tools).
 - Give shares as fractions, such as `0.05`.
 - `update` changes only the arms that you name. To remove an arm, give it `=0`.
 - Stop the experiment at once when errors go up.
