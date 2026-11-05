@@ -16,7 +16,8 @@ The proxy counts the subjects of the arms. For each request that an arm serves t
 | Counter | Adds |
 | --- | --- |
 | Requests | 1 |
-| Errors | 1 when the response status is from 500 to 599 |
+| `requests_4xx` | 1 when the response status is from 400 to 499 |
+| `requests_5xx` | 1 when the response status is from 500 to 599 |
 | Latency | 1 in the bucket of the time to the response headers |
 | Each event | 1 when the rule of the event matches |
 
