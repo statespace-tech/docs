@@ -19,8 +19,18 @@ first 7 characters or more.
 https://shop.acme.com/?ssp=checkout:a1b2c3d
 ```
 
-Add `?ssp=<experiment>:<commit>` to any URL of the app. The dashboard shows
-the link of each arm of a running experiment.
+Add `?ssp=<experiment>:<commit>` to any URL of the app.
+`ssp experiment show` and the dashboard show the link of each arm while the
+experiment runs:
+
+```text
+Override links:
+  c0ffee1  ?ssp=checkout:c0ffee1
+  a1b2c3d  ?ssp=checkout:a1b2c3d
+```
+
+With `--json`, the links are in `override_links`, by full commit. See
+[ssp experiment show](/reference/cli#ssp-experiment-show).
 
 ## Open an arm
 

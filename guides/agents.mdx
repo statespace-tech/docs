@@ -74,7 +74,7 @@ In this example, the live `statespace.toml` of `shop-prod` has the table `[exper
    ssp experiment show search --app shop-prod --json
    ```
 
-   The JSON has the same data as the text: `experiment`, `version`, `app`, `started_at`, `stopped_at`, `subjects`, `split`, `arms`, `lookup`, and `versions`. Each item of `arms` has `commit`, `subjects`, `latency_ms` (`p50`, `p95`, `p99`), and `events`. `events` has `requests_4xx`, `requests_5xx`, and each event of `statespace.toml`. Each event has an `estimate`, a fraction of the subjects, and `ci95`, its 95% interval `[low, high]`. The commit status `statespace/shop-prod/search` has the same headline.
+   The JSON has the same data as the text: `experiment`, `version`, `app`, `started_at`, `stopped_at`, `subjects`, `split`, `arms`, `lookup`, `override_links`, and `versions`. Each item of `arms` has `commit`, `subjects`, `latency_ms` (`p50`, `p95`, `p99`), and `events`. `events` has `requests_4xx`, `requests_5xx`, and each event of `statespace.toml`. Each event has an `estimate`, a fraction of the subjects, and `ci95`, its 95% interval `[low, high]`. The commit status `statespace/shop-prod/search` has the same headline.
 
 7. The agent or a person decides, and stops the experiment.
 

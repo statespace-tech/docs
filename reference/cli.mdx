@@ -137,7 +137,8 @@ Show the results of one version of an experiment, in this order:
 2. the latency of each arm;
 3. the events of each arm, with their 95% intervals;
 4. the label to find each arm in your own data tools;
-5. the versions.
+5. the override link of each arm, while the version runs;
+6. the versions.
 
 ```shell
 ssp experiment show checkout --app shop-prod
@@ -169,6 +170,10 @@ events (estimate [95% CI])   c0ffee1                   a1b2c3d
 
 Find it in your own data tools: statespace.arm = "c0ffee1…" | "a1b2c3d…"
 
+Override links:
+  c0ffee1  ?ssp=checkout:c0ffee1
+  a1b2c3d  ?ssp=checkout:a1b2c3d
+
 Versions:
   VERSION  ARMS                       STARTED                       STOPPED  NOTE
   1        a1b2c3d=0.05 c0ffee1=0.05  2026-11-04 09:12 UTC by octo  -        -
@@ -181,6 +186,7 @@ Versions:
 - Each event row is the share of the subjects with one or more matches. The rows follow the order of the events in `statespace.toml`.
 - A share is a fraction with 4 decimals. `[low, high]` is its 95% confidence interval. Below 30 subjects in an arm, the interval is `[–]`, such as `0.0261 [–]`.
 - `…` marks a short commit. The label `statespace.arm` holds the full commit. See [Find it in your own data tools](/guides/own-tools).
+- `Override links` gives the link of each arm. Add it to any URL of the app, such as `https://shop.acme.com/?ssp=checkout:a1b2c3d`. The command prints the links only while the version runs. See [Overrides](/concepts/overrides).
 - Before the first start, the command prints only `checkout · shop-prod · not started`.
 
 See [Results](/concepts/evidence#results). To see the arms and their state, use `ssp experiment update checkout` with no `--arm`.
@@ -209,6 +215,10 @@ With `--json`, it prints the same data as one JSON document. It has no data that
     }
   ],
   "lookup": {"statespace.arm": ["c0ffee1…", "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"]},
+  "override_links": {
+    "c0ffee1…": "?ssp=checkout:c0ffee1",
+    "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678": "?ssp=checkout:a1b2c3d"
+  },
   "versions": [
     {"version": 1, "arms": {"a1b2c3d4e5f60718293a4b5c6d7e8f9012345678": 0.05, "c0ffee1…": 0.05},
      "started_at": "2026-11-04T09:12:00Z", "started_by": "octo",
@@ -219,6 +229,7 @@ With `--json`, it prints the same data as one JSON document. It has no data that
 
 - `ci95` is `null` below 30 subjects in the arm. `estimate` is `null` when the arm has no subjects.
 - `split` is `null` below 100 subjects.
+- `override_links` is `null` when the version does not run.
 - The JSON gives full commits. This example shortens one with `…`.
 
 ## ssp experiment update
