@@ -13,7 +13,6 @@ import Missing from '/snippets/files/missing.mdx';
 import Live from '/snippets/files/live.mdx';
 import Retention from '/snippets/files/retention.mdx';
 import Instances from '/snippets/files/instances.mdx';
-import Planned from '/snippets/planned.mdx';
 
 Use `ssp proxy gcs` for a static site in a Cloud Storage bucket. The proxy serves the files of the bucket, like a static website endpoint. Each subject can get a different build.
 
@@ -24,8 +23,6 @@ visitors ─► site-proxy ─┼─► gs://acme-site/builds/c0ffee1…/
 ```
 
 ## How it works
-
-<Planned />
 
 - CI uploads the files of each commit to a folder, such as `builds/<commit>/`. Then it records the folder with `statespace-tech/action@v1`.
 - Live is the files at the root of the bucket, without the build folders.

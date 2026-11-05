@@ -3,8 +3,6 @@ title: Commit status
 description: Each state and description of the statespace/<app>/<experiment> commit status on an arm's commit.
 ---
 
-import Planned from '/snippets/planned.mdx';
-
 Statespace posts a commit status on the commit of each arm. There is one status for each app and experiment. Its context is `statespace/<app>/<experiment>`, such as `statespace/shop-prod/checkout`.
 
 - Statespace posts at each change of state: start, stop, removal, and an arm that is not ready.
@@ -16,8 +14,6 @@ Statespace posts a commit status on the commit of each arm. There is one status 
 - The state says where the arm is. It never says that the arm is good or bad. It is never `failure`.
 
 ## States
-
-<Planned />
 
 | The arm | State | Description, for example |
 | --- | --- | --- |

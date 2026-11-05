@@ -3,8 +3,6 @@ title: API
 description: Every route of the Statespace API, its body, and its response.
 ---
 
-import Planned from '/snippets/planned.mdx';
-
 The CLI, the dashboard, the action, and the proxy use this API. Agents and scripts can use it too.
 
 ```text
@@ -246,8 +244,6 @@ The response is `{"lease": bool, "expires_at"}`.
 
 ### POST /v1/runtime/apps/\{app\}/counts
 
-<Planned />
-
 Each proxy instance sends, every 60 seconds and when it stops, the changes for each subject of an arm since its last send. See [What Statespace keeps](/concepts/data).
 
 ```json
@@ -382,8 +378,6 @@ An `Experiment`, with these fields:
 | `override_urls` | `{"<commit>": url}`, or `null` |
 
 ### Results
-
-<Planned />
 
 The results of the version that `ssp experiment show` shows: `?version=N`, or the current or last version. They have the same data as the text of `ssp experiment show`, and no more.
 

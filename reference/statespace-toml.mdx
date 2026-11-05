@@ -4,7 +4,6 @@ description: Every key of statespace.toml, the experiment tables, the per-app se
 ---
 
 import StarterToml from '/snippets/starter-toml.mdx';
-import Planned from '/snippets/planned.mdx';
 
 `statespace.toml` holds the events and experiments of the apps that run from its folder. It has no app name: the name comes from `ssp app add` and the runtime token of the proxy. Several apps can run from one folder, such as `shop-dev` and `shop-prod`.
 
@@ -90,8 +89,6 @@ Each table `[experiment.<name>]` defines one experiment. An empty table is an ex
 The order of the `[experiment.*]` tables is the priority order. When two running experiments can claim the same request, the experiment that is first in the file gets it. In the full example, `checkout` comes before `us-landing`. See [Assignment](/concepts/subjects#assignment).
 
 ## Events
-
-<Planned />
 
 Each event defines a named count. See [Events](/concepts/events).
 

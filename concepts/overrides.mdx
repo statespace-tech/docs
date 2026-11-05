@@ -3,8 +3,6 @@ title: Overrides
 description: How a tester opens an arm of a running experiment with a link.
 ---
 
-import Planned from '/snippets/planned.mdx';
-
 How do you look at an arm yourself, without the random split?
 
 An override is a request that names its experiment and arm. Overrides are
@@ -51,8 +49,6 @@ Overrides work on every runtime, and behind a CDN when the CDN sends the
 `ssp` parameter and cookie to the proxy. See [Behind a CDN](/guides/cdn).
 
 ## Results
-
-<Planned />
 
 Override visits are never in the results. The proxy sends nothing about
 them: no subject, request, or event. An override never sets the cookie
