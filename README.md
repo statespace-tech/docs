@@ -40,7 +40,7 @@ The documentation has four sections.
   evidence, what Statespace keeps, overrides, and permissions.
 - Guides: CI on GitHub Actions; the proxy on Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io,
   S3, and Cloud Storage; a CDN in front of the proxy; fallback to live; infrastructure as code; events;
-  arms in your own tools; emergency stops; and agents.
+  arms in your own data tools; emergency stops; and agents.
 - Reference: the CLI, `statespace.toml` with a starter file, the API, CEL variables, commit statuses,
   and limits.
 

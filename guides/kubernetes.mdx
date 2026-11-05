@@ -21,7 +21,7 @@ visitors ─► shop-proxy ──┼─► checkout c0ffee1 (arm)
 - Live is the Service of your Deployment. By default, it has the name of the Deployment.
 - For each arm, the proxy makes a Deployment and a Service. Each one copies the pod spec of your Deployment and changes only the image.
 - Their names have the experiment and the commit. When a name is too long, it ends with a short hash. The labels `statespace.com/app`, `statespace.com/experiment`, and `statespace.com/commit` keep the full values.
-- The container of the app in each arm gets `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` with its experiment and commit. See [Find it in your own tools](/guides/own-tools).
+- The container of the app in each arm gets `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` with its experiment and commit. See [Find it in your own data tools](/guides/own-tools).
 - An arm is ready when its rollout is done and one replica is ready.
 - While an arm is not ready, the reason comes from the status of its pods, such as `CrashLoopBackOff (last: OOMKilled, exit 137)` or `ImagePullBackOff`.
 - The replicas of each copy follow its share.

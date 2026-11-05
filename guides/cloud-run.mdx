@@ -25,7 +25,7 @@ visitors ─► shop-proxy ─┼─► shop-ssp-checkout-c0ffee1…     (arm)
 - It also gets the ingress, the launch stage, the Binary Authorization policy, and the labels of your service. It gets no variable that starts with `STATESPACE_`.
 - It gets no traffic split, no custom domain, and no IAM policy of your service. Only the proxy's service account can call it: the proxy gives itself Cloud Run Invoker on it.
 - The proxy sends requests to the URL of the arm's service. It puts a Google ID token for that URL in the header `X-Serverless-Authorization`, so your app keeps its own `Authorization` header.
-- The ingress container of an arm gets `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` with its experiment and commit. See [Find it in your own tools](/guides/own-tools).
+- The ingress container of an arm gets `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` with its experiment and commit. See [Find it in your own data tools](/guides/own-tools).
 - The proxy uses the Cloud Run Admin API v2, with the service account of its own Cloud Run service.
 - An arm is ready when its service is `Ready`, serves its latest revision, and runs the image of the arm. When it is not ready, the reason comes from the conditions of the service.
 - When an experiment stops, the proxy deletes the services of its arms.

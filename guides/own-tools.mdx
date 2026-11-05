@@ -1,18 +1,18 @@
 ---
-title: Find an arm in your own tools
-sidebarTitle: Find it in your own tools
+title: Find an arm in your own data tools
+sidebarTitle: Find it in your own data tools
 description: Filter your logs, traces, metrics, and browser analytics by experiment and arm with the labels that the proxy puts on each arm.
 ---
 
 import Planned from '/snippets/planned.mdx';
 
-This guide shows how to find the requests, logs, and traces of an arm in the tools that you use now. Statespace keeps only the data for its results. Your own tools keep the detail.
+This guide shows how to find the requests, logs, and traces of an arm in the tools that you use now. Statespace keeps only the data for its results. Your own data tools keep the detail.
 
 <Planned />
 
 ## The labels of an arm
 
-The proxy labels each arm. It sends no data to your tools: your tools read the labels from where they already collect data. Live gets none of these labels. So no label means live.
+The proxy labels each arm. It sends no data to your data tools: they read the labels from where they already collect data. Live gets none of these labels. So no label means live.
 
 | Where | Label | Read by |
 | --- | --- | --- |
@@ -21,7 +21,7 @@ The proxy labels each arm. It sends no data to your tools: your tools read the l
 | Each request to the arm | The headers `ssp-experiment` and `ssp-arm` | Your app, for each request |
 | The browser of the visitor | The cookie `ssp_arms` | Browser analytics |
 
-The commit is always the full commit. Your tools can show its first 7 characters.
+The commit is always the full commit. Your data tools can show its first 7 characters.
 
 ### Resource labels
 
@@ -97,7 +97,7 @@ On S3 and Cloud Storage, an arm is a folder of files. It has no resources, envir
 `ssp experiment show` prints the label of each arm, after the results:
 
 ```text
-Find it in your own tools: statespace.arm = "c0ffee1…" | "a1b2c3d…"
+Find it in your own data tools: statespace.arm = "c0ffee1…" | "a1b2c3d…"
 ```
 
 1. Set the time range of your tool to the time of the version. The first line of `ssp experiment show` gives it, such as `since 2026-11-04 09:12 UTC`.

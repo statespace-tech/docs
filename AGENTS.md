@@ -30,7 +30,7 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
   `requests_4xx`, `requests_5xx`, and each event the share of subjects with one or more matches, as a
   fraction with 4 decimals and its 95% Wilson interval. The split check shows `ok` or `off`.
   Statespace keeps no requests, bodies, headers, cookies, logs, or subject IDs.
-- Each arm carries labels for the customer's own tools: resource labels, `SSP_*` variables,
+- Each arm carries labels for the customer's own data tools: resource labels, `SSP_*` variables,
   `OTEL_RESOURCE_ATTRIBUTES`, `ssp-experiment`/`ssp-arm` headers, and the `ssp_arms` cookie.
 - Evidence goes on each arm's commit as the commit status `statespace/<app>/<experiment>`.
 - Overrides (`?ssp=<experiment>:<commit>`) let testers open an arm of a running experiment. They are always

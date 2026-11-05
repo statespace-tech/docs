@@ -25,7 +25,7 @@ visitors ─► ssp ─┼─► checkout c0ffee1    (arm)
 - For each arm, the proxy creates a copy of the live container with another image. The copy keeps the environment that live sets, its command and entry point when live sets them, its mounts, its limits, and its networks.
 - The copy gets none of the labels, names, network aliases, published ports, or restart policy of live. It gets no variable that starts with `STATESPACE_`. Thus Compose does not count the arms as its own.
 - The proxy labels the arms `com.statespace.app`, `com.statespace.unit`, `com.statespace.experiment`, `com.statespace.commit`, `com.statespace.image`, and `com.statespace.proxy`. After a crash, a new proxy adopts them.
-- The arm gets `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` with its experiment and commit. See [Find it in your own tools](/guides/own-tools).
+- The arm gets `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` with its experiment and commit. See [Find it in your own data tools](/guides/own-tools).
 - An arm is ready when it accepts a TCP connection, or when it answers `--health` with a 2xx status.
 - When an arm exits, the reason comes from the state of its container: the exit code, and whether it ran out of memory.
 - When an experiment stops, the proxy removes the containers of its arms. When the proxy stops, it removes all its arms.

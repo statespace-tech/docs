@@ -25,7 +25,7 @@ visitors ─► shop-statespace ─┼─► checkout c0ffee1 VM  (private IPv6)
 - The copy has no services. Thus Fly.io never sends it public or Flycast traffic. The health checks of the services become Machine checks.
 - The copy has no mounts, because a volume is for one Machine only. It has no `fly_*` metadata, so `fly deploy` and `fly scale` do not change it.
 - The metadata `statespace_app`, `statespace_experiment`, and `statespace_commit` keep the full values.
-- The Machine of an arm gets `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` with its experiment and commit. See [Find it in your own tools](/guides/own-tools).
+- The Machine of an arm gets `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` with its experiment and commit. See [Find it in your own data tools](/guides/own-tools).
 - An arm is ready when its Machine is `started`, runs the image of the arm, passes all its checks, and accepts a connection. When it is not ready, the reason comes from the state, the checks, and the exit events of the Machine.
 - The proxy sends the requests of an arm to the private IPv6 address of its Machine, on the 6PN network of the organization.
 - When an experiment stops, the proxy destroys the Machines of its arms.

@@ -136,7 +136,7 @@ Show the results of one version of an experiment, in this order:
 1. one line with the experiment, the version, the app, the time of the version, the subjects of all arms, and the split check;
 2. the latency of each arm;
 3. the events of each arm, with their 95% intervals;
-4. the label to find each arm in your own tools;
+4. the label to find each arm in your own data tools;
 5. the versions.
 
 ```shell
@@ -167,7 +167,7 @@ events (estimate [95% CI])   c0ffee1                   a1b2c3d
   signup                     0.0208 [0.0136, 0.0306]   0.0261 [0.0184, 0.0368]
   search                     0.2804 [0.2554, 0.3068]   0.2753 [0.2499, 0.3007]
 
-Find it in your own tools: statespace.arm = "c0ffee1…" | "a1b2c3d…"
+Find it in your own data tools: statespace.arm = "c0ffee1…" | "a1b2c3d…"
 
 Versions:
   VERSION  ARMS                       STARTED                       STOPPED  NOTE
@@ -180,7 +180,7 @@ Versions:
 - `requests_4xx` and `requests_5xx` are the shares of the subjects with one or more responses with a status from 400 to 499, and from 500 to 599.
 - Each event row is the share of the subjects with one or more matches. The rows follow the order of the events in `statespace.toml`.
 - A share is a fraction with 4 decimals. `[low, high]` is its 95% confidence interval. Below 30 subjects in an arm, the interval is `[–]`, such as `0.0261 [–]`.
-- `…` marks a short commit. The label `statespace.arm` holds the full commit. See [Find it in your own tools](/guides/own-tools).
+- `…` marks a short commit. The label `statespace.arm` holds the full commit. See [Find it in your own data tools](/guides/own-tools).
 - Before the first start, the command prints only `checkout · shop-prod · not started`.
 
 See [Results](/concepts/evidence#results). To see the arms and their state, use `ssp experiment update checkout` with no `--arm`.
@@ -580,7 +580,7 @@ The proxy gets its app from its runtime token. At start, it asks Statespace whic
 
 `ssp proxy` prints no JSON document. It passes HTTP/1.1, HTTP/2, and WebSocket.
 
-Each arm gets labels for your own tools: labels or tags on its resources, the variables `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES`, and the headers `ssp-experiment` and `ssp-arm` on each request. See [Find it in your own tools](/guides/own-tools).
+Each arm gets labels for your own data tools: labels or tags on its resources, the variables `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES`, and the headers `ssp-experiment` and `ssp-arm` on each request. See [Find it in your own data tools](/guides/own-tools).
 
 ## ssp login
 
