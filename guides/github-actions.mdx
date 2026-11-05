@@ -73,6 +73,20 @@ The action checks that the build exists before it records it. When a check fails
 
 So the job needs read access to the image or the folder. The credentials that pushed the build give this access.
 
+## Build each commit the same way
+
+Statespace records one build for each commit, and never changes it. When CI builds the same commit again, for example on a branch and then on `main`, the second build must be the same as the first. If it is different, the action fails with `<commit> has a build without app already`.
+
+Many tools put the time of the build or a random ID into the build. Use the commit instead:
+
+| Tool | Setting |
+| --- | --- |
+| SvelteKit | `kit.version.name`: the commit, such as `process.env.GITHUB_SHA` |
+| Next.js | `generateBuildId`: return the commit |
+| Docker | Build from the same files, and do not copy the time into the image |
+
+When two builds of a commit must be different, give each build its own `app`. See [Build labels](#build-labels).
+
 ## Inputs
 
 Give exactly one of `image` and `files`.
