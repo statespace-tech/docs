@@ -1,0 +1,285 @@
+---
+title: Find an arm in your own tools
+sidebarTitle: Find it in your own tools
+description: Filter your logs, traces, metrics, and browser analytics by experiment and arm with the labels that the proxy puts on each arm.
+---
+
+import Planned from '/snippets/planned.mdx';
+
+This guide shows how to find the requests, logs, and traces of an arm in the tools that you use now. Statespace keeps only the data for its results. Your own tools keep the detail.
+
+<Planned />
+
+## The labels of an arm
+
+The proxy labels each arm. It sends no data to your tools: your tools read the labels from where they already collect data. Live gets none of these labels. So no label means live.
+
+| Where | Label | Read by |
+| --- | --- | --- |
+| The resources of the arm | Labels, tags, or metadata with the experiment and the commit | Log collectors and cloud consoles |
+| The environment of the arm | `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` | Your code and every OpenTelemetry SDK |
+| Each request to the arm | The headers `ssp-experiment` and `ssp-arm` | Your app, for each request |
+| The browser of the visitor | The cookie `ssp_arms` | Browser analytics |
+
+The commit is always the full commit. Your tools can show its first 7 characters.
+
+### Resource labels
+
+| Runtime | Resource of the arm | Experiment | Commit |
+| --- | --- | --- | --- |
+| Docker | Container labels | `com.statespace.experiment` | `com.statespace.commit` |
+| Kubernetes | Deployment and pod labels | `statespace.com/experiment` | `statespace.com/commit` |
+| ECS Fargate | Tags of the service and the task definition | `statespace.com/experiment` | `statespace.com/commit` |
+| Cloud Run | Labels of the service | `statespace-experiment` | `statespace-commit` |
+| Fly.io | Machine metadata | `statespace_experiment` | `statespace_commit` |
+
+### Environment variables
+
+The container that runs the image of the arm gets these variables:
+
+| Variable | Value |
+| --- | --- |
+| `SSP_EXPERIMENT` | The experiment, such as `checkout` |
+| `SSP_ARM` | The full commit of the arm |
+| `OTEL_RESOURCE_ATTRIBUTES` | The attributes of live, then `statespace.experiment`, `statespace.arm`, and `service.version` of the arm |
+
+The proxy merges `OTEL_RESOURCE_ATTRIBUTES` with the value of live. For example, live has this value:
+
+```text
+deployment.environment=prod,service.version=1.4.2
+```
+
+Then the arm gets this value:
+
+```text
+deployment.environment=prod,
+statespace.experiment=checkout,
+statespace.arm=a1b2c3d…,service.version=a1b2c3d…
+```
+
+- The arm keeps the other attributes of live.
+- The values of the arm replace the values of live for `statespace.experiment`, `statespace.arm`, and `service.version`.
+- When live gets the variable from a secret or a reference, such as `valueFrom` on Kubernetes, the arm gets only its own attributes.
+- Live never gets `SSP_EXPERIMENT` or `SSP_ARM`. When live has a value for them, the proxy does not copy it to the arm.
+
+Every OpenTelemetry SDK reads `OTEL_RESOURCE_ATTRIBUTES`. So each span, log, and metric of an arm has its experiment and commit, with no code change.
+
+### Request headers
+
+The proxy adds these headers to each request that an arm serves:
+
+| Header | Value |
+| --- | --- |
+| `ssp-experiment` | The experiment, such as `checkout` |
+| `ssp-arm` | The full commit of the arm |
+
+The proxy removes these headers from each incoming request first. So a client cannot set them, and live never gets them.
+
+### The browser cookie
+
+A response that an arm serves to an assigned visitor sets the cookie `ssp_arms`:
+
+```text
+ssp_arms=checkout:a1b2c3d…; Path=/;
+  Max-Age=7776000; SameSite=Lax; Secure
+```
+
+- The value is `<experiment>:<commit>`, with the full commit.
+- JavaScript can read the cookie.
+- It lasts 90 days, as the visitor cookie `ssp_sid`. Over plain `http`, it has no `Secure`.
+- When a later request of the visitor is in no arm, such as a request to live or an override, the response removes the cookie.
+- An override never sets the cookie.
+
+On S3 and Cloud Storage, an arm is a folder of files. It has no resources, environment, or requests of its own. So the cookie is the only label of a static site.
+
+## The keys to search for
+
+`ssp experiment show` prints the keys of each version, after the results:
+
+```text
+Find it in your own tools:
+  Window   2026-11-04T09:12:00Z → now
+  Arms     statespace.arm = "c0ffee1…" | "a1b2c3d…"     (no attribute: live)
+           statespace.experiment = "checkout"
+  Version  service.version = "c0ffee1…" | "a1b2c3d…"
+  Browser  cookie ssp_arms contains "checkout:c0ffee1…" | "checkout:a1b2c3d…"
+```
+
+1. Set the time range of your tool to `Window`. `now` means that the version runs.
+2. Filter by `statespace.arm`, or by `service.version`, for each arm.
+3. In browser analytics, filter by the value of `ssp_arms`.
+
+`--json` gives the same keys in `lookup`, with full commits. See [ssp experiment show](/reference/cli#ssp-experiment-show).
+
+## Datadog
+
+With OpenTelemetry, Datadog maps `service.version` to its `version` tag. So in APM, filter by `version:<commit>` with the full commit.
+
+To use the other resource attributes as tags of metrics, turn on this setting of the Datadog Agent:
+
+```shell
+DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS=true
+```
+
+With the Datadog Agent, you can turn resource labels into tags. On Kubernetes, the Agent puts these tags on the metrics, traces, and logs of each pod of an arm:
+
+```shell
+DD_KUBERNETES_POD_LABELS_AS_TAGS='{
+  "statespace.com/experiment": "ssp_experiment",
+  "statespace.com/commit": "ssp_arm"
+}'
+```
+
+With the Helm chart, set `datadog.podLabelsAsTags`:
+
+```yaml values.yaml
+datadog:
+  podLabelsAsTags:
+    statespace.com/experiment: ssp_experiment
+    statespace.com/commit: ssp_arm
+```
+
+On Docker, use the container labels:
+
+```shell
+DD_CONTAINER_LABELS_AS_TAGS='{
+  "com.statespace.experiment": "ssp_experiment",
+  "com.statespace.commit": "ssp_arm"
+}'
+```
+
+Then filter by `ssp_arm:<commit>`.
+
+With a Datadog tracing library and no OpenTelemetry, set `DD_VERSION` from `SSP_ARM`. This start script of the image does it. Live has no `SSP_ARM`, so it keeps its own `DD_VERSION`.
+
+```sh entrypoint.sh
+#!/bin/sh
+# In an arm, the version is the commit of the arm.
+if [ -n "$SSP_ARM" ]; then
+  export DD_VERSION="$SSP_ARM"
+fi
+exec "$@"
+```
+
+## Grafana
+
+In Tempo, find the traces of an arm with TraceQL. A regular expression must match the full value, so end it with `.*`.
+
+```text
+{ resource.statespace.arm =~ "a1b2c3d.*" }
+```
+
+Loki keeps the OpenTelemetry resource attributes of logs as structured metadata. It replaces `.` with `_` in their names. Filter after the stream selector:
+
+```text
+{service_name="shop"} | statespace_arm=~"a1b2c3d.*"
+```
+
+## OpenTelemetry Collector
+
+The Collector can add the arm to the data that it gets from the pods of an arm, such as logs. The `k8sattributes` processor copies the pod labels to resource attributes:
+
+```yaml otel-collector.yaml
+processors:
+  k8sattributes:
+    extract:
+      labels:
+        - tag_name: statespace.experiment
+          key: statespace.com/experiment
+          from: pod
+        - tag_name: statespace.arm
+          key: statespace.com/commit
+          from: pod
+```
+
+Then every backend of the Collector gets `statespace.arm`, as from an SDK.
+
+## Fluent Bit and Vector
+
+- Fluent Bit: the `kubernetes` filter adds the pod labels to each record, under `kubernetes.labels`. This is the default.
+- Vector: the `kubernetes_logs` source adds the pod labels to each event, under `.kubernetes.pod_labels`. This is the default.
+
+## LangSmith and Langfuse
+
+LangSmith shows the resource attributes of OpenTelemetry traces in the metadata of the trace. With the LangSmith SDK, put the arm in the metadata of each run:
+
+```python app.py
+import os
+from langsmith import traceable
+
+ARM = os.environ.get("SSP_ARM", "live")
+
+@traceable(metadata={"ssp_arm": ARM})
+def answer(question: str) -> str:
+    ...
+```
+
+Langfuse keeps the resource attributes of OpenTelemetry traces in `metadata.resourceAttributes`. With the Langfuse Python SDK v4 or later, add the arm to the metadata of the trace:
+
+```python app.py
+import os
+from langfuse import propagate_attributes
+
+ARM = os.environ.get("SSP_ARM", "live")
+
+with propagate_attributes(metadata={"ssp_arm": ARM}):
+    answer(question)
+```
+
+## Browser analytics
+
+Read the cookie `ssp_arms` in the browser, and send it to your analytics tool. A visitor in no arm has no cookie. This code gives `none` for that visitor.
+
+```js arms.js
+const arms =
+  document.cookie
+    .split("; ")
+    .find((c) => c.startsWith("ssp_arms="))
+    ?.slice("ssp_arms=".length) ?? "none";
+```
+
+### Google Analytics 4
+
+A GA4 user property has 36 characters at most. So send the first 7 characters of the commit:
+
+```js
+const [experiment, commit] = arms.split(":");
+const value = commit
+  ? `${experiment}:${commit.slice(0, 7)}`
+  : "none";
+gtag("set", "user_properties", { ssp_arms: value });
+```
+
+Then register the property for reports:
+
+1. In GA4, go to **Admin** > **Custom definitions**.
+2. Create a custom dimension with the scope **User** and the user property `ssp_arms`.
+
+### PostHog
+
+Register the value as a super property. PostHog sends it with each event.
+
+```js
+posthog.register({ ssp_arms: arms });
+```
+
+### Amplitude
+
+Set the value as a user property with the Browser SDK 2:
+
+```js
+const identify = new amplitude.Identify();
+identify.set("ssp_arms", arms);
+amplitude.identify(identify);
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Results and evidence" icon="circle-check" href="/concepts/evidence">
+    See the results that Statespace keeps for each arm.
+  </Card>
+  <Card title="What Statespace keeps" icon="shield" href="/concepts/data">
+    See what leaves the proxy.
+  </Card>
+</CardGroup>

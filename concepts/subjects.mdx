@@ -3,6 +3,8 @@ title: Subjects and assignment
 description: How the proxy assigns each request to an arm or to live, why experiments in one app never overlap, and the visitor cookie.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 How does the proxy pick the arm of a request, and how does a visitor keep the same arm?
 
 ## Subjects
@@ -26,7 +28,7 @@ When `subject` gives no string, the experiment skips the request.
 For each request, the proxy takes the running experiments of the app in the order of `statespace.toml`. For each experiment, it does these steps:
 
 1. It reads the subject ID with `subject`.
-2. It checks `eligibility`. When the subject is not eligible, or the expression has an error, the experiment skips the request. Statespace counts each eligibility error for the experiment.
+2. It checks `eligibility`. When the subject is not eligible, or the expression has an error, the experiment skips the request.
 3. It hashes the subject ID. The point is the first 53 bits of `SHA-256(salt:subject_id)`, as a number from 0 to 1.
 4. When the point is in the range of one of the experiment's arms, the request goes to that arm.
 
@@ -57,27 +59,26 @@ The results in one app are these:
 
 Each app has its own salt. So the splits of two apps are independent. A subject can be in an experiment of `shop-web` and in an experiment of `shop-api` at the same time.
 
-## Reasons
+## Why a visitor is on an arm
 
-The proxy records a reason for each assignment to an arm.
-
-| Reason | Means |
-| --- | --- |
-| `assigned` | The hash put the subject in the arm |
-| `arm-unavailable` | The hash put the subject in the arm, but the arm is not ready. The request goes to live |
-| `override` | The request names its arm. See [Overrides](/concepts/overrides) |
+| Why | Means | In the results |
+| --- | --- | --- |
+| Assigned | The hash put the subject in the arm | Yes |
+| Unavailable | The hash put the subject in the arm, but the arm is not ready. The request goes to live | Only in the split check |
+| Override | The request names its arm. See [Overrides](/concepts/overrides) | No |
 
 ## Headers to your app
 
-The proxy first removes all incoming `x-statespace-*` headers. Then it adds these headers.
+<Planned />
 
-| Header | Value | Sent to |
-| --- | --- | --- |
-| `x-statespace-subject` | The subject ID | Each request |
-| `x-statespace-experiment` | The experiment, such as `checkout` | Requests of an arm |
-| `x-statespace-arm` | The arm's commit | Requests of an arm |
+The proxy first removes the incoming headers `ssp-experiment` and `ssp-arm`. Then it adds them to each request of an arm.
 
-Responses of the arms have `Cache-Control: private`.
+| Header | Value |
+| --- | --- |
+| `ssp-experiment` | The experiment, such as `checkout` |
+| `ssp-arm` | The full commit of the arm |
+
+Live never gets these headers. Responses of the arms have `Cache-Control: private`. See [Find it in your own tools](/guides/own-tools) for the other labels of an arm.
 
 ## The visitor cookie
 
@@ -95,8 +96,8 @@ ssp_sid=<id>; Path=/; Max-Age=7776000; HttpOnly;
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Events and metrics" icon="chart-column" href="/concepts/events-and-metrics">
-    See what the proxy records for each arm.
+  <Card title="Events" icon="chart-column" href="/concepts/events">
+    See what the proxy counts for each arm.
   </Card>
   <Card title="CEL variables" icon="braces" href="/reference/cel">
     Look up the fields of `request`.

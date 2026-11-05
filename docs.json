@@ -70,6 +70,7 @@
           "guides/fall-back-to-live",
           "guides/infrastructure-as-code",
           "guides/events",
+          "guides/own-tools",
           "guides/emergency-stop",
           "guides/agents"
         ]
