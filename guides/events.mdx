@@ -87,7 +87,7 @@ This FastAPI handler names a paid order:
 def checkout(response: Response):
     order = pay()
     if order.paid:
-        response.headers["x-shop-event"] = "purchase"
+        response.headers["x-app-event"] = "purchase"
     return order
 ```
 
@@ -97,7 +97,7 @@ This event matches the header:
 [[event]]
 name = "purchase"
 match = '''
-response.headers["x-shop-event"] == "purchase"
+response.headers["x-app-event"] == "purchase"
 '''
 ```
 

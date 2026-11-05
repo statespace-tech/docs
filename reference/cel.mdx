@@ -37,7 +37,7 @@ Only `[[event]] match` can use `response`.
 | Field | Type | Example |
 | --- | --- | --- |
 | `response.status` | number | `response.status < 300` |
-| `response.headers` | map of strings | `response.headers["x-shop-event"]` |
+| `response.headers` | map of strings | `response.headers["x-app-event"]` |
 | `response.ms` | number | `response.ms > 1000.0` |
 
 - `response.status` is the status that the visitor got. When the arm fails, the proxy answers itself, such as with a 502.

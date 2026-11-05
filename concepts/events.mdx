@@ -54,7 +54,7 @@ A rule can use these fields:
 | `request.headers` | map of strings | `{"cf-ipcountry": "US"}` |
 | `request.cookies` | map of strings | `{"plan": "pro"}` |
 | `response.status` | number | `201` |
-| `response.headers` | map of strings | `{"x-shop-event": "purchase"}` |
+| `response.headers` | map of strings | `{"x-app-event": "purchase"}` |
 | `response.ms` | number | `84.0`, the time to the response headers |
 
 - The proxy checks each rule one time for each request of an arm, when the response headers arrive.
@@ -69,12 +69,12 @@ A rule can use these fields:
 Some events do not show in the request or the status, such as a payment that the app accepts after a check. Let your app name the event in a response header. Then match that header.
 
 ```toml statespace.toml
-# The app sends x-shop-event: purchase
+# The app sends x-app-event: purchase
 # when an order is paid.
 [[event]]
 name = "purchase"
 match = '''
-response.headers["x-shop-event"] == "purchase"
+response.headers["x-app-event"] == "purchase"
 '''
 ```
 
