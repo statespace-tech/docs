@@ -4,6 +4,8 @@ sidebarTitle: ECS Fargate
 description: Run ssp proxy fargate as its own ECS service in front of your service, with each arm as an ECS service in the same cluster.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 On ECS Fargate, the proxy runs as its own ECS service in front of your service. Each arm runs as an ECS service in the same cluster, from a copy of your task definition with another image.
 
 ```text
@@ -13,6 +15,8 @@ visitors ─► shop-proxy ─┼─► checkout c0ffee1 service     (task IP)
 ```
 
 ## How it works
+
+<Planned />
 
 - Live is your ECS service, such as `shop`. The live image is the image of the task definition of its primary deployment. When the image has a tag, the proxy reports the digest that the tasks run.
 - The proxy sends live traffic to `--live-url`, such as the internal load balancer of `shop`. Without `--live-url`, it uses the first Service Connect name of `shop`.

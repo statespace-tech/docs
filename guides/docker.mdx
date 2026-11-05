@@ -4,6 +4,8 @@ sidebarTitle: Docker
 description: Run ssp proxy docker next to a live container that you run, such as with Docker Compose, with each arm as a copy of that container.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 On a machine with Docker, you run live as you do now, such as with Docker Compose. `ssp proxy docker` runs next to it. It sends live traffic to your container, and runs each arm as a copy of that container with another image.
 
 ```text
@@ -13,6 +15,8 @@ visitors ─► ssp ─┼─► checkout c0ffee1    (arm)
 ```
 
 ## How it works
+
+<Planned />
 
 - Live is a container that you run, such as the container `shop` of a Compose service. `--live-container` names it. The proxy never runs, changes, or stops it.
 - The live image is the image of that container.

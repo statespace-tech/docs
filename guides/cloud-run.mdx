@@ -4,6 +4,8 @@ sidebarTitle: Cloud Run
 description: Run ssp proxy cloudrun as its own Cloud Run service in front of your service, with each arm as its own Cloud Run service.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 On Cloud Run, the proxy runs as its own service in front of your service. Each arm runs as its own Cloud Run service: a copy of your service with another image. The proxy never changes your service.
 
 ```text
@@ -13,6 +15,8 @@ visitors ─► shop-proxy ─┼─► shop-ssp-checkout-c0ffee1…     (arm)
 ```
 
 ## How it works
+
+<Planned />
 
 - Live is the URL of your service. The live image is the image of the revision that gets the most traffic.
 - For each arm, the proxy makes the service `<service>-ssp-<experiment>-<commit 12>`, such as `shop-ssp-checkout-a1b2c3d4e5f6`. It is in the project and the region of your service.

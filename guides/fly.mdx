@@ -4,6 +4,8 @@ sidebarTitle: Fly.io
 description: Run ssp proxy fly as its own Fly.io app in front of your app, with each arm as a Machine of your app.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 On Fly.io, the proxy runs as its own app in front of your app, in the same organization. Each arm runs as a Machine of your app, without services.
 
 ```text
@@ -13,6 +15,8 @@ visitors ─► shop-statespace ─┼─► checkout c0ffee1 VM  (private IPv6)
 ```
 
 ## How it works
+
+<Planned />
 
 - Live is the Machines of your app in one process group, `app` by default, that the proxy did not make. The live image is the digest that they all run. During a deploy, the digests differ, and live is not known until the deploy ends.
 - The proxy sends live traffic to `http://<fly app>.flycast`, such as `http://shop.flycast`, or to `--live-url`.
