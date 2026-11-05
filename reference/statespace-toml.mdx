@@ -96,7 +96,7 @@ The order of the `[experiment.*]` tables is the priority order. When two running
 Each event defines a named count. See [Events](/concepts/events).
 
 <ParamField path="name" type="string" required>
-  The name of the event, such as `purchase` or `add_to_cart`. The results show it as `purchase (%)`. A name is lowercase snake_case: a lowercase letter, then lowercase letters, digits, or `_`, at most 64 characters.
+  The name of the event, such as `purchase` or `add_to_cart`. The results show it as `purchase`. A name is lowercase snake_case: a lowercase letter, then lowercase letters, digits, or `_`, at most 64 characters. `requests_4xx` and `requests_5xx` are the names of built-in events, and CI refuses them.
 </ParamField>
 
 <ParamField path="match" type="CEL → bool" required>
@@ -108,8 +108,8 @@ Each event defines a named count. See [Events](/concepts/events).
 - Shared events apply to every experiment.
 - Own events of an experiment come after the shared ones, and apply only to it.
 - The same event name two times is an error in CI: `event "coupon" is defined twice`.
-- The results show one row for each event, in this order.
-- The **headline** is the first event of the experiment, shared events first. When the experiment has no events, the headline is the error rate.
+- The results show `requests_4xx` and `requests_5xx` first, then one row for each event, in this order.
+- The **headline** is the first event of the experiment, shared events first. When the experiment has no events, the headline is `requests_5xx`.
 
 ## Per-app sections
 
@@ -131,12 +131,12 @@ A section that matches no app gives a warning in CI. It is not an error.
 
 | The release changes | Result |
 | --- | --- |
-| Only code | Nothing. `ssp experiment show` says "live is now f2f2f2f" |
+| Only code | Nothing. The dashboard says "live is now f2f2f2f" |
 | `subject`, `eligibility`, or `max_traffic` of the experiment, or removes its table | The experiment stops |
 | A shared event | Every running experiment of the app stops |
 | An own event of the experiment | The experiment stops |
 
-The note of the stop is "definition changed in live d00d123". `ssp experiment show`, the commit statuses, and the audit log give it, with the start command to run again. See [What a release does](/concepts/experiments#what-a-release-does).
+The note of the stop is "definition changed in live d00d123". `ssp experiment list`, the commit statuses, and the audit log give it, with the start command to run again. See [What a release does](/concepts/experiments#what-a-release-does).
 
 ## Next steps
 

@@ -18,7 +18,7 @@ For each subject of an arm, in a running version, Statespace keeps one record:
 - a one-way hash of the subject ID;
 - the experiment, the version, and the arm;
 - the time of the first and the last request;
-- the number of requests, of errors, and of requests in each latency range;
+- the number of requests, of responses with a status from 400 to 499 and from 500 to 599, and of requests in each latency range;
 - the number of times each event matched;
 - whether the arm was ready for the subject.
 

@@ -60,11 +60,11 @@ The response is the `Experiment`, in the state `stopped`.
 ssp experiment show checkout --app shop-prod
 ```
 
-The output shows the state `stopped`, who stopped it, and the note. The commit status of each arm becomes `success`, for example:
+The first line shows the start and the stop of the version. The list of versions shows who stopped it, and the note. The commit status of each arm becomes `success`, for example:
 
 ```text
-v1 stopped · 2,040 subjects
-· purchase rate % 3.4 vs 2.8 (c0ffee1)
+v1 stopped · purchase 0.0343 [0.0248, 0.0473]
+· 1,020 subjects
 ```
 
 ## Run a fix

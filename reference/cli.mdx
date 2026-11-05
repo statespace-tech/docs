@@ -131,16 +131,13 @@ With `--json`, it prints `{"experiments": [Experiment]}`.
 
 <Planned />
 
-Show an experiment in full, in this order:
+Show the results of one version of an experiment, in this order:
 
-1. the definition, and the commit that it comes from;
-2. the arms with their shares;
-3. the drift from live, such as "live is now f2f2f2f" or "live c0ffee1 contains a1b2c3d";
-4. the override link of each arm while the experiment runs, such as `?ssp=checkout:a1b2c3d`;
-5. the history of starts and stops;
-6. the results of one version, with one column for each arm;
-7. where to find that version in your own tools;
-8. the versions.
+1. one line with the experiment, the version, the app, the time of the version, the subjects of all arms, and the split check;
+2. the latency of each arm;
+3. the events of each arm, with their 95% intervals;
+4. the label to find each arm in your own tools;
+5. the versions.
 
 ```shell
 ssp experiment show checkout --app shop-prod
@@ -154,47 +151,75 @@ ssp experiment show checkout --app shop-prod
   The version of the results, such as `2`. A stopped version shows its snapshot: its results when it stopped. Default: the current or last version.
 </ParamField>
 
-The results have a row for each result and each event, and the split check:
+The command prints:
 
 ```text
-Results of version 1 · since 2026-11-04 09:12 UTC
-                     c0ffee1          a1b2c3d
-  subjects           1,204            1,188
-  p50 latency (ms)   41               44
-  p90 latency (ms)   120              131
-  error rate (%)     0.20 (±0.10)     0.30 (±0.12)
-  signup (%)         2.08 (±0.81)     2.61 (±0.91)
-  search (%)         28.04 (±2.54)    27.53 (±2.54)
-  split              ok
+checkout v1 · shop-prod · since 2026-11-04 09:12 UTC · 2,392 subjects · split ok
+
+latency (ms)                 c0ffee1                   a1b2c3d
+  p50                        41                        44
+  p95                        180                       205
+  p99                        420                       610
+
+events (estimate [95% CI])   c0ffee1                   a1b2c3d
+  requests_4xx               0.1121 [0.0950, 0.1318]   0.1178 [0.1003, 0.1378]
+  requests_5xx               0.0274 [0.0193, 0.0388]   0.0438 [0.0331, 0.0578]
+  signup                     0.0208 [0.0136, 0.0306]   0.0261 [0.0184, 0.0368]
+  search                     0.2804 [0.2554, 0.3068]   0.2753 [0.2499, 0.3007]
+
+Find it in your own tools: statespace.arm = "c0ffee1…" | "a1b2c3d…"
+
+Versions:
+  VERSION  ARMS                       STARTED                       STOPPED  NOTE
+  1        a1b2c3d=0.05 c0ffee1=0.05  2026-11-04 09:12 UTC by octo  -        -
 ```
 
-- `error rate (%)` is the percent of the requests with a status from 500 to 599.
-- Each `<event> (%)` row is the percent of the subjects with one or more matches. The rows follow the order of the events in `statespace.toml`.
-- Percents and margins have 2 decimals. A margin is the half-width of a 95% interval.
-- Below 30 subjects in an arm, the margin is `(–)`.
-- For a stopped version, the heading shows the start and the stop, such as `Results of version 1 · 2026-11-04 09:12 – 2026-11-05 10:00 UTC`.
+- The first line shows `since <start> UTC` while the version runs. For a stopped version, it shows the start and the stop, such as `2026-11-04 09:12 – 2026-11-05 10:00 UTC`.
+- `split ok` or `split off` is the [split check](/concepts/events#the-split-check). Below 100 subjects in all arms, it is `split –`.
+- `latency (ms)` has the 50th, 95th, and 99th percentiles of the time to the response headers, in whole milliseconds.
+- `requests_4xx` and `requests_5xx` are the shares of the subjects with one or more responses with a status from 400 to 499, and from 500 to 599.
+- Each event row is the share of the subjects with one or more matches. The rows follow the order of the events in `statespace.toml`.
+- A share is a fraction with 4 decimals. `[low, high]` is its 95% confidence interval. Below 30 subjects in an arm, the interval is `[–]`, such as `0.0261 [–]`.
+- `…` marks a short commit. The label `statespace.arm` holds the full commit. See [Find it in your own tools](/guides/own-tools).
+- Before the first start, the command prints only `checkout · shop-prod · not started`.
 
-See [Results](/concepts/evidence#results).
+See [Results](/concepts/evidence#results). To see the arms and their state, use `ssp experiment update checkout` with no `--arm`.
 
-Then the command prints the keys to search for in your own tools:
+With `--json`, it prints the same data as one JSON document. It has no data that the text does not show:
 
-```text
-Find it in your own tools:
-  Window   2026-11-04T09:12:00Z → now
-  Arms     statespace.arm = "c0ffee1…" | "a1b2c3d…"     (no attribute: live)
-           statespace.experiment = "checkout"
-  Version  service.version = "c0ffee1…" | "a1b2c3d…"
-  Browser  cookie ssp_arms contains "checkout:c0ffee1…" | "checkout:a1b2c3d…"
+```json
+{
+  "experiment": "checkout",
+  "version": 1,
+  "app": "shop-prod",
+  "started_at": "2026-11-04T09:12:00Z",
+  "stopped_at": null,
+  "subjects": 2392,
+  "split": {"ok": true},
+  "arms": [
+    {
+      "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "subjects": 1188,
+      "latency_ms": {"p50": 44, "p95": 205, "p99": 610},
+      "events": {
+        "requests_4xx": {"estimate": 0.1178, "ci95": [0.1003, 0.1378]},
+        "requests_5xx": {"estimate": 0.0438, "ci95": [0.0331, 0.0578]},
+        "signup": {"estimate": 0.0261, "ci95": [0.0184, 0.0368]}
+      }
+    }
+  ],
+  "lookup": {"statespace.arm": ["c0ffee1…", "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"]},
+  "versions": [
+    {"version": 1, "arms": {"a1b2c3d4e5f60718293a4b5c6d7e8f9012345678": 0.05, "c0ffee1…": 0.05},
+     "started_at": "2026-11-04T09:12:00Z", "started_by": "octo",
+     "stopped_at": null, "stopped_by": null, "stop_note": null}
+  ]
+}
 ```
 
-- `Window` is the time of the version. `now` means that it runs.
-- `Arms` and `Version` are the OpenTelemetry resource attributes of the arms. Live has none of them: no attribute means live.
-- `Browser` is the value of the `ssp_arms` cookie of each arm.
-- `…` marks a short commit. The labels hold the full commit.
-
-See [Find it in your own tools](/guides/own-tools).
-
-With `--json`, it prints the `ExperimentDetail`.
+- `ci95` is `null` below 30 subjects in the arm. `estimate` is `null` when the arm has no subjects.
+- `split` is `null` below 100 subjects.
+- The JSON gives full commits. This example shortens one with `…`.
 
 ## ssp experiment update
 

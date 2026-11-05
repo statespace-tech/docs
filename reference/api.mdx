@@ -261,8 +261,9 @@ Each proxy instance sends, every 60 seconds and when it stops, the changes for e
       "last_at": "2026-11-04T10:00:58Z",
       "unavailable": false,
       "requests": 3,
-      "errors": 0,
-      "latency": [0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+      "requests_4xx": 1,
+      "requests_5xx": 0,
+      "latency": [0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       "events": {"purchase": 1}
     }
   ]
@@ -277,8 +278,9 @@ Each proxy instance sends, every 60 seconds and when it stops, the changes for e
 | `subject` | `hex(HMAC-SHA256(key = the app's salt, message = the subject ID))`: 64 lowercase hex characters |
 | `first_at`, `last_at` | RFC 3339 times. `first_at` is not after `last_at` |
 | `unavailable` | `true` when the arm was not ready for the subject. Then `requests` is `0`, and there are no events. Default `false` |
-| `requests`, `errors` | Numbers of requests, and of requests with a status from 500 to 599. Default `0` |
-| `latency` | Requests in 11 ranges of the time to the response headers. The upper bounds are 5, 10, 25, 50, 100, 250, 500, 1000, 2500, and 5000 ms, and no bound. They add up to `requests` |
+| `requests` | The number of requests. Default `0` |
+| `requests_4xx`, `requests_5xx` | The number of responses with a status from 400 to 499, and from 500 to 599. Together they are `requests` at most. Default `0` |
+| `latency` | Requests in 17 ranges of the time to the response headers. The upper bounds are 5, 10, 20, 35, 50, 75, 100, 150, 250, 400, 600, 1000, 1500, 2500, 5000, and 10000 ms, and no bound. They add up to `requests`. Statespace refuses a different number of ranges |
 | `events` | Each event of the version with a number above 0, by name. Default `{}` |
 
 - Entries of one subject in one batch add up. Two arms for one subject in one batch is a 400.
@@ -332,7 +334,7 @@ Statespace keeps no ID of a batch that it refuses.
 | `version` | The current or last version |
 | `definition` | `{"subject", "eligibility", "max_traffic"}` |
 | `arms` | `[Arm]` |
-| `headline` | `{"label", "values": {"<commit>": number or null}}`, or `null`. The label is the first event, such as `"signup (%)"`, or `"error rate (%)"` when the version has no events |
+| `headline` | `{"label", "values": {"<commit>": number or null}}`, or `null`. The label is the first event, such as `"signup"`, or `"requests_5xx"` when the version has no events. The values are the shares of each arm |
 | `started_by`, `started_at` | Who started the current or last version, and when |
 | `stopped_at` | When the last version stopped |
 
@@ -356,61 +358,48 @@ An `Experiment`, with these fields:
 | Field | Means |
 | --- | --- |
 | `source` | `{"commit", "path"}`: where the definition comes from |
-| `results_version` | The version of `results`, `split`, and `lookup`, or `null` before the first start |
-| `results` | `[ArmResult]`: one for each arm of that version, in the order of the arms |
-| `split` | `{"ok", "p"}`, or `null` with fewer than 100 subjects or with one arm |
-| `lookup` | Where to find the version in your own tools. See [Lookup](#lookup) |
+| `results` | The results of one version, or `null` before the first start. See [Results](#results) |
 | `versions` | `[{"version", "arms", "started_at", "started_by", "stopped_at", "stopped_by", "stop_note"}]`. `stop_note` is the note of the stop, or why Statespace stopped the version |
 | `history` | Starts and stops |
 | `drift` | `{"live_commit"}`, or `null` |
 | `override_urls` | `{"<commit>": url}`, or `null` |
 
-### ArmResult
+### Results
 
 <Planned />
+
+The results of the version that `ssp experiment show` shows: `?version=N`, or the current or last version. They have the same data as the text of `ssp experiment show`, and no more.
+
+| Field | Means |
+| --- | --- |
+| `version` | The version |
+| `started_at`, `stopped_at` | When the version started and stopped. `stopped_at` is `null` while it runs |
+| `subjects` | The subjects of all arms |
+| `split` | `{"ok"}`, or `null` with fewer than 100 subjects or with one arm |
+| `arms` | One item for each arm of the version, in the order of the arms |
+| `lookup` | `{"statespace.arm": [<commit>]}`: the label of each arm in your own tools. See [Find it in your own tools](/guides/own-tools) |
+
+Each item of `arms` has these fields:
 
 | Field | Means |
 | --- | --- |
 | `commit` | The full commit of the arm |
 | `subjects` | The subjects that the arm served |
-| `latency_p50_ms`, `latency_p90_ms` | The median and the 90th percentile of the time to the response headers, in milliseconds, or `null` without requests |
-| `error_rate` | `{"value", "margin"}`: the requests with a status from 500 to 599, as a percent of the requests. `value` is `null` without requests |
-| `events` | `[{"name", "subjects", "total", "rate": {"value", "margin"}}]`: each event of the version, in the order of `statespace.toml`. `subjects` is the subjects with one or more matches. `total` is all the matches. `rate` is `subjects` as a percent of the subjects of the arm |
-
-This is one item of `results`:
+| `latency_ms` | `{"p50", "p95", "p99"}`: the percentiles of the time to the response headers, in whole milliseconds. Each is `null` without requests |
+| `events` | `requests_4xx`, `requests_5xx`, then each event of the version in the order of `statespace.toml`. Each is `{"estimate", "ci95"}` |
 
 ```json
 {
   "commit": "a1b2c3d…",
   "subjects": 1188,
-  "latency_p50_ms": 44.0,
-  "latency_p90_ms": 131.0,
-  "error_rate": {"value": 0.30, "margin": 0.12},
-  "events": [
-    {"name": "signup", "subjects": 31, "total": 40,
-     "rate": {"value": 2.61, "margin": 0.91}}
-  ]
-}
-```
-
-- `value` and `margin` are percents. Values are not rounded.
-- A margin is the half-width of a 95% interval, in percentage points. It is `null` below 30 subjects in the arm.
-
-### Lookup
-
-```json
-{
-  "window": {"from": "2026-11-04T09:12:00+00:00",
-             "to": null},
-  "arms": ["c0ffee1…", "a1b2c3d…"],
-  "attributes": {
-    "service.version": ["c0ffee1…", "a1b2c3d…"],
-    "statespace.arm": ["c0ffee1…", "a1b2c3d…"],
-    "statespace.experiment": ["checkout"]
+  "latency_ms": {"p50": 44, "p95": 205, "p99": 610},
+  "events": {
+    "requests_4xx": {"estimate": 0.1178, "ci95": [0.1003, 0.1378]},
+    "requests_5xx": {"estimate": 0.0438, "ci95": [0.0331, 0.0578]},
+    "signup": {"estimate": 0.0261, "ci95": [0.0184, 0.0368]}
   }
 }
 ```
 
-- `window.to` is `null` while the version runs. Else it is the stop.
-- `arms` are full commits.
-- `attributes` are the OpenTelemetry resource attributes of the arms. See [Find it in your own tools](/guides/own-tools).
+- `estimate` is the share of the subjects of the arm with one or more matches, or with one or more responses of the status range. It is a fraction with 4 decimals, or `null` when the arm has no subjects.
+- `ci95` is the 95% Wilson interval `[low, high]` of the share, with 4 decimals. It is `null` below 30 subjects in the arm.

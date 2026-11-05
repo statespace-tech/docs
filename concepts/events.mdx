@@ -96,12 +96,13 @@ request.method == "POST"
 - The arms of `checkout` count the shared events and `coupon`. The arms of `us-landing` count only the shared events.
 - Own events come after the shared ones.
 - An event name is lowercase snake_case, such as `add_to_cart`. CI refuses `Add-To-Cart`.
+- `requests_4xx` and `requests_5xx` are built-in events. Every experiment has them, and the results show them first. CI refuses them as names of your events.
 - The same event name two times is an error in CI: `event "coupon" is defined twice`.
 - The first event is the **headline**. It shows on the commit status. See [Evidence on the commit](/concepts/evidence#evidence-on-the-commit).
 
 ## The split check
 
-Statespace checks that the arms got subjects in the ratio of their shares. It uses a chi-square test of the subjects of all arms, from 100 subjects. The result is `split OK` or, for example, `split off (p=0.0004)` when p is less than 0.001.
+Statespace checks that the arms got subjects in the ratio of their shares. It starts at 100 subjects in all arms. The result is `split ok`, or `split off` when the ratio is too far from the shares to come from chance (less than 1 time in 1,000).
 
 The check uses the subjects that the hash assigned, also when their arm was not ready. It does not use overrides. The check is a warning only. When the split is off, do not trust the other numbers.
 

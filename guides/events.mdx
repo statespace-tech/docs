@@ -56,7 +56,7 @@ name = "mobile"
 match = 'request.headers["x-client"] == "mobile"'
 ```
 
-The results show each event as the percent of subjects with one or more matches. So a subject with 3 orders counts one time in `purchase (%)`. The JSON also gives `total`, the number of all matches.
+The results show each event as the share of subjects with one or more matches, such as `0.0261 [0.0184, 0.0368]`. So a subject with 3 orders counts one time in `purchase`.
 
 ## Count slow pages and client errors
 
@@ -74,7 +74,7 @@ name = "not_found"
 match = 'response.status == 404'
 ```
 
-The results always show the error rate and the latency of each arm. You do not need an event for them.
+The results always show the latency of each arm, and the built-in events `requests_4xx` and `requests_5xx`: the share of subjects with one or more responses with a status from 400 to 499, and from 500 to 599. You do not need an event for them.
 
 ## Count what only your app knows
 
@@ -141,7 +141,8 @@ request.path == "/refund"
 - A rule that uses a field that is not in [the list](/reference/cel#event-match) fails in CI.
 - The same event name two times fails in CI.
 - A missing field is no match. It is not an error.
-- An event name is lowercase snake_case, at most 64 characters.
+- An event name is lowercase snake_case: a lowercase letter, then lowercase letters, digits, or `_`, at most 64 characters. CI refuses another name.
+- `requests_4xx` and `requests_5xx` are the names of built-in events. CI refuses them as event names.
 
 ## Next steps
 

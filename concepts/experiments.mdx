@@ -93,14 +93,14 @@ A release changes the live commit, and with it `statespace.toml`. Each running e
 
 | The release changes | Result |
 | --- | --- |
-| Only code | Nothing. The arms are fixed commits. `ssp experiment show` says "live is now f2f2f2f" |
+| Only code | Nothing. The arms are fixed commits. The dashboard says "live is now f2f2f2f" |
 | `subject`, `eligibility`, or `max_traffic` of the experiment, or removes its table | The experiment stops |
 | A shared event | Every running experiment of the app stops |
 | An own event of the experiment | The experiment stops |
 
-When a release stops an experiment, the note of the stop is "definition changed in live d00d123". `ssp experiment show`, the commit statuses, and the audit log give the reason and the start command to run again.
+When a release stops an experiment, the note of the stop is "definition changed in live d00d123". `ssp experiment list`, the commit statuses, and the audit log give the reason and the start command to run again.
 
-When the live commit contains an arm's commit, nothing changes. `ssp experiment show` says "live c0ffee1 contains a1b2c3d". You decide when to stop the experiment.
+When the live commit contains an arm's commit, nothing changes. The dashboard says "live c0ffee1 contains a1b2c3d". You decide when to stop the experiment.
 
 ## Next steps
 

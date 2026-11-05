@@ -19,8 +19,8 @@ first 7 characters or more.
 https://shop.acme.com/?ssp=checkout:a1b2c3d
 ```
 
-Add `?ssp=<experiment>:<commit>` to any URL of the app. `ssp experiment
-show` and the dashboard show the link of each arm of a running experiment.
+Add `?ssp=<experiment>:<commit>` to any URL of the app. The dashboard shows
+the link of each arm of a running experiment.
 
 ## Open an arm
 
@@ -57,11 +57,11 @@ them: no subject, request, or event. An override never sets the cookie
 
 <CardGroup cols={2}>
   <Card
-    title="ssp experiment show"
+    title="ssp experiment update"
     icon="terminal"
-    href="/reference/cli#ssp-experiment-show"
+    href="/reference/cli#ssp-experiment-update"
   >
-    Print the override links of the arms.
+    Print the arms of an experiment and their commits.
   </Card>
   <Card title="Subjects and assignment" icon="cookie" href="/concepts/subjects">
     See the normal assignment.

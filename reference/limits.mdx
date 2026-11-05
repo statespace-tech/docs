@@ -72,6 +72,6 @@ When an account is full, Statespace takes no new subjects. The subjects that it 
 
 | Item | Limit |
 | --- | --- |
-| Margins of an arm | From 30 subjects. Below, the margin is `(–)` |
-| Split check | From 100 subjects in the arms of the experiment. It reports `split off` when p is less than 0.001 |
+| 95% intervals of an arm | From 30 subjects. Below, the interval is `[–]` |
+| Split check | From 100 subjects in the arms of the experiment. It reports `split off` when the ratio is too far from the shares to come from chance (less than 1 time in 1,000) |
 | Proxy sends its data to Statespace | Every 60 seconds, and when it stops |

@@ -21,12 +21,12 @@ Statespace posts a commit status on the commit of each arm. There is one status 
 
 | The arm | State | Description, for example |
 | --- | --- | --- |
-| Runs | `pending` | `v4 running · 0.05 · signup 2.61% (±0.91) · 1,188 subjects · split OK` |
-| Runs, the split is off | `pending` | `v4 running · 0.05 · signup 2.61% (±0.91) · 1,188 subjects · split off (p=0.00042)` |
+| Runs | `pending` | `v4 running · 0.05 · signup 0.0261 [0.0184, 0.0368] · 1,188 subjects · split OK` |
+| Runs, the split is off | `pending` | `v4 running · 0.05 · signup 0.0261 [0.0184, 0.0368] · 1,188 subjects · split off` |
 | Runs, not ready | `pending` | `v4 not ready: the container exits (exit 1) · subjects go to live` |
-| Is stopped | `success` | `v4 stopped · signup 2.61% (±0.91) · 1,188 subjects` |
-| Is stopped by a release | `success` | `v4 stopped: definition changed in live d00d123 · signup 2.61% (±0.91) · 1,188 subjects` |
-| Is removed | `success` | `removed · last v4 · signup 2.61% (±0.91) · 1,188 subjects` |
+| Is stopped | `success` | `v4 stopped · signup 0.0261 [0.0184, 0.0368] · 1,188 subjects` |
+| Is stopped by a release | `success` | `v4 stopped: definition changed in live d00d123 · signup 0.0261 [0.0184, 0.0368] · 1,188 subjects` |
+| Is removed | `success` | `removed · last v4 · signup 0.0261 [0.0184, 0.0368] · 1,188 subjects` |
 
 ## The running description
 
@@ -35,19 +35,18 @@ The description of an arm in a running experiment has these parts, in this order
 1. the version, such as `v4`;
 2. `running`;
 3. the share of the arm;
-4. the headline, such as `signup 2.61% (±0.91)`;
+4. the headline, such as `signup 0.0261 [0.0184, 0.0368]`;
 5. the subjects of the arm, such as `1,188 subjects`;
-6. the split check, `split OK` or `split off (p=0.00042)`, from 100 subjects in all arms.
+6. the split check, `split OK` or `split off`, from 100 subjects in all arms.
 
 Every arm's line says `running`. No arm is special.
 
 ## The headline
 
-- The headline is the first event of the version's `statespace.toml`. It is the subjects with one or more matches, as a percent of the subjects of the arm, with its 95% margin.
-- When the version has no events, the headline is the error rate of the requests, such as `error rate 0.30% (±0.12) · 1,188 subjects`.
+- The headline is the first event of the version's `statespace.toml`. It is the share of the subjects of the arm with one or more matches, as a fraction with 4 decimals, and its 95% interval.
+- When the version has no events, the headline is `requests_5xx`: the share of the subjects with one or more responses with a status from 500 to 599, such as `requests_5xx 0.0438 [0.0331, 0.0578] · 1,188 subjects`.
 - Each line has the numbers of its own arm only.
-- A percent and its margin have 2 decimals. The margin always shows.
-- Below 30 subjects, the margin is `(–)`, such as `lead 0.00% (–) · 3 subjects`.
+- Below 30 subjects, the interval is `[–]`, such as `lead 0.0000 [–] · 3 subjects`.
 - Without a value, the headline shows `–`, such as `lead – · 0 subjects`.
 - One subject shows as `1 subject`.
 - The line of a stopped or removed arm shows the snapshot of its version.

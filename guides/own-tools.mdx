@@ -94,22 +94,17 @@ On S3 and Cloud Storage, an arm is a folder of files. It has no resources, envir
 
 ## The keys to search for
 
-`ssp experiment show` prints the keys of each version, after the results:
+`ssp experiment show` prints the label of each arm, after the results:
 
 ```text
-Find it in your own tools:
-  Window   2026-11-04T09:12:00Z → now
-  Arms     statespace.arm = "c0ffee1…" | "a1b2c3d…"     (no attribute: live)
-           statespace.experiment = "checkout"
-  Version  service.version = "c0ffee1…" | "a1b2c3d…"
-  Browser  cookie ssp_arms contains "checkout:c0ffee1…" | "checkout:a1b2c3d…"
+Find it in your own tools: statespace.arm = "c0ffee1…" | "a1b2c3d…"
 ```
 
-1. Set the time range of your tool to `Window`. `now` means that the version runs.
-2. Filter by `statespace.arm`, or by `service.version`, for each arm.
-3. In browser analytics, filter by the value of `ssp_arms`.
+1. Set the time range of your tool to the time of the version. The first line of `ssp experiment show` gives it, such as `since 2026-11-04 09:12 UTC`.
+2. Filter by `statespace.arm`, or by `service.version`, for each arm. Live has neither attribute.
+3. In browser analytics, filter by the value of `ssp_arms`, such as `checkout:c0ffee1…`.
 
-`--json` gives the same keys in `lookup`, with full commits. See [ssp experiment show](/reference/cli#ssp-experiment-show).
+`…` marks a short commit. The labels hold the full commit. `--json` gives the full commits in `lookup`. See [ssp experiment show](/reference/cli#ssp-experiment-show).
 
 ## Datadog
 

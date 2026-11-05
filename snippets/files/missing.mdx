@@ -4,7 +4,7 @@ The proxy checks the folder of each arm against the files hash that CI recorded:
 2. Every 60 seconds, the proxy lists each folder again. It reads again only the files that changed.
 3. When the folder is missing, or its hash changed, the arm is not ready. Its subjects get live, with the reason `arm-unavailable`.
 
-`ssp experiment show` gives the reason of each arm that is not ready:
+`ssp experiment start`, `ssp experiment list`, and the commit status give the reason of each arm that is not ready:
 
 | Cause | Reason |
 | --- | --- |

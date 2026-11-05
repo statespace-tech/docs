@@ -154,7 +154,7 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
   <Step title="Read the evidence">
     <Planned />
 
-    Show the experiment. It prints the results of each arm: subjects, p50 and p90 latency, the error rate, and the percent of subjects with each event.
+    Show the experiment. It prints the results of each arm: the p50, p95, and p99 latency, and for each event the share of subjects with one or more matches, with a 95% interval. The events `requests_4xx` and `requests_5xx` come first.
 
     ```shell
     ssp experiment show checkout --app shop-dev
@@ -163,7 +163,7 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
     Each arm's commit on GitHub has the status `statespace/shop-dev/checkout`. While the experiment runs, the status of your change says, for example:
 
     ```text
-    v1 running · 0.05 · purchase 2.61% (±0.91)
+    v1 running · 0.05 · purchase 0.0261 [0.0184, 0.0368]
     · 1,188 subjects · split OK
     ```
 
