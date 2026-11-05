@@ -3,7 +3,9 @@ title: Commit status
 description: Each state and description of the statespace/<app>/<experiment> commit status on an arm's commit.
 ---
 
-Statespace posts a commit status on the commit of each arm, the reference too. There is one status for each app and experiment. Its context is `statespace/<app>/<experiment>`, such as `statespace/shop-prod/checkout`.
+import Planned from '/snippets/planned.mdx';
+
+Statespace posts a commit status on the commit of each arm. There is one status for each app and experiment. Its context is `statespace/<app>/<experiment>`, such as `statespace/shop-prod/checkout`.
 
 - Statespace posts at each change of state: start, stop, removal, and an arm that is not ready.
 - While the experiment runs, Statespace posts once an hour, only when the description changed.
@@ -15,28 +17,43 @@ Statespace posts a commit status on the commit of each arm, the reference too. T
 
 ## States
 
+| The ar## States
+
+<Planned />
+
 | The arm | State | Description, for example |
 | --- | --- | --- |
-| Runs | `pending` | `v1 running · 0.05 · 2,040 subjects · split OK · purchase rate % 3.4 vs 2.8 (c0ffee1)` |
-| Runs, the reference | `pending` | `v1 reference · 0.05 · 2,031 subjects · split OK · purchase rate % 2.8 vs 3.4 (a1b2c3d)` |
+| Runs | `pending` | `v1 running · 0.05 · purchase 3.4% (±0.5) · 2,040 visitors · split OK` |
+| Runs, the first arm | `pending` | `v1 reference · 0.05 · purchase 2.8% (±0.4) · 2,031 visitors · split OK` |
+| Runs, the split is off | `pending` | `v1 running · 0.05 · purchase 3.4% (±0.5) · 2,040 visitors · split off (p=0.00042)` |
 | Runs, not ready | `pending` | `v1 not ready: the container exits (exit 1) · subjects go to live` |
-| Is stopped | `success` | `v1 stopped · 2,040 subjects · purchase rate % 3.4 vs 2.8 (c0ffee1)` |
-| Is stopped by a release | `success` | `v1 stopped: definition changed in live d00d123 · 2,040 subjects · …` |
-| Is removed | `success` | `removed · last v2 · 3,310 subjects · purchase rate % 3.3 vs 2.9 (c0ffee1)` |
+| Is stopped | `success` | `v1 stopped · purchase 3.4% (±0.5) · 2,040 visitors` |
+| Is stopped by a release | `success` | `v1 stopped: definition changed in live d00d123 · purchase 3.4% (±0.5) · 2,040 visitors` |
+| Is removed | `success` | `removed · last v2 · purchase 3.3% (±0.4) · 3,310 visitors` |
 
 ## The running description
 
 The description of an arm in a running experiment has these parts, in this order:
 
 1. the version, such as `v1`;
-2. `running`, or `reference` for the reference arm;
+2. `running`, or `reference` for the first arm;
 3. the share of the arm;
-4. the subjects of the arm;
-5. the split check: `split OK` or `split off (p=0.0004)`;
-6. the headline metric, this arm vs the other arm, with the commit of the other arm.
+4. the headline, such as `purchase 3.4% (±0.5)`;
+5. the visitors of the arm;
+6. the split check, `split OK` or `split off (p=0.00042)`, from 100 visitors in all arms.
 
-With 3 or more arms, the line of the reference says `reference of 2 arms`.
+With 3 or more arms, the line of the first arm says `reference of 2 arms`: the number of the other arms.
 
-## GitHub App permission
+## The headline
+
+- The headline is the first event of the version's `statespace.toml`, as a percent of the visitors of the arm, with its 95% margin.
+- When the version has no events, the headline is the error rate, such as `error rate 0.3% (±0.1)`.
+- Each line has the numbers of its own arm only.
+- A percent has one decimal, or two below 0.1.
+- Below 30 visitors, the margin is `(–)`, such as `purchase 3.4% (–) · 12 visitors`.
+- Without visitors, the value is `–`, such as `purchase – · 0 visitors`.
+- The line of a stopped or removed arm shows the snapshot of its version.
+
+ssion
 
 The Statespace GitHub App needs only the permission to write commit statuses for this. Your CI does nothing for it.

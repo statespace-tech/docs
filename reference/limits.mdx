@@ -1,29 +1,33 @@
 ---
 title: Limits and retention
-description: How long Statespace keeps data, and the limits of names, notes, shares, rows, and storage.
+description: How long Statespace keeps data, and the limits of names, notes, shares, and storage.
 ---
+
+import Planned from '/snippets/planned.mdx';
 
 This page lists the limits and times of Statespace.
 
 ## Retention
 
+<Planned />
+
 | Data | Kept |
 | --- | --- |
-| `requests`, `stdout`, `stderr`, `events`, `runs`, and `lifecycle` rows | 90 days |
-| Totals of each version | Until you remove the app. So Statespace can always compute the evidence again |
-| History and evidence of a `gone` experiment | Kept. `ssp experiment list --all` shows it |
+| The record of each visitor of an arm | While the version runs. Statespace deletes it when the version stops |
+| The results of a stopped version | Until you remove the app |
+| History and results of a `gone` experiment | Kept. `ssp experiment list --all` shows it |
 
-Statespace never records live.
+Statespace never keeps data about live or overrides. See [What Statespace keeps](/concepts/data).
 
 ## Storage
 
 | Limit | Value |
 | --- | --- |
-| One row | 64 KiB |
-| One batch of rows from the proxy | 100 rows |
 | One account | 10 GiB. Statespace warns at 80% |
+| One visitor of a running version | 256 bytes of the storage of the account |
+| Visitors in the memory of one proxy instance, before it sends them | 50,000. Above this, the proxy drops the oldest |
 
-Each account has its own PostgreSQL database. Each person reads it with a read-only login. See [Query your data with SQL](/guides/sql). A subject can be erased with `POST /v1/subjects/erase`. See [API](/reference/api#other).
+When an account is full, Statespace takes no new visitors. The visitors that it has stay. `GET /v1/storage` gives the use of the account. To erase a subject, use `POST /v1/subjects/erase`. See [API](/reference/api#other).
 
 ## Names and values
 
@@ -63,6 +67,10 @@ Each account has its own PostgreSQL database. Each person reads it with a read-o
 | Arm files in `--cache` | Until the arm stops |
 | `files` location of a build | 1024 characters at most |
 
-## Split check
+## Results
 
-The split check starts at 100 subjects in the arms of the experiment. It reports `split off` when p is less than 0.001.
+| Item | Limit |
+| --- | --- |
+| Margins of an arm | From 30 visitors. Below, the margin is `–` |
+| Split check | From 100 visitors in the arms of the experiment. It reports `split off` when p is less than 0.001 |
+| Proxy sends its data to Statespace | Every 60 seconds, and when it stops |

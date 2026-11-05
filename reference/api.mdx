@@ -3,6 +3,8 @@ title: API
 description: Every route of the Statespace API, its body, and its response.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 The CLI, the dashboard, the action, and the proxy use this API. Agents and scripts can use it too.
 
 ```text
@@ -101,6 +103,7 @@ The files hash is `sha256:` and the hex SHA-256 of a list of lines, one for each
 
 - `arms` is a map of commit to share, such as `{"a1b2c3d": 0.05, "e5f6a7b": 0}`. A share of `0` removes the arm. Only the commits in the map change.
 - After `start`, get the experiment until its state is `running` or `stopped`. The CLI does this.
+- `GET …/experiments/{exp}` gives the results of the current or last version. `?version=N` gives the results of version N: its snapshot when it stopped, or its current results while it runs. A version that does not exist is a 404.
 
 This example sets two arms of `checkout`:
 
@@ -119,16 +122,6 @@ curl -sS -X PATCH "$app/experiments/checkout/arms" \
 | `GET /v1/tokens` | | The runtime tokens, without secrets |
 | `POST /v1/tokens` | `app`, `note`? | The token. Only this response has the secret |
 | `DELETE /v1/tokens/{id}` | | |
-
-## SQL access
-
-These routes need the session of a person, from `ssp login` or the
-dashboard.
-
-| Route | Body | Response |
-| --- | --- | --- |
-| `POST /v1/db/login` | | Your SQL login: `url`, `account`, `host`, `port`, `database`, `user`, `password`, `sslmode`, `apps` |
-| `POST /v1/db/login/rotate` | `note`? | The same, with a new password. The old password stops |
 
 ## Runtime
 
@@ -153,7 +146,7 @@ The runtime configuration of the app.
   "app": "shop-prod",
   "salt": "…",
   "settings_hash": "…",
-  "settings": {"redact": []},
+  "settings": {…},
   "live": {"commit": "c0ffee1…", "image": "…@sha256:…"},
   "experiments": [
     {
@@ -210,6 +203,7 @@ Each build in the runtime API, in `live`, in each arm, and in each item of `/bui
 `live.files` is the recorded build whose hash is the reported `live_files`. The proxy serves live from the root of the bucket. The location only tells which build live matches.
 
 - `experiments` holds the `starting` and `running` experiments, in the order of `statespace.toml`.
+- `events` of an experiment are the shared events, then its own events, in the order of `statespace.toml`. `match` is a rule over `request` and `response`. `source` is always `"request"`.
 - The proxy routes only to `running` experiments. The lease holder starts the arms of both.
 - Before the first report, `live` is `null`. The proxy then sends all requests to live.
 
@@ -248,11 +242,57 @@ The response is `{"lease": bool, "expires_at"}`.
 - The live commit is the commit of the build with that image digest, or with that files hash, for the repo and folder of the app. A build with the app's label wins. A file runtime takes only builds of its own scheme.
 - When no build matches, `ssp app show` says "Live runs an image without a build. Add statespace-tech/action to the deploy workflow", or "Live serves files without a build. Add statespace-tech/action to the deploy workflow".
 
-### POST /v1/events
+### POST /v1/runtime/apps/\{app\}/counts
 
-Send recorded rows. The body has `app`, `runs`, `requests`, `stdout`, `stderr`, `events`, and `lifecycle`. Each row has `id`, `experiment`, `arm`, `version`, and `timestamp`. `arm` is the commit. `id` makes a second send of a row change nothing.
+<Planned />
 
-The lifecycle events are `started`, `ready`, `stopped`, and `failed`.
+Each proxy instance sends, every 60 seconds and when it stops, the changes for each visitor of an arm since its last send. See [What Statespace keeps](/concepts/data).
+
+```json
+{
+  "batch": "6f1c2b9e-1d2a-4c55-9a51-3f4b8f6e2a10",
+  "counts": [
+    {
+      "experiment": "checkout",
+      "version": 3,
+      "arm": "a1b2c3d…",
+      "subject": "9c1f…",
+      "first_at": "2026-11-04T10:00:05Z",
+      "last_at": "2026-11-04T10:00:58Z",
+      "unavailable": false,
+      "requests": 3,
+      "errors": 0,
+      "latency": [0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+      "events": {"purchase": 1}
+    }
+  ]
+}
+```
+
+| Key | Means |
+| --- | --- |
+| `batch` | A UUID. Statespace applies a batch one time. It keeps the IDs of applied batches for 7 days |
+| `counts` | 1 to 5,000 entries. The body has 8 MiB at most |
+| `arm` | The full commit |
+| `subject` | `hex(HMAC-SHA256(key = the app's salt, message = the subject ID))`: 64 lowercase hex characters |
+| `first_at`, `last_at` | RFC 3339 times. `first_at` is not after `last_at` |
+| `unavailable` | `true` when the arm was not ready for the visitor. Then `requests` is `0`, and there are no events. Default `false` |
+| `requests`, `errors` | Numbers of requests, and of requests with a status from 500 to 599. Default `0` |
+| `latency` | Requests in 11 ranges of the time to the response headers. The upper bounds are 5, 10, 25, 50, 100, 250, 500, 1000, 2500, and 5000 ms, and no bound. They add up to `requests` |
+| `events` | Each event of the version with a number above 0, by name. Default `{}` |
+
+- Entries of one visitor in one batch add up. Two arms for one visitor in one batch is a 400.
+- A visitor stays in the arm of their first entry. A later entry with another arm changes nothing.
+
+| Status | Body | Means |
+| --- | --- | --- |
+| 200 | `{"batch", "applied": true}` | Applied |
+| 200 | `{"batch", "applied": false}` | Statespace applied this batch in the last 7 days. Nothing changed |
+| 400 | `{"error"}` | A wrong body, an arm that is not in its version, or an event that the version does not define. Nothing changed |
+| 409 | `{"error", "not_running": [{"experiment", "version"}]}` | The batch has versions that do not run. Nothing changed. The proxy drops their entries and sends the others in a new batch |
+| 507 | `{"error": "storage quota exceeded"}` | New visitors are over the storage limit of the account. Nothing changed |
+
+Statespace keeps no ID of a batch that it refuses.
 
 ## Other
 
@@ -261,9 +301,9 @@ The lifecycle events are `started`, `ready`, `stopped`, and `failed`.
 | `POST /v1/auth/device` and the `…/approve` and `…/token` routes | `ssp login` |
 | `GET /v1/whoami` | Who the credential is |
 | `POST /v1/github/webhook` | Changes of the GitHub App installation |
-| `POST /v1/subjects/erase` | Erase a subject. Body: `app`, `subject` |
+| `POST /v1/subjects/erase` | Erase a subject from the running versions of an app. Body: `app`, `subject`. Response: `{"subjects": n}`. Admin only |
 | `GET /v1/audit` | The audit log |
-| `GET /v1/storage` | Storage use of the account |
+| `GET /v1/storage` | Storage use of the account: `{"bytes", "limit_bytes", "warning"}` |
 | `POST /v1/contact` | Contact Statespace |
 
 ## Objects
@@ -292,8 +332,8 @@ The lifecycle events are `started`, `ready`, `stopped`, and `failed`.
 | `version` | The current or last version |
 | `definition` | `{"subject", "eligibility", "max_traffic"}` |
 | `arms` | `[Arm]` |
-| `reference` | The commit of the reference arm |
-| `headline` | `{"label", "values": {"<commit>": number or null}}`, or `null` |
+| `reference` | The commit of the first arm |
+| `headline` | `{"label", "values": {"<commit>": number or null}}`, or `null`. The label is the first event, such as `"purchase %"`, or `"error rate %"` when the version has no events |
 | `started_by`, `started_at` | Who started the current or last version, and when |
 | `stopped_at` | When the last version stopped |
 
@@ -317,11 +357,46 @@ An `Experiment`, with these fields:
 | Field | Means |
 | --- | --- |
 | `source` | `{"commit", "path"}`: where the definition comes from |
-| `totals` | `{"<commit>": Totals}` |
-| `metrics` | `[{"label", "values"}]` |
-| `split` | `{"ok", "p"}`, or `null` |
-| `events` | `[{"name", "values"}]`: the top events |
-| `versions` | `[{"version", "arms", "started_at", "stopped_at", "stopped_by", "stop_note"}]`. `stop_note` is the note of the stop, or why Statespace stopped the version |
-| `history` | Starts, stops, and metric changes |
+| `results_version` | The version of `results`, `split`, and `lookup`, or `null` before the first start |
+| `results` | `[ArmResult]`: one for each arm of that version, the first arm first |
+| `split` | `{"ok", "p"}`, or `null` with fewer than 100 visitors or with one arm |
+| `lookup` | Where to find the version in your own tools. See [Lookup](#lookup) |
+| `versions` | `[{"version", "arms", "started_at", "started_by", "stopped_at", "stopped_by", "stop_note"}]`. `stop_note` is the note of the stop, or why Statespace stopped the version |
+| `history` | Starts and stops |
 | `drift` | `{"live_commit"}`, or `null` |
 | `override_urls` | `{"<commit>": url}`, or `null` |
+
+### ArmResult
+
+<Planned />
+
+| Field | Means |
+| --- | --- |
+| `commit` | The full commit of the arm |
+| `visitors` | The visitors that the arm served |
+| `requests_per_visitor` | Requests divided by visitors, or `null` without visitors |
+| `error_rate` | `{"value", "margin"}`: requests with a status from 500 to 599, as a percent of the requests. `value` is `null` without requests |
+| `latency_p50_ms`, `latency_p90_ms` | The median and the 90th percentile of the time to the response headers, or `null` without requests |
+| `events` | `[{"name", "visitors", "rate": {"value", "margin"}}]`: each event of the version, in the order of `statespace.toml`. `visitors` have the event. `rate` is the percent of the arm's visitors |
+
+- Values are not rounded.
+- A margin is the half-width of a 95% interval, in percentage points. It is `null` below 30 visitors in the arm.
+
+### Lookup
+
+```json
+{
+  "window": {"from": "2026-11-04T09:12:00+00:00",
+             "to": null},
+  "arms": ["c0ffee1…", "a1b2c3d…"],
+  "attributes": {
+    "service.version": ["c0ffee1…", "a1b2c3d…"],
+    "statespace.arm": ["c0ffee1…", "a1b2c3d…"],
+    "statespace.experiment": ["checkout"]
+  }
+}
+```
+
+- `window.to` is `null` while the version runs. Else it is the stop.
+- `arms` are full commits.
+- `attributes` are the OpenTelemetry resource attributes of the arms. See [Find it in your own tools](/guides/own-tools).
