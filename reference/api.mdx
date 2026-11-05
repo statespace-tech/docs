@@ -95,14 +95,15 @@ The files hash is `sha256:` and the hex SHA-256 of a list of lines, one for each
 
 | Route | Body | Response |
 | --- | --- | --- |
-| `GET /v1/apps/{app}/experiments` | | `{"experiments": [Experiment]}` |
+| `GET /v1/apps/{app}/experiments` | | `{"experiments": [Experiment]}`, in the order of `statespace.toml` |
 | `GET /v1/apps/{app}/experiments/{exp}` | | `ExperimentDetail` |
 | `PATCH /v1/apps/{app}/experiments/{exp}/arms` | `arms`, `note`? | `{"experiment": Experiment, "added", "changed", "removed"}` |
 | `POST /v1/apps/{app}/experiments/{exp}/start` | `note`? | `Experiment`, in the state `starting` |
 | `POST /v1/apps/{app}/experiments/{exp}/stop` | `note`? | `Experiment` |
 
 - `arms` is a map of commit to share, such as `{"a1b2c3d": 0.05, "e5f6a7b": 0}`. A share of `0` removes the arm. Only the commits in the map change.
-- After `start`, get the experiment until its state is `running` or `stopped`. The CLI does this.
+- `GET …/experiments?all=true` also gives the `gone` experiments.
+- After `start`, get the experiment until its state is `running` or `stopped`. The CLI and the dashboard get it every 2 seconds, for 6 minutes at most.
 - `GET …/experiments/{exp}` gives the results of the current or last version. `?version=N` gives the results of version N: its snapshot when it stopped, or its current results while it runs. A version that does not exist is a 404.
 
 This example sets two arms of `checkout`:
@@ -119,9 +120,11 @@ curl -sS -X PATCH "$app/experiments/checkout/arms" \
 
 | Route | Body | Response |
 | --- | --- | --- |
-| `GET /v1/tokens` | | The runtime tokens, without secrets |
+| `GET /v1/tokens` | | `{"tokens": [Token]}`, without secrets |
 | `POST /v1/tokens` | `app`, `note`? | The token. Only this response has the secret |
 | `DELETE /v1/tokens/{id}` | | |
+
+A `Token` has `id`, `app`, `note`, `created_at`, and `last_used_at`.
 
 ## Runtime
 
@@ -146,7 +149,6 @@ The runtime configuration of the app.
   "app": "shop-prod",
   "salt": "…",
   "settings_hash": "…",
-  "settings": {…},
   "live": {"commit": "c0ffee1…", "image": "…@sha256:…"},
   "experiments": [
     {
@@ -280,9 +282,10 @@ Each proxy instance sends, every 60 seconds and when it stops, the changes for e
 | `unavailable` | `true` when the arm was not ready for the subject. Then `requests` is `0`, and there are no events. Default `false` |
 | `requests` | The number of requests. Default `0` |
 | `requests_4xx`, `requests_5xx` | The number of responses with a status from 400 to 499, and from 500 to 599. Together they are `requests` at most. Default `0` |
-| `latency` | Requests in 17 ranges of the time to the response headers. The upper bounds are 5, 10, 20, 35, 50, 75, 100, 150, 250, 400, 600, 1000, 1500, 2500, 5000, and 10000 ms, and no bound. They add up to `requests`. Statespace refuses a different number of ranges |
-| `events` | Each event of the version with a number above 0, by name. Default `{}` |
+| `latency` | Requests in 17 ranges of the time to the response headers. The upper bounds are 5, 10, 20, 35, 50, 75, 100, 150, 250, 400, 600, 1000, 1500, 2500, 5000, and 10000 ms, and no bound. They add up to `requests`. Each number is 2³² at most. Statespace refuses a different number of ranges |
+| `events` | Each event of the version with a number above 0, by name. The names are lowercase snake_case, and never `requests_4xx` or `requests_5xx`. A number of 0 is ignored. Default `{}` |
 
+- Every key is required, except the keys with a default. Another key is a 400.
 - Entries of one subject in one batch add up. Two arms for one subject in one batch is a 400.
 - A subject stays in the arm of their first entry. A later entry with another arm changes nothing.
 
@@ -290,9 +293,10 @@ Each proxy instance sends, every 60 seconds and when it stops, the changes for e
 | --- | --- | --- |
 | 200 | `{"batch", "applied": true}` | Applied |
 | 200 | `{"batch", "applied": false}` | Statespace applied this batch in the last 7 days. Nothing changed |
-| 400 | `{"error"}` | A wrong body, an arm that is not in its version, or an event that the version does not define. Nothing changed |
+| 400 | `{"error"}` | A wrong body, an arm that is not in its version, or an event that the version does not define. Nothing changed. The proxy drops the batch |
 | 409 | `{"error", "not_running": [{"experiment", "version"}]}` | The batch has versions that do not run. Nothing changed. The proxy drops their entries and sends the others in a new batch |
-| 507 | `{"error": "storage quota exceeded"}` | New subjects are over the storage limit of the account. Nothing changed |
+| 507 | `{"error": "storage quota exceeded"}` | New subjects are over the storage limit of the account. Nothing changed. The proxy sends the batch again, with backoff |
+| 401, 403 | `{"error"}` | As on the other runtime routes |
 
 Statespace keeps no ID of a batch that it refuses.
 
@@ -304,7 +308,7 @@ Statespace keeps no ID of a batch that it refuses.
 | `GET /v1/whoami` | Who the credential is |
 | `POST /v1/github/webhook` | Changes of the GitHub App installation |
 | `POST /v1/subjects/erase` | Erase a subject from the running versions of an app. Body: `app`, `subject`. Response: `{"subjects": n}`. Admin only |
-| `GET /v1/audit` | The audit log |
+| `GET /v1/audit` | The audit log: `{"events": [...]}` |
 | `GET /v1/storage` | Storage use of the account: `{"bytes", "limit_bytes", "warning"}` |
 | `POST /v1/contact` | Contact Statespace |
 
@@ -323,6 +327,19 @@ Statespace keeps no ID of a batch that it refuses.
 | `created_at` | When the app was added |
 | `level` | The level of the caller: `read`, `write`, or `admin` |
 
+### AppDetail
+
+An `App`, with these fields:
+
+| Field | Means |
+| --- | --- |
+| `settings` | `{"events"}`: the events of the `statespace.toml` of the live build. Each event is `{"name", "match"}` |
+| `source` | `{"commit", "path"}`: the build that the settings come from, or `null` |
+| `orchestrator` | The runtime that the proxy reports, such as `cloudrun`, or `null` |
+| `instances` | `[{"instance", "version", "orchestrator", "live_image", "live_files", "settings_hash", "seen_at", "lease"}]`: the proxy instances and their last reports |
+| `lease` | `{"holder", "expires_at"}`, or `null` |
+| `problem` | Why no experiment can start, in one line, or `null` |
+
 ### Experiment
 
 | Field | Means |
@@ -333,7 +350,7 @@ Statespace keeps no ID of a batch that it refuses.
 | `reason` | One line about the state |
 | `version` | The current or last version |
 | `definition` | `{"subject", "eligibility", "max_traffic"}` |
-| `arms` | `[Arm]` |
+| `arms` | `[Arm]`, in the order that they were added |
 | `headline` | `{"label", "values": {"<commit>": number or null}}`, or `null`. The label is the first event, such as `"signup"`, or `"requests_5xx"` when the version has no events. The values are the shares of each arm |
 | `started_by`, `started_at` | Who started the current or last version, and when |
 | `stopped_at` | When the last version stopped |
@@ -360,7 +377,7 @@ An `Experiment`, with these fields:
 | `source` | `{"commit", "path"}`: where the definition comes from |
 | `results` | The results of one version, or `null` before the first start. See [Results](#results) |
 | `versions` | `[{"version", "arms", "started_at", "started_by", "stopped_at", "stopped_by", "stop_note"}]`. `stop_note` is the note of the stop, or why Statespace stopped the version |
-| `history` | Starts and stops |
+| `history` | `[{"at", "actor", "via", "text", "note"}]`: what changed, who changed it, and how. `actor`, `via`, and `note` can be `null` |
 | `drift` | `{"live_commit"}`, or `null` |
 | `override_urls` | `{"<commit>": url}`, or `null` |
 
