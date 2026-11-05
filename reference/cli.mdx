@@ -3,13 +3,14 @@ title: CLI
 description: Every ssp command, argument, and flag, and what each command prints.
 ---
 
-`ssp` adds and removes apps and tokens, sets the arms of experiments, starts and stops experiments, runs the proxy, and gives your SQL login. The proxy runs on Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io, S3, and Cloud Storage. Install it with the [install script](/getting-started/installation#cli).
+import Planned from '/snippets/planned.mdx';
+
+`ssp` adds and removes apps and tokens, sets the arms of experiments, starts and stops experiments, and runs the proxy. The proxy runs on Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io, S3, and Cloud Storage. Install it with the [install script](/getting-started/installation#cli).
 
 ```text
 ssp app         add | remove | list | show
 ssp experiment  list | show | update | start | stop
 ssp token       add | remove | list
-ssp db          url | rotate
 ssp proxy       docker | cloudrun | kubernetes | fargate | fly
                 | s3 | gcs
 ssp login | logout | whoami
@@ -110,7 +111,7 @@ With `--json`, it prints the `AppDetail`.
 
 ## ssp experiment list
 
-List the experiments of an app: state, version, arms, and the headline metric.
+List the experiments of an app: state, version, arms, and the headline.
 
 ```shell
 ssp experiment list --app shop-prod
@@ -128,14 +129,18 @@ With `--json`, it prints `{"experiments": [Experiment]}`.
 
 ## ssp experiment show
 
-Show an experiment in full:
+<Planned />
 
-- the definition, and the commit that it comes from;
-- the arms with their shares, and the reference;
-- the evidence of the current or last version for each arm: totals, metrics, the split check, and the top events;
-- the versions, and the history of starts, stops, and metric changes;
-- the drift from live, such as "live is now f2f2f2f" or "live c0ffee1 contains a1b2c3d";
-- the override link of each arm while the experiment runs, such as `?ssp=checkout:a1b2c3d`.
+Show an experiment in full, in this order:
+
+1. the definition, and the commit that it comes from;
+2. the arms with their shares;
+3. the drift from live, such as "live is now f2f2f2f" or "live c0ffee1 contains a1b2c3d";
+4. the override link of each arm while the experiment runs, such as `?ssp=checkout:a1b2c3d`;
+5. the history of starts and stops;
+6. the results of one version, with one column for each arm;
+7. where to find that version in your own tools;
+8. the versions.
 
 ```shell
 ssp experiment show checkout --app shop-prod
@@ -144,6 +149,44 @@ ssp experiment show checkout --app shop-prod
 <ParamField body="name" type="string" required>
   The experiment.
 </ParamField>
+
+<ParamField body="--version" type="number">
+  The version of the results, such as `2`. A stopped version shows its snapshot: its results when it stopped. Default: the current or last version.
+</ParamField>
+
+The results have a row for each result and each event, and the split check:
+
+```text
+Evidence of version 4 (since 2026-11-04 09:12 UTC):
+                       c0ffee1        a1b2c3d
+  visitors             1,204          1,188
+  requests/visitor     4.1            4.3
+  error rate %         0.2 (±0.1)     0.3 (±0.1)
+  latency p50 ms       41             44
+  latency p90 ms       120            131
+  purchase %           2.1 (±0.8)     2.6 (±0.9)
+  split                ok
+```
+
+A margin is the half-width of a 95% interval. Below 30 visitors in an arm, the margin is `–`. See [Results](/concepts/evidence#results).
+
+Then the command prints the keys to search for in your own tools:
+
+```text
+Find it in your own tools:
+  Window   2026-11-04T09:12:00Z → now
+  Arms     statespace.arm = "c0ffee1…" | "a1b2c3d…"     (no attribute: live)
+           statespace.experiment = "checkout"
+  Version  service.version = "c0ffee1…" | "a1b2c3d…"
+  Browser  cookie ssp_arms contains "checkout:c0ffee1…" | "checkout:a1b2c3d…"
+```
+
+- `Window` is the time of the version. `now` means that it runs.
+- `Arms` and `Version` are the OpenTelemetry resource attributes of the arms. Live has none of them: no attribute means live.
+- `Browser` is the value of the `ssp_arms` cookie of each arm.
+- `…` marks a short commit. The labels hold the full commit.
+
+See [Find it in your own tools](/guides/own-tools).
 
 With `--json`, it prints the `ExperimentDetail`.
 
@@ -165,7 +208,7 @@ ssp experiment update checkout --app shop-prod \
 
   - A new commit is added with the share.
   - A commit that is an arm gets the new share.
-  - `=0` removes the arm. Its evidence stays.
+  - `=0` removes the arm. Its results stay.
 </ParamField>
 
 These examples change the arms of `checkout`:
@@ -289,53 +332,6 @@ List the runtime tokens, without their secrets.
 ```shell
 ssp token list
 ```
-
-## ssp db url
-
-Print the connection string of your PostgreSQL login. The login only reads.
-It reads the apps whose repo you can read. The command needs the session of
-`ssp login`. See [Query your data with SQL](/guides/sql).
-
-```shell
-psql "$(ssp db url)"
-```
-
-<ParamField body="--account" type="string">
-  The workspace, such as `acme`. Required when you are in more than one
-  workspace.
-</ParamField>
-
-<ParamField body="--verify" type="flag">
-  Check the certificate of the server with the trust store of the system.
-  The connection string has `sslmode=verify-full&sslrootcert=system` in place
-  of `sslmode=require`. It needs psql or libpq 16 or later.
-</ParamField>
-
-Standard output has only the connection string. Standard error says which
-apps the login reads. With `--json`, it prints `url`, `account`, `host`,
-`port`, `database`, `user`, `password`, `sslmode`, and `apps`. The password
-stays the same until `ssp db rotate`.
-
-## ssp db rotate
-
-Give your PostgreSQL login a new password. The old password stops at once,
-and its sessions end.
-
-```shell
-ssp db rotate --note "pasted in a chat"
-```
-
-<ParamField body="--account" type="string">
-  The workspace, such as `acme`. Required when you are in more than one
-  workspace.
-</ParamField>
-
-<ParamField body="--verify" type="flag">
-  Print the new connection string with full verification, as
-  `ssp db url --verify` does.
-</ParamField>
-
-It prints the new connection string, as `ssp db url` does.
 
 ## ssp proxy docker
 
@@ -552,6 +548,8 @@ The proxy gets its app from its runtime token. At start, it asks Statespace whic
 </ParamField>
 
 `ssp proxy` prints no JSON document. It passes HTTP/1.1, HTTP/2, and WebSocket.
+
+Each arm gets labels for your own tools: labels or tags on its resources, the variables `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES`, and the headers `ssp-experiment` and `ssp-arm` on each request. See [Find it in your own tools](/guides/own-tools).
 
 ## ssp login
 
