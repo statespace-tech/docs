@@ -29,7 +29,7 @@ ssp login | logout | whoami
 ## Common flags
 
 <ParamField body="--json" type="boolean">
-  Print exactly one JSON document on standard output. All commands take it, except `ssp proxy`. The document is the response of the [API](/reference/api) route that the command calls.
+  Print exactly one JSON document on standard output. All commands take it, except `ssp proxy`. The document has the same data as the text output, and no more. Full commits and RFC 3339 times replace the short commits and the UTC times of the text.
 </ParamField>
 
 <ParamField body="--note" type="string">
@@ -37,7 +37,7 @@ ssp login | logout | whoami
 </ParamField>
 
 <ParamField body="--app" type="string">
-  The app. Required when the current folder is not linked to exactly one app.
+  The app. Required when the current folder is not linked to exactly one app. Environment variable: `STATESPACE_APP`.
 </ParamField>
 
 ## Output and exit codes
@@ -337,7 +337,7 @@ ssp experiment stop checkout us-landing --app shop-prod \
   One or more experiments.
 </ParamField>
 
-A stop on a stopped experiment returns it unchanged. With `--json`, it prints the stopped experiments. See [Stop in an emergency](/guides/emergency-stop).
+A stop on a stopped experiment returns it unchanged. With `--json`, it prints `{"stopped": [Experiment]}`. See [Stop in an emergency](/guides/emergency-stop).
 
 ## ssp token add
 
@@ -578,7 +578,7 @@ Each `ssp proxy` command takes these flags. All other settings come from [`state
 The proxy gets its app from its runtime token. At start, it asks Statespace which app the token is for, with [`GET /v1/runtime/app`](/reference/api#runtime). When Statespace refuses the token, the proxy stops with an error.
 
 <ParamField body="--listen" type="string" default="0.0.0.0:8080">
-  The address that the proxy listens on.
+  The address that the proxy listens on. Environment variable: `STATESPACE_LISTEN`.
 </ParamField>
 
 <ParamField body="--token" type="string" required>
@@ -600,6 +600,10 @@ Sign in with GitHub. The CLI shows a code. Approve the code in the browser. This
 ```shell
 ssp login
 ```
+
+<ParamField body="--no-open" type="boolean">
+  Print the sign-in URL. Do not open a browser.
+</ParamField>
 
 ## ssp logout
 
