@@ -9,7 +9,7 @@ This page is optional. Live keeps its own address, so the part in front of `ssp`
 ## What happens during a fallback
 
 - All visitors get live.
-- The arms get no traffic. The experiments stay `running`, but they pause: the proxy records nothing, and their evidence does not grow.
+- The arms get no traffic. The experiments stay `running`, but they pause: the proxy counts nothing, and their results do not grow.
 - Overrides do not work.
 - When `ssp` is back, each subject gets the same arm as before. The arm comes from a hash of the subject ID. See [Subjects and assignment](/concepts/subjects).
 

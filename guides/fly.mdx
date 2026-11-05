@@ -4,6 +4,8 @@ sidebarTitle: Fly.io
 description: Run ssp proxy fly as its own Fly.io app in front of your app, with each arm as a Machine of your app.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 On Fly.io, the proxy runs as its own app in front of your app, in the same organization. Each arm runs as a Machine of your app, without services.
 
 ```text
@@ -14,15 +16,18 @@ visitors ─► shop-statespace ─┼─► checkout c0ffee1 VM  (private IPv6)
 
 ## How it works
 
+<Planned />
+
 - Live is the Machines of your app in one process group, `app` by default, that the proxy did not make. The live image is the digest that they all run. During a deploy, the digests differ, and live is not known until the deploy ends.
 - The proxy sends live traffic to `http://<fly app>.flycast`, such as `http://shop.flycast`, or to `--live-url`.
 - For each arm, the proxy copies the config of a live Machine, changes only the image, and makes a Machine named `ssp-<experiment>-<commit 12>`, such as `ssp-checkout-a1b2c3d4e5f6`.
 - The copy keeps the guest size, the environment, the files, the init, and the restart policy. Fly.io gives it the secrets of the app.
 - The copy has no services. Thus Fly.io never sends it public or Flycast traffic. The health checks of the services become Machine checks.
 - The copy has no mounts, because a volume is for one Machine only. It has no `fly_*` metadata, so `fly deploy` and `fly scale` do not change it.
-- The metadata `statespace.com/app`, `statespace.com/experiment`, and `statespace.com/commit` keep the full values.
-- An arm is ready when its Machine is `started`, runs the image of the arm, passes all its checks, and accepts a connection.
-- The proxy sends the requests of an arm to the private IPv6 address of its Machine, on the 6PN network of the organization. It reads the output of the arms from the logs of the app.
+- The metadata `statespace_app`, `statespace_experiment`, and `statespace_commit` keep the full values.
+- The Machine of an arm gets `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` with its experiment and commit. See [Find it in your own tools](/guides/own-tools).
+- An arm is ready when its Machine is `started`, runs the image of the arm, passes all its checks, and accepts a connection. When it is not ready, the reason comes from the state, the checks, and the exit events of the Machine.
+- The proxy sends the requests of an arm to the private IPv6 address of its Machine, on the 6PN network of the organization.
 - When an experiment stops, the proxy destroys the Machines of its arms.
 
 Your deploy workflow does not change. `fly deploy` of your app changes live only. The arms stay. See [Infrastructure as code](/guides/infrastructure-as-code).
@@ -102,7 +107,7 @@ The proxy asks Statespace which app its runtime token is for.
     primary_region = "iad"
 
     [build]
-      image = "ghcr.io/statespace-tech/statespace:0.4.3"
+      image = "ghcr.io/statespace-tech/statespace:0.5.0"
 
     # The command goes after the entry point of the image, ssp.
     [processes]

@@ -13,6 +13,7 @@ import Missing from '/snippets/files/missing.mdx';
 import Live from '/snippets/files/live.mdx';
 import Retention from '/snippets/files/retention.mdx';
 import Instances from '/snippets/files/instances.mdx';
+import Planned from '/snippets/planned.mdx';
 
 Use `ssp proxy gcs` for a static site in a Cloud Storage bucket. The proxy serves the files of the bucket, like a static website endpoint. Each subject can get a different build.
 
@@ -24,11 +25,14 @@ visitors ─► site-proxy ─┼─► gs://acme-site/builds/c0ffee1…/
 
 ## How it works
 
+<Planned />
+
 - CI uploads the files of each commit to a folder, such as `builds/<commit>/`. Then it records the folder with `statespace-tech/action@v1`.
 - Live is the files at the root of the bucket, without the build folders.
 - An arm is the build folder of its commit. The proxy serves the files of that folder to the subjects of the arm.
 - The proxy only reads. It never writes to the bucket, and it never copies files.
-- The proxy records the requests and the events of the arms, as on every runtime. A static site has no output, so events on `stdout` and `stderr` never match.
+- The proxy counts the visitors and the events of the arms, as on every runtime.
+- An arm has no process, so it gets no environment or request headers. The cookie `ssp_arms` labels its visitors for browser analytics. See [Find it in your own tools](/guides/own-tools#browser-analytics).
 - The proxy uses the Cloud Storage JSON API with Google credentials: the metadata server, or Application Default Credentials, such as a user, a service account key, or workload identity federation. It uses no HMAC keys.
 
 ## Prerequisites
@@ -38,7 +42,7 @@ visitors ─► site-proxy ─┼─► gs://acme-site/builds/c0ffee1…/
 - An app, such as `site-prod`.
 - A Workload Identity Federation provider for GitHub Actions, and the service account `site-ci` that CI uses.
 - A container service near the bucket for the proxy. See [Where to run the proxy](#where-to-run-the-proxy).
-- The proxy image `ghcr.io/statespace-tech/statespace:0.4.3`, in a registry that your container service can use.
+- The proxy image `ghcr.io/statespace-tech/statespace:0.5.0`, in a registry that your container service can use.
 
 ## Record each build
 
@@ -190,12 +194,12 @@ In the commands, the proxy runs on Cloud Run in `us-east1`.
   <Step title="Deploy the proxy">
     Deploy the proxy as the service `site-proxy`. Use the path of the proxy image in your registry.
 
-    The proxy works between requests: it renews its lease, checks the builds, and sends records. Thus it needs CPU that is always allocated and one instance at minimum.
+    The proxy works between requests: it renews its lease, checks the builds, and sends the data for the results. Thus it needs CPU that is always allocated and one instance at minimum.
 
     ```shell
     gcloud run deploy site-proxy \
       --region us-east1 \
-      --image <registry>/statespace-tech/statespace:0.4.3 \
+      --image <registry>/statespace-tech/statespace:0.5.0 \
       --service-account "$proxy" \
       --set-secrets STATESPACE_TOKEN=site-statespace-token:latest \
       --no-cpu-throttling --min-instances 1 \

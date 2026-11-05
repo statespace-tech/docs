@@ -4,6 +4,8 @@ sidebarTitle: Docker
 description: Run ssp proxy docker next to a live container that you run, such as with Docker Compose, with each arm as a copy of that container.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 On a machine with Docker, you run live as you do now, such as with Docker Compose. `ssp proxy docker` runs next to it. It sends live traffic to your container, and runs each arm as a copy of that container with another image.
 
 ```text
@@ -14,14 +16,18 @@ visitors ─► ssp ─┼─► checkout c0ffee1    (arm)
 
 ## How it works
 
+<Planned />
+
 - Live is a container that you run, such as the container `shop` of a Compose service. `--live-container` names it. The proxy never runs, changes, or stops it.
 - The live image is the image of that container.
 - The proxy checks the container every 2 seconds. When you create the container again, such as with a new image, the proxy sends live traffic to the new container within seconds.
 - The port of live is `--live-port`. Without it, the port is the only TCP port that the container exposes.
 - For each arm, the proxy creates a copy of the live container with another image. The copy keeps the environment that live sets, its command and entry point when live sets them, its mounts, its limits, and its networks.
 - The copy gets none of the labels, names, network aliases, published ports, or restart policy of live. It gets no variable that starts with `STATESPACE_`. Thus Compose does not count the arms as its own.
-- The proxy labels the arms `statespace.com/app`, `statespace.com/experiment`, and `statespace.com/commit`. After a crash, a new proxy adopts them.
+- The proxy labels the arms `com.statespace.app`, `com.statespace.unit`, `com.statespace.experiment`, `com.statespace.commit`, `com.statespace.image`, and `com.statespace.proxy`. After a crash, a new proxy adopts them.
+- The arm gets `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` with its experiment and commit. See [Find it in your own tools](/guides/own-tools).
 - An arm is ready when it accepts a TCP connection, or when it answers `--health` with a 2xx status.
+- When an arm exits, the reason comes from the state of its container: the exit code, and whether it ran out of memory.
 - When an experiment stops, the proxy removes the containers of its arms. When the proxy stops, it removes all its arms.
 
 The proxy uses the Docker Engine API. It finds Docker at `DOCKER_HOST` (`unix://`, or `tcp://` without TLS), or at `/var/run/docker.sock`. It needs no `docker` command, so it runs in the `ssp` image.
@@ -66,7 +72,7 @@ The proxy uses the Docker Engine API. It finds Docker at `DOCKER_HOST` (`unix://
           - "127.0.0.1:3000:3000"
 
       ssp:
-        image: ghcr.io/statespace-tech/statespace:0.4.3
+        image: ghcr.io/statespace-tech/statespace:0.5.0
         command:
           - proxy
           - docker

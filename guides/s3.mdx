@@ -14,6 +14,7 @@ import Missing from '/snippets/files/missing.mdx';
 import Live from '/snippets/files/live.mdx';
 import Retention from '/snippets/files/retention.mdx';
 import Instances from '/snippets/files/instances.mdx';
+import Planned from '/snippets/planned.mdx';
 
 Use `ssp proxy s3` for a static site in an S3 bucket. The proxy serves the files of the bucket, like a static website endpoint. Each subject can get a different build.
 
@@ -25,11 +26,14 @@ visitors ─► site-proxy ─┼─► s3://acme-site/builds/c0ffee1…/
 
 ## How it works
 
+<Planned />
+
 - CI uploads the files of each commit to a folder, such as `builds/<commit>/`. Then it records the folder with `statespace-tech/action@v1`.
 - Live is the files at the root of the bucket, without the build folders.
 - An arm is the build folder of its commit. The proxy serves the files of that folder to the subjects of the arm.
 - The proxy only reads. It never writes to the bucket, and it never copies files.
-- The proxy records the requests and the events of the arms, as on every runtime. A static site has no output, so events on `stdout` and `stderr` never match.
+- The proxy counts the visitors and the events of the arms, as on every runtime.
+- An arm has no process, so it gets no environment or request headers. The cookie `ssp_arms` labels its visitors for browser analytics. See [Find it in your own tools](/guides/own-tools#browser-analytics).
 - The proxy works with S3-compatible stores too, such as Cloudflare R2, Backblaze B2, DigitalOcean Spaces, and MinIO. Give their address with `--endpoint`, or with `AWS_ENDPOINT_URL_S3`.
 
 ## Prerequisites
@@ -39,7 +43,7 @@ visitors ─► site-proxy ─┼─► s3://acme-site/builds/c0ffee1…/
 - An app, such as `site-prod`.
 - An IAM role that GitHub Actions can assume with OIDC, such as `acme-site-ci`.
 - A container service near the bucket for the proxy. See [Where to run the proxy](#where-to-run-the-proxy).
-- The proxy image `ghcr.io/statespace-tech/statespace:0.4.3`.
+- The proxy image `ghcr.io/statespace-tech/statespace:0.5.0`.
 
 ## Record each build
 
@@ -175,7 +179,7 @@ Run the proxy in any container service near the bucket, such as in the same regi
 - **Cloud Run.** Give the proxy AWS credentials in the environment, such as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from Secret Manager.
 - **Kubernetes**, such as Amazon EKS with an IAM role for the service account.
 
-The proxy works between requests: it renews its lease, checks the builds, and sends records. So keep at least one instance running, with CPU that is always allocated.
+The proxy works between requests: it renews its lease, checks the builds, and sends the data for the results. So keep at least one instance running, with CPU that is always allocated.
 
 This part of an ECS task definition runs the proxy on Fargate:
 
@@ -183,7 +187,7 @@ This part of an ECS task definition runs the proxy on Fargate:
 "containerDefinitions": [
   {
     "name": "proxy",
-    "image": "ghcr.io/statespace-tech/statespace:0.4.3",
+    "image": "ghcr.io/statespace-tech/statespace:0.5.0",
     "command": [
       "proxy", "s3",
       "--bucket", "acme-site",

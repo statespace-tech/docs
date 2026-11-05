@@ -4,6 +4,8 @@ sidebarTitle: ECS Fargate
 description: Run ssp proxy fargate as its own ECS service in front of your service, with each arm as an ECS service in the same cluster.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 On ECS Fargate, the proxy runs as its own ECS service in front of your service. Each arm runs as an ECS service in the same cluster, from a copy of your task definition with another image.
 
 ```text
@@ -14,6 +16,8 @@ visitors ─► shop-proxy ─┼─► checkout c0ffee1 service     (task IP)
 
 ## How it works
 
+<Planned />
+
 - Live is your ECS service, such as `shop`. The live image is the image of the task definition of its primary deployment. When the image has a tag, the proxy reports the digest that the tasks run.
 - The proxy sends live traffic to `--live-url`, such as the internal load balancer of `shop`. Without `--live-url`, it uses the first Service Connect name of `shop`.
 - For each arm, the proxy copies the task definition of `shop`, changes only the image, and makes the service `shop-ssp-<experiment>-<commit 12>`, such as `shop-ssp-checkout-a1b2c3d4e5f6`. When the name is too long, it ends with a short hash.
@@ -21,7 +25,9 @@ visitors ─► shop-proxy ─┼─► checkout c0ffee1 service     (task IP)
 - The tags `statespace.com/app`, `statespace.com/experiment`, and `statespace.com/commit` keep the full values.
 - The desired count of an arm is the desired count of `shop` times the share, at least 1.
 - An arm is ready when one of its tasks runs the image of the arm and is healthy. A container without a health check must accept a TCP connection.
-- The proxy sends the requests of an arm to the private IP address of a task. It reads the output of the arms from CloudWatch Logs.
+- The proxy sends the requests of an arm to the private IP address of a task.
+- The container of the app in each arm gets `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` with its experiment and commit. See [Find it in your own tools](/guides/own-tools).
+- When an arm is not ready, the reason comes from the stop reason of its last stopped task. The proxy reads no logs, so your container can log with any driver.
 - When an experiment stops, the proxy deletes the services of its arms and their task definitions.
 
 Your deploy workflow does not change. Deploy a new live as usual, such as with `aws ecs update-service`, Terraform, or CloudFormation. The arms stay. See [Infrastructure as code](/guides/infrastructure-as-code).
@@ -33,7 +39,6 @@ Your deploy workflow does not change. Deploy a new live as usual, such as with `
 ## Prerequisites
 
 - Your ECS service `shop` in the cluster `shop`, in `us-east-1`, with the task role `shop-task` and the execution role `shop-task-execution`.
-- The container of `shop` logs with the `awslogs` driver to the log group `/ecs/shop`.
 - An internal load balancer in front of `shop`, or a Service Connect name.
 - An app, such as `shop-prod`, and a recorded build of the image that live runs.
 - The AWS CLI with rights to manage IAM, ECS, and Secrets Manager. In the commands, `123456789012` is the account.
@@ -44,7 +49,7 @@ The proxy asks Statespace which app its runtime token is for.
 
 <Steps>
   <Step title="Give the proxy its permissions">
-    Make the task role `statespace-proxy` with this policy. The proxy manages the services and task definitions of the arms, runs them with the roles of `shop`, and reads their output.
+    Make the task role `statespace-proxy` with this policy. The proxy manages the services and task definitions of the arms, and runs them with the roles of `shop`.
 
     ```json proxy-policy.json
     {
@@ -81,12 +86,6 @@ The proxy asks Statespace which app its runtime token is for.
               "iam:PassedToService": "ecs-tasks.amazonaws.com"
             }
           }
-        },
-        {
-          "Effect": "Allow",
-          "Action": "logs:FilterLogEvents",
-          "Resource":
-            "arn:aws:logs:us-east-1:123456789012:log-group:/ecs/shop:*"
         }
       ]
     }
@@ -127,7 +126,7 @@ The proxy asks Statespace which app its runtime token is for.
       "containerDefinitions": [
         {
           "name": "proxy",
-          "image": "ghcr.io/statespace-tech/statespace:0.4.3",
+          "image": "ghcr.io/statespace-tech/statespace:0.5.0",
           "essential": true,
           "command": [
             "proxy", "fargate",
