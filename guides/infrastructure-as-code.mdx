@@ -10,17 +10,18 @@ Use this page to see what your infrastructure tools see when `ssp proxy` runs. Y
 
 - The proxy never changes a resource that it did not create. Your service, your Deployment, your container, and your bucket stay as you deployed them.
 - Each arm is a separate resource that the proxy creates, labels, and deletes. Your tools do not manage it.
-- The labels of an arm are `statespace.com/app`, `statespace.com/experiment`, and `statespace.com/commit`. On Cloud Run, they are `statespace-app`, `statespace-experiment`, and `statespace-commit`.
 - When an experiment stops, the proxy deletes its arms.
 
-| Runtime | Each arm is |
-| --- | --- |
-| Docker | A container, `<live container>-ssp-…`, with no Compose labels |
-| Cloud Run | A service, `<service>-ssp-<experiment>-<commit 12>` |
-| Kubernetes | A Deployment and a Service, `<deployment>-ssp-…` |
-| ECS Fargate | An ECS service and a task definition, `<service>-ssp-…` |
-| Fly.io | A Machine, `ssp-<experiment>-<commit 12>` |
-| S3, Cloud Storage | A build folder that your CI uploads, such as `builds/<commit>/` |
+Each arm has labels with its app, experiment, and commit.
+
+| Runtime | Each arm is | Labels |
+| --- | --- | --- |
+| Docker | A container, `<live container>-ssp-…`, with no Compose labels | `com.statespace.app`, `com.statespace.experiment`, `com.statespace.commit` |
+| Cloud Run | A service, `<service>-ssp-<experiment>-<commit 12>` | `statespace-app`, `statespace-experiment`, `statespace-commit` |
+| Kubernetes | A Deployment and a Service, `<deployment>-ssp-…` | `statespace.com/app`, `statespace.com/experiment`, `statespace.com/commit` |
+| ECS Fargate | An ECS service and a task definition, `<service>-ssp-…` | The same tags as on Kubernetes |
+| Fly.io | A Machine, `ssp-<experiment>-<commit 12>` | The metadata `statespace_app`, `statespace_experiment`, `statespace_commit` |
+| S3, Cloud Storage | A build folder that your CI uploads, such as `builds/<commit>/` | None |
 
 The proxy itself is a resource that you deploy. Manage it with the same tool as live.
 
