@@ -148,18 +148,6 @@
     {
       "source": "/getting-started/how-it-works",
       "destination": "/concepts/how-it-works"
-    },
-    {
-      "source": "/concepts/events-and-metrics",
-      "destination": "/concepts/events"
-    },
-    {
-      "source": "/guides/events-and-metrics",
-      "destination": "/guides/events"
-    },
-    {
-      "source": "/guides/sql",
-      "destination": "/concepts/evidence"
     }
   ]
 }
