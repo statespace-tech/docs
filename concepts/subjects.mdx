@@ -9,7 +9,7 @@ How does the proxy pick the arm of a request, and how does a subject keep the sa
 
 ## Subjects
 
-A subject is whom the split assigns: a visitor, a user, or an account. Each experiment reads the subject ID from the request with its `subject` key. The default is the subject cookie `ssp_sid`. It identifies one browser.
+A subject is whom the split assigns: a browser, a user, or an account. Each experiment reads the subject ID from the request with its `subject` key. The default is the subject cookie `ssp_sid`. It identifies one browser.
 
 ```toml statespace.toml
 # Assign signed-in users by their user ID.

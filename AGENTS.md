@@ -47,7 +47,8 @@ models that were removed. When the spec is silent, do not invent behavior.
 - Do not use filler such as "simply", "just", "please note", or "it's worth noting".
 - Use one term for each thing: **app**, **live**, **live commit**, **build**, **experiment**, **arm**
   (never "variant"), **subject**, **share**, **version**, **unit**, **override**,
-  **event**, **visitor**, **orchestrator**.
+  **event**, **orchestrator**. A **visitor** is a person who visits the site, such as in a traffic
+  diagram. Never use "visitor" for a subject.
 - Use one example everywhere: the organization `acme`, the repo `acme/shop`, the apps `shop-dev` and
   `shop-prod`, the experiments `checkout` and `us-landing`, the live commit `c0ffee1`, the commit
   `a1b2c3d`, the event `purchase`, and the image

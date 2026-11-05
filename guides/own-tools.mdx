@@ -19,7 +19,7 @@ The proxy labels each arm. It sends no data to your data tools: they read the la
 | The resources of the arm | Labels, tags, or metadata with the experiment and the commit | Log collectors and cloud consoles |
 | The environment of the arm | `SSP_EXPERIMENT`, `SSP_ARM`, and `OTEL_RESOURCE_ATTRIBUTES` | Your code and every OpenTelemetry SDK |
 | Each request to the arm | The headers `ssp-experiment` and `ssp-arm` | Your app, for each request |
-| The browser of the visitor | The cookie `ssp_arms` | Browser analytics |
+| The browser of the subject | The cookie `ssp_arms` | Browser analytics |
 
 The commit is always the full commit. Your data tools can show its first 7 characters.
 
@@ -223,7 +223,7 @@ with propagate_attributes(metadata={"ssp_arm": ARM}):
 
 ## Browser analytics
 
-Read the cookie `ssp_arms` in the browser, and send it to your analytics tool. A visitor in no arm has no cookie. This code gives `none` for that visitor.
+Read the cookie `ssp_arms` in the browser, and send it to your analytics tool. A browser that is in no arm has no cookie. For that browser, this code gives `none`.
 
 ```js arms.js
 const arms =

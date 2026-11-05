@@ -6,7 +6,7 @@ description: Run commits as the arms of an experiment on a share of live traffic
 
 import TrafficDiagram from '/snippets/traffic-diagram.mdx';
 
-Statespace runs commits of your app on small shares of real traffic. It counts what happens to the subjects of each commit, such as visitors or users, and puts the evidence on each commit as a commit status.
+Statespace runs commits of your app on small shares of real traffic. It counts what happens to the subjects of each commit, such as browsers or users, and puts the evidence on each commit as a commit status.
 
 An **experiment** compares commits. Each commit is an **arm** with an exact share of the subjects, such as `0.05`. To compare a change with what runs now, make the live commit one of the arms. The proxy in front of your app sends each arm its share. All other visitors get your live service, as before.
 

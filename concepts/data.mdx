@@ -5,7 +5,7 @@ description: The data that leaves the proxy, how Statespace identifies a subject
 
 import Planned from '/snippets/planned.mdx';
 
-What data about your visitors leaves your platform, and for how long does Statespace keep it?
+What data about your subjects leaves your platform, and for how long does Statespace keep it?
 
 <Planned />
 
@@ -30,7 +30,7 @@ For each arm of each version, Statespace keeps the totals of these records, and 
 - Bodies, headers, and cookies. A rule can match a header or a cookie, but only the name of the event leaves the proxy.
 - Paths and queries.
 - Logs and the output of your app.
-- Subject IDs, such as visitor IDs and user IDs.
+- Subject IDs, such as the value of `ssp_sid` and user IDs.
 - Data about live. The proxy sends nothing about live traffic.
 - Data about overrides. A visit with an override sends nothing.
 
