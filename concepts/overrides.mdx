@@ -3,6 +3,8 @@ title: Overrides
 description: How a tester opens an arm of a running experiment with a link.
 ---
 
+import Planned from '/snippets/planned.mdx';
+
 How do you look at an arm yourself, without the random split?
 
 An override is a request that names its experiment and arm. Overrides are
@@ -38,11 +40,13 @@ show` and the dashboard show the link of each arm of a running experiment.
 Overrides work on every runtime, and behind a CDN when the CDN sends the
 `ssp` parameter and cookie to the proxy. See [Behind a CDN](/guides/cdn).
 
-## Records
+## Results
 
-Statespace records override visits with the reason `override`. They count
-fully for the experiment: subjects, events, and metrics. Only the split
-check leaves them out.
+<Planned />
+
+Override visits are never in the results. The proxy sends nothing about
+them: no visitor, request, or event. An override never sets the cookie
+`ssp_arms`.
 
 <Warning>
   A person who knows the experiment and the commit can open the arm while

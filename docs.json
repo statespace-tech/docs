@@ -50,6 +50,7 @@
           "concepts/subjects",
           "concepts/events",
           "concepts/evidence",
+          "concepts/data",
           "concepts/overrides",
           "concepts/permissions"
         ]

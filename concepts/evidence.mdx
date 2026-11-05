@@ -1,29 +1,77 @@
 ---
-title: Evidence on the commit
-description: How Statespace puts the evidence of each arm on its commit as a commit status.
+title: Results and evidence
+sidebarTitle: Results and evidence
+description: The results that Statespace shows for each arm, their margins, the versions, and the commit status on each arm's commit.
 ---
 
-Where do you and your agents read the evidence of an arm?
+import Planned from '/snippets/planned.mdx';
 
-Statespace posts a commit status on the commit of each arm, the reference too. There is one status for each app and experiment. Its name is `statespace/<app>/<experiment>`, such as `statespace/shop-prod/checkout`. Your CI does nothing for this.
+What numbers does Statespace show for each arm, and where do you and your agents read them?
+
+<Planned />
+
+## Results
+
+Statespace shows the results of one version of an experiment, with one column for each arm. It shows no difference between the arms, and it does not pick a winner.
+
+```text
+Evidence of version 4 (since 2026-11-04 09:12 UTC):
+                       c0ffee1        a1b2c3d
+  visitors             1,204          1,188
+  requests/visitor     4.1            4.3
+  error rate %         0.2 (±0.1)     0.3 (±0.1)
+  latency p50 ms       41             44
+  latency p90 ms       120            131
+  purchase %           2.1 (±0.8)     2.6 (±0.9)
+  split                ok
+```
+
+| Row | Means |
+| --- | --- |
+| `visitors` | The visitors that the arm served |
+| `requests/visitor` | The requests of the arm, divided by its visitors |
+| `error rate %` | The requests with a status from 500 to 599, as a percent of the requests |
+| `latency p50 ms` | The median time to the response headers |
+| `latency p90 ms` | The 90th percentile of the time to the response headers |
+| `<event> %` | The visitors with the event, as a percent of the visitors. One row for each event, in the order of `statespace.toml` |
+| `split` | The [split check](/concepts/events#the-split-check) |
+
+- A margin, such as `(±0.8)`, is the half-width of a 95% interval.
+- An arm with fewer than 30 visitors shows `–` for its margins.
+- A value without data, such as the latency of an arm with no requests, shows `–`.
+- Live and overrides are never in the results.
+
+## Versions
+
+Each start begins a new version. Results are always of one version. So results never mix two setups.
+
+- `ssp experiment show checkout` shows the current or last version.
+- `ssp experiment show checkout --version 2` shows version 2.
+- The experiment page of the dashboard has a version picker.
+
+When a version stops, Statespace keeps its final results as a snapshot. A stopped version always shows its snapshot.
+
+## Evidence on the commit
+
+Statespace posts a commit status on the commit of each arm. There is one status for each app and experiment. Its name is `statespace/<app>/<experiment>`, such as `statespace/shop-prod/checkout`. Your CI does nothing for this.
 
 ```text
 statespace/shop-prod/checkout  pending
-v1 running · 0.05 · 2,040 subjects · split OK
-· purchase rate % 3.4 vs 2.8 (c0ffee1)
+v1 running · 0.05 · purchase 3.4% (±0.5)
+· 2,040 visitors · split OK
 ```
 
 The running line has:
 
 1. the version;
 2. the share of the arm;
-3. the subjects of the arm;
-4. the [split check](/concepts/events-and-metrics#the-split-check);
-5. the headline metric, this arm vs the reference, with the commit of the reference.
+3. the headline: the first event, as a percent of the visitors of the arm, with its margin;
+4. the visitors of the arm;
+5. the split check, from 100 visitors.
 
-The line of the reference compares it with the other arm. With 3 or more arms, it says `reference of 2 arms`.
+Each line has the numbers of its own arm only. When the experiment has no events, the headline is the error rate, such as `error rate 0.3% (±0.1)`.
 
-## When Statespace posts
+### When Statespace posts
 
 - At each change of state: start, stop, removal, and an arm that is not ready.
 - Every hour while the experiment runs, when the description changed.
@@ -31,7 +79,7 @@ The line of the reference compares it with the other arm. With 3 or more arms, i
 
 GitHub accepts 1,000 statuses for each commit and name at most. Statespace stops the hourly posts at 950, to keep room for changes of state.
 
-## The state says where the arm is
+### The state says where the arm is
 
 The state of the status says where the arm is. It never says that the arm is good or bad. It is never `failure`.
 
@@ -45,8 +93,9 @@ See [Commit status](/reference/commit-status) for each description.
 ## More evidence
 
 - **Details** on the status opens the experiment in the dashboard.
-- `ssp experiment show <name>` shows the totals and all metrics of each arm, the split check, the top events, the versions, and the history.
+- `ssp experiment show <name>` shows the results, where to find the version in your own tools, the versions, and the history.
 - `ssp experiment show <name> --json` gives the same data to agents.
+- Your own tools keep the detail of each request, with the arm as a label. See [Find it in your own tools](/guides/own-tools).
 
 ## Next steps
 
@@ -54,7 +103,7 @@ See [Commit status](/reference/commit-status) for each description.
   <Card title="Commit status" icon="list" href="/reference/commit-status">
     Look up each state and description.
   </Card>
-  <Card title="Agents" icon="bot" href="/guides/agents">
-    Let a coding agent read the evidence.
+  <Card title="What Statespace keeps" icon="shield" href="/concepts/data">
+    See what leaves the proxy, and for how long Statespace keeps it.
   </Card>
 </CardGroup>

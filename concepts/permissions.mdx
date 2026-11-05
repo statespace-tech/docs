@@ -13,9 +13,9 @@ One fixed rule maps GitHub roles to levels.
 
 | Level | Allows | GitHub role |
 | --- | --- | --- |
-| `read` | See apps, experiments, and evidence. Read their data with [SQL](/guides/sql) | Read, Triage |
+| `read` | See apps, experiments, and results | Read, Triage |
 | `write` | Update, start, and stop experiments | Write, Maintain |
-| `admin` | Add and remove apps and runtime tokens | Admin |
+| `admin` | Add and remove apps and runtime tokens. Erase subjects | Admin |
 
 - The CLI, the dashboard, and the API use the same rule.
 - Statespace keeps roles for 10 minutes. So stop works while GitHub is down.
@@ -51,9 +51,9 @@ A runtime token can:
 
 - read the name and the runtime configuration of its app;
 - report, and hold the lease;
-- send events.
+- send the data for the results.
 
-It cannot change experiments. It cannot read evidence.
+It cannot change experiments. It cannot read results.
 
 <Warning>
   The CLI shows the secret of a token only one time. Keep it in a secret manager, and keep it out of logs.

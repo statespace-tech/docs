@@ -1,0 +1,62 @@
+---
+title: What Statespace keeps
+description: The data that leaves the proxy, how Statespace identifies a visitor, and when Statespace deletes the data of each visitor.
+---
+
+import Planned from '/snippets/planned.mdx';
+
+What data about your visitors leaves your platform, and for how long does Statespace keep it?
+
+<Planned />
+
+Statespace keeps only the data that it needs for the [results](/concepts/evidence#results). Your own tools keep the detail of each request. See [Find it in your own tools](/guides/own-tools).
+
+## What Statespace keeps
+
+For each visitor of an arm, in a running version, Statespace keeps one record:
+
+- a one-way hash of the subject ID;
+- the experiment, the version, and the arm;
+- the time of the first and the last request;
+- the number of requests, of errors, and of requests in each latency range;
+- the number of times each event matched;
+- whether the arm was ready for the visitor.
+
+For each arm of each version, Statespace keeps the totals of these records, and the final results when the version stops.
+
+## What Statespace never keeps
+
+- Requests and responses.
+- Bodies, headers, and cookies. A rule can match a header or a cookie, but only the name of the event leaves the proxy.
+- Paths and queries.
+- Logs and the output of your app.
+- Visitor IDs and user IDs.
+- Data about live. The proxy sends nothing about live traffic.
+- Data about overrides. A visit with an override sends nothing.
+
+## How Statespace identifies a visitor
+
+The proxy turns each subject ID into a one-way hash before anything leaves it. The hash is `HMAC-SHA256` with the salt of the app. The subject ID itself never leaves the proxy.
+
+The same subject ID gives the same hash in one app. So Statespace can add the data of one visitor from several proxy instances.
+
+## When Statespace deletes it
+
+1. A version runs. Statespace keeps one record for each visitor of its arms.
+2. The version stops, for any reason. Statespace writes the final results of each arm as a snapshot.
+3. Statespace deletes the record of each visitor of that version.
+
+The snapshot has totals only, with no visitor in it. Statespace keeps it until you remove the app.
+
+To erase one subject from the running versions of an app, an admin of the repo calls [`POST /v1/subjects/erase`](/reference/api#other). The totals of the arms stay.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Find it in your own tools" icon="search" href="/guides/own-tools">
+    Filter your logs, traces, and analytics by arm.
+  </Card>
+  <Card title="Limits and retention" icon="gauge" href="/reference/limits">
+    See the storage limits of an account.
+  </Card>
+</CardGroup>
