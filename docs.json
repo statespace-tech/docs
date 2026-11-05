@@ -48,7 +48,7 @@
           "concepts/apps",
           "concepts/experiments",
           "concepts/subjects",
-          "concepts/events-and-metrics",
+          "concepts/events",
           "concepts/evidence",
           "concepts/overrides",
           "concepts/permissions"
@@ -147,6 +147,10 @@
     {
       "source": "/getting-started/how-it-works",
       "destination": "/concepts/how-it-works"
+    },
+    {
+      "source": "/concepts/events-and-metrics",
+      "destination": "/concepts/events"
     }
   ]
 }

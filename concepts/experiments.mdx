@@ -4,7 +4,7 @@ sidebarTitle: Experiments
 description: What an experiment is, how its arms and shares work, how it starts and stops, and what a release does to it.
 ---
 
-What is an experiment, and when does its evidence start again?
+What is an experiment, and when do its results start again?
 
 ## Experiments
 
@@ -18,8 +18,8 @@ max_traffic = 0.2
 
 - The experiment exists in an app when the `statespace.toml` of the app's live commit has its table. It begins `stopped`, with no arms.
 - Each app of the folder has its own arms and state for the experiment. `checkout` can run on `shop-dev` and be stopped on `shop-prod`.
-- An experiment can have its own events and metrics. See [Shared and own](/concepts/events-and-metrics#shared-and-own).
-- When a release removes the table, the experiment is `gone`. Statespace keeps its history and evidence. `ssp experiment list --all` shows it.
+- An experiment can have its own events. See [Shared and own](/concepts/events#shared-and-own).
+- When a release removes the table, the experiment is `gone`. Statespace keeps its history and results. `ssp experiment list --all` shows it.
 
 ## Arms
 
@@ -44,18 +44,18 @@ ssp experiment update checkout \
 | --- | --- |
 | `--arm e5f6a7b=0.04` | `e5f6a7b` is added with `0.04`. The two other arms stay |
 | `--arm c0ffee1=0.06` | `c0ffee1` gets `0.06`. `a1b2c3d` stays |
-| `--arm a1b2c3d=0` | `a1b2c3d` is removed. Its evidence stays |
+| `--arm a1b2c3d=0` | `a1b2c3d` is removed. Its results stay |
 | `--arm a1b2c3d=0 --arm f6a7b8c=0.05` | `f6a7b8c` replaces `a1b2c3d` |
 
 An arm that you do not name never changes. So when you forget an arm, Statespace does not remove it.
 
 You cannot change the arms of a running experiment. Stop it, update it, and start it again.
 
-## The reference
+## The first arm
 
-The arm that was added first is the **reference**. Evidence shows each arm "vs" the reference. In the example above, `c0ffee1` is the reference. When you remove the reference, the next oldest arm becomes the reference.
+The arm that was added first shows first in the results. `ssp experiment update` marks it `(reference)`, and its commit status says `reference`. In the example above, `c0ffee1` is the first arm. When you remove it, the next oldest arm is first.
 
-To compare a change with live, add the live commit first. Then live is the reference.
+To compare a change with live, add the live commit first. Then live shows first.
 
 ## Start and stop
 
@@ -83,7 +83,7 @@ Each start and stop records who did it, how (`cli`, `dashboard`, or `api`), the 
 
 ## Versions
 
-A version is one run of an experiment, from `start` to `stop`. Each start begins a new version, such as `checkout` v3. A version keeps the same arms, shares, and definition from start to stop. So evidence of one version never mixes two setups.
+A version is one run of an experiment, from `start` to `stop`. Each start begins a new version, such as `checkout` v3. A version keeps the same arms, shares, and definition from start to stop. So the results of one version never mix two setups. When a version stops, Statespace keeps its results. See [Versions](/concepts/evidence#versions).
 
 An arm that stays in the experiment from one version to the next keeps its ranges of the hash space. So its subjects see the same arm in the next version.
 
@@ -97,7 +97,6 @@ A release changes the live commit, and with it `statespace.toml`. Each running e
 | `subject`, `eligibility`, or `max_traffic` of the experiment, or removes its table | The experiment stops |
 | A shared event | Every running experiment of the app stops |
 | An own event of the experiment | The experiment stops |
-| A metric, shared or own | Nothing stops. Evidence uses the new formula. The history records the change |
 
 When a release stops an experiment, the note of the stop is "definition changed in live d00d123". `ssp experiment show`, the commit statuses, and the audit log give the reason and the start command to run again.
 

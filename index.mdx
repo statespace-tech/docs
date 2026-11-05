@@ -6,7 +6,7 @@ description: Run commits as the arms of an experiment on a share of live traffic
 
 import TrafficDiagram from '/snippets/traffic-diagram.mdx';
 
-Statespace runs commits of your app on small shares of real traffic. It records what happens, and puts the evidence on each commit as a commit status.
+Statespace runs commits of your app on small shares of real traffic. It counts what happens to the visitors of each commit, and puts the evidence on each commit as a commit status.
 
 An **experiment** compares commits. Each commit is an **arm** with an exact share of the visitors, such as `0.05`. To compare a change with what runs now, make the live commit one of the arms. The proxy in front of your app sends each arm its share. All other visitors get your live service, as before.
 
@@ -14,7 +14,7 @@ An **experiment** compares commits. Each commit is an **arm** with an exact shar
 
 The proxy runs alongside live. You run and deploy live as you do now, and the proxy never changes it. Each arm is a resource that the proxy creates, labels, and deletes.
 
-Your CI makes the builds: images, or folders of files for a static site. Statespace runs only builds that your CI recorded. Your settings, events, metrics, and experiments are in `statespace.toml`, in your repo.
+Your CI makes the builds: images, or folders of files for a static site. Statespace runs only builds that your CI recorded. Your events and experiments are in `statespace.toml`, in your repo.
 
 ## How you use it
 
@@ -23,10 +23,12 @@ Your CI makes the builds: images, or folders of files for a static site. Statesp
 3. The table `[experiment.checkout]` in `statespace.toml` defines an experiment.
 4. You set the arms with `ssp experiment update checkout --arm c0ffee1=0.05 --arm a1b2c3d=0.05`.
 5. You start the experiment with `ssp experiment start checkout`.
-6. The commit status `statespace/shop-prod/checkout` on each arm's commit shows the evidence: subjects, the split check, and your headline metric.
+6. The commit status `statespace/shop-prod/checkout` on each arm's commit shows the evidence: your headline event, the visitors, and the split check.
 7. You stop the experiment with `ssp experiment stop checkout`.
 
 Statespace shows numbers for each arm. It does not tell you which arm is better. You and your agents decide.
+
+Your own tools keep the detail. Each arm carries labels that your logs, traces, and analytics can filter by. See [Find it in your own tools](/guides/own-tools).
 
 ## Get started
 

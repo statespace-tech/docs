@@ -12,9 +12,9 @@ What runs when you start an experiment, and who decides what?
 | Part | Where it runs | What it does |
 | --- | --- | --- |
 | Your CI | GitHub Actions | Builds images or files, and records each build with `statespace-tech/action@v1` |
-| `statespace.toml` | Your repo | Holds the settings, events, metrics, and experiments |
-| `ssp proxy` | In front of your app | Assigns each request, and runs the arms |
-| Statespace | `api.statespace.com` | Keeps apps, builds, experiments, and evidence. Posts commit statuses |
+| `statespace.toml` | Your repo | Holds the events and experiments |
+| `ssp proxy` | In front of your app | Assigns each request, runs and labels the arms, and counts their visitors |
+| Statespace | `api.statespace.com` | Keeps apps, builds, experiments, and results. Posts commit statuses |
 | `ssp` CLI | Your terminal or agent | Adds apps and tokens. Sets arms, and starts and stops experiments |
 
 Your app does not know Statespace. It runs no proxy and needs no code change.
@@ -49,11 +49,11 @@ The proxy never waits on Statespace during a request. It gets its configuration 
 
 ## Live and the arms
 
-- **Live** is the service that you run now. It serves every request outside the experiments. Statespace never records it.
-- **An arm** is one commit in one experiment. The proxy runs a copy of the commit's image for it, or serves the commit's files. Statespace records it.
+- **Live** is the service that you run now. It serves every request outside the experiments. Statespace never counts it.
+- **An arm** is one commit in one experiment. The proxy runs a copy of the commit's image for it, or serves the commit's files. The proxy counts its visitors.
 - **A unit** is the running copy of one arm. The proxy runs units on the platform of live: Docker, Kubernetes, Cloud Run, ECS Fargate, or Fly.io. On S3 and Cloud Storage, a unit is the build folder of the arm, and the proxy serves its files.
 
-There is no special control arm. To compare a change with what runs now, add the live commit as an arm. Then both arms get the same kind of subjects at the same time, and Statespace records both the same way.
+There is no special control arm. To compare a change with what runs now, add the live commit as an arm. Then both arms get the same kind of subjects at the same time, and the proxy counts both the same way.
 
 ## Who decides
 
@@ -69,6 +69,6 @@ There is no special control arm. To compare a change with what runs now, add the
     See what an app is, and where live comes from.
   </Card>
   <Card title="Experiments" icon="flask-conical" href="/concepts/experiments">
-    See arms, shares, the reference, and versions.
+    See arms, shares, and versions.
   </Card>
 </CardGroup>
