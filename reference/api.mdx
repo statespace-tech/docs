@@ -246,7 +246,7 @@ The response is `{"lease": bool, "expires_at"}`.
 
 <Planned />
 
-Each proxy instance sends, every 60 seconds and when it stops, the changes for each visitor of an arm since its last send. See [What Statespace keeps](/concepts/data).
+Each proxy instance sends, every 60 seconds and when it stops, the changes for each subject of an arm since its last send. See [What Statespace keeps](/concepts/data).
 
 ```json
 {
@@ -276,13 +276,13 @@ Each proxy instance sends, every 60 seconds and when it stops, the changes for e
 | `arm` | The full commit |
 | `subject` | `hex(HMAC-SHA256(key = the app's salt, message = the subject ID))`: 64 lowercase hex characters |
 | `first_at`, `last_at` | RFC 3339 times. `first_at` is not after `last_at` |
-| `unavailable` | `true` when the arm was not ready for the visitor. Then `requests` is `0`, and there are no events. Default `false` |
+| `unavailable` | `true` when the arm was not ready for the subject. Then `requests` is `0`, and there are no events. Default `false` |
 | `requests`, `errors` | Numbers of requests, and of requests with a status from 500 to 599. Default `0` |
 | `latency` | Requests in 11 ranges of the time to the response headers. The upper bounds are 5, 10, 25, 50, 100, 250, 500, 1000, 2500, and 5000 ms, and no bound. They add up to `requests` |
 | `events` | Each event of the version with a number above 0, by name. Default `{}` |
 
-- Entries of one visitor in one batch add up. Two arms for one visitor in one batch is a 400.
-- A visitor stays in the arm of their first entry. A later entry with another arm changes nothing.
+- Entries of one subject in one batch add up. Two arms for one subject in one batch is a 400.
+- A subject stays in the arm of their first entry. A later entry with another arm changes nothing.
 
 | Status | Body | Means |
 | --- | --- | --- |
@@ -290,7 +290,7 @@ Each proxy instance sends, every 60 seconds and when it stops, the changes for e
 | 200 | `{"batch", "applied": false}` | Statespace applied this batch in the last 7 days. Nothing changed |
 | 400 | `{"error"}` | A wrong body, an arm that is not in its version, or an event that the version does not define. Nothing changed |
 | 409 | `{"error", "not_running": [{"experiment", "version"}]}` | The batch has versions that do not run. Nothing changed. The proxy drops their entries and sends the others in a new batch |
-| 507 | `{"error": "storage quota exceeded"}` | New visitors are over the storage limit of the account. Nothing changed |
+| 507 | `{"error": "storage quota exceeded"}` | New subjects are over the storage limit of the account. Nothing changed |
 
 Statespace keeps no ID of a batch that it refuses.
 
@@ -332,8 +332,7 @@ Statespace keeps no ID of a batch that it refuses.
 | `version` | The current or last version |
 | `definition` | `{"subject", "eligibility", "max_traffic"}` |
 | `arms` | `[Arm]` |
-| `reference` | The commit of the first arm |
-| `headline` | `{"label", "values": {"<commit>": number or null}}`, or `null`. The label is the first event, such as `"purchase %"`, or `"error rate %"` when the version has no events |
+| `headline` | `{"label", "values": {"<commit>": number or null}}`, or `null`. The label is the first event, such as `"signup (%)"`, or `"error rate (%)"` when the version has no events |
 | `started_by`, `started_at` | Who started the current or last version, and when |
 | `stopped_at` | When the last version stopped |
 
@@ -358,8 +357,8 @@ An `Experiment`, with these fields:
 | --- | --- |
 | `source` | `{"commit", "path"}`: where the definition comes from |
 | `results_version` | The version of `results`, `split`, and `lookup`, or `null` before the first start |
-| `results` | `[ArmResult]`: one for each arm of that version, the first arm first |
-| `split` | `{"ok", "p"}`, or `null` with fewer than 100 visitors or with one arm |
+| `results` | `[ArmResult]`: one for each arm of that version, in the order of the arms |
+| `split` | `{"ok", "p"}`, or `null` with fewer than 100 subjects or with one arm |
 | `lookup` | Where to find the version in your own tools. See [Lookup](#lookup) |
 | `versions` | `[{"version", "arms", "started_at", "started_by", "stopped_at", "stopped_by", "stop_note"}]`. `stop_note` is the note of the stop, or why Statespace stopped the version |
 | `history` | Starts and stops |
@@ -373,14 +372,29 @@ An `Experiment`, with these fields:
 | Field | Means |
 | --- | --- |
 | `commit` | The full commit of the arm |
-| `visitors` | The visitors that the arm served |
-| `requests_per_visitor` | Requests divided by visitors, or `null` without visitors |
-| `error_rate` | `{"value", "margin"}`: requests with a status from 500 to 599, as a percent of the requests. `value` is `null` without requests |
-| `latency_p50_ms`, `latency_p90_ms` | The median and the 90th percentile of the time to the response headers, or `null` without requests |
-| `events` | `[{"name", "visitors", "rate": {"value", "margin"}}]`: each event of the version, in the order of `statespace.toml`. `visitors` have the event. `rate` is the percent of the arm's visitors |
+| `subjects` | The subjects that the arm served |
+| `latency_p50_ms`, `latency_p90_ms` | The median and the 90th percentile of the time to the response headers, in milliseconds, or `null` without requests |
+| `error_rate` | `{"value", "margin"}`: the requests with a status from 500 to 599, as a percent of the requests. `value` is `null` without requests |
+| `events` | `[{"name", "subjects", "total", "rate": {"value", "margin"}}]`: each event of the version, in the order of `statespace.toml`. `subjects` is the subjects with one or more matches. `total` is all the matches. `rate` is `subjects` as a percent of the subjects of the arm |
 
-- Values are not rounded.
-- A margin is the half-width of a 95% interval, in percentage points. It is `null` below 30 visitors in the arm.
+This is one item of `results`:
+
+```json
+{
+  "commit": "a1b2c3d…",
+  "subjects": 1188,
+  "latency_p50_ms": 44.0,
+  "latency_p90_ms": 131.0,
+  "error_rate": {"value": 0.30, "margin": 0.12},
+  "events": [
+    {"name": "signup", "subjects": 31, "total": 40,
+     "rate": {"value": 2.61, "margin": 0.91}}
+  ]
+}
+```
+
+- `value` and `margin` are percents. Values are not rounded.
+- A margin is the half-width of a 95% interval, in percentage points. It is `null` below 30 subjects in the arm.
 
 ### Lookup
 

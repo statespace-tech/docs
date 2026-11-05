@@ -77,7 +77,7 @@ The proxy removes these headers from each incoming request first. So a client ca
 
 ### The browser cookie
 
-A response that an arm serves to an assigned visitor sets the cookie `ssp_arms`:
+A response that an arm serves to an assigned subject sets the cookie `ssp_arms`:
 
 ```text
 ssp_arms=checkout:a1b2c3d…; Path=/;
@@ -86,8 +86,8 @@ ssp_arms=checkout:a1b2c3d…; Path=/;
 
 - The value is `<experiment>:<commit>`, with the full commit.
 - JavaScript can read the cookie.
-- It lasts 90 days, as the visitor cookie `ssp_sid`. Over plain `http`, it has no `Secure`.
-- When a later request of the visitor is in no arm, such as a request to live or an override, the response removes the cookie.
+- It lasts 90 days, as the subject cookie `ssp_sid`. Over plain `http`, it has no `Secure`.
+- When a later request of the subject is in no arm, such as a request to live or an override, the response removes the cookie.
 - An override never sets the cookie.
 
 On S3 and Cloud Storage, an arm is a folder of files. It has no resources, environment, or requests of its own. So the cookie is the only label of a static site.

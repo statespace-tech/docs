@@ -15,31 +15,38 @@ What numbers does Statespace show for each arm, and where do you and your agents
 Statespace shows the results of one version of an experiment, with one column for each arm. It shows no difference between the arms, and it does not pick a winner.
 
 ```text
-Evidence of version 4 (since 2026-11-04 09:12 UTC):
-                       c0ffee1        a1b2c3d
-  visitors             1,204          1,188
-  requests/visitor     4.1            4.3
-  error rate %         0.2 (±0.1)     0.3 (±0.1)
-  latency p50 ms       41             44
-  latency p90 ms       120            131
-  purchase %           2.1 (±0.8)     2.6 (±0.9)
-  split                ok
+Results of version 1 · since 2026-11-04 09:12 UTC
+                     c0ffee1          a1b2c3d
+  subjects           1,204            1,188
+  p50 latency (ms)   41               44
+  p90 latency (ms)   120              131
+  error rate (%)     0.20 (±0.10)     0.30 (±0.12)
+  signup (%)         2.08 (±0.81)     2.61 (±0.91)
+  search (%)         28.04 (±2.54)    27.53 (±2.54)
+  split              ok
 ```
 
 | Row | Means |
 | --- | --- |
-| `visitors` | The visitors that the arm served |
-| `requests/visitor` | The requests of the arm, divided by its visitors |
-| `error rate %` | The requests with a status from 500 to 599, as a percent of the requests |
-| `latency p50 ms` | The median time to the response headers |
-| `latency p90 ms` | The 90th percentile of the time to the response headers |
-| `<event> %` | The visitors with the event, as a percent of the visitors. One row for each event, in the order of `statespace.toml` |
-| `split` | The [split check](/concepts/events#the-split-check) |
+| `subjects` | The subjects that the arm served |
+| `p50 latency (ms)` | The median time to the response headers, in whole milliseconds |
+| `p90 latency (ms)` | The 90th percentile of the time to the response headers, in whole milliseconds |
+| `error rate (%)` | The requests with a status from 500 to 599, as a percent of the requests of the arm |
+| `<event> (%)` | The subjects with one or more matches of the event, as a percent of the subjects. One row for each event, in the order of `statespace.toml` |
+| `split` | The [split check](/concepts/events#the-split-check): `ok`, or `off (p=…)` |
 
-- A margin, such as `(±0.8)`, is the half-width of a 95% interval.
-- An arm with fewer than 30 visitors shows `(–)` for its margins.
+- Percents and margins have 2 decimals.
+- A margin, such as `(±0.91)`, is the half-width of a 95% interval. Each percent shows its margin.
+- An arm with fewer than 30 subjects shows `(–)` for its margins.
 - A value without data, such as the latency of an arm with no requests, shows `–`.
 - Live and overrides are never in the results.
+- The experiment page of the dashboard shows the same rows, with the same labels and margins.
+
+When a version is stopped, the heading shows its start and stop:
+
+```text
+Results of version 1 · 2026-11-04 09:12 – 2026-11-05 10:00 UTC
+```
 
 ## Versions
 
@@ -57,19 +64,19 @@ Statespace posts a commit status on the commit of each arm. There is one status 
 
 ```text
 statespace/shop-prod/checkout  pending
-v1 running · 0.05 · purchase 3.4% (±0.5)
-· 2,040 visitors · split OK
+v4 running · 0.05 · signup 2.61% (±0.91)
+· 1,188 subjects · split OK
 ```
 
 The running line has:
 
 1. the version;
 2. the share of the arm;
-3. the headline: the first event, as a percent of the visitors of the arm, with its margin;
-4. the visitors of the arm;
-5. the split check, from 100 visitors.
+3. the headline: the first event, as a percent of the subjects of the arm, with its margin;
+4. the subjects of the arm;
+5. the split check, from 100 subjects.
 
-Each line has the numbers of its own arm only. When the experiment has no events, the headline is the error rate, such as `error rate 0.3% (±0.1)`.
+Each line has the numbers of its own arm only. When the experiment has no events, the headline is the error rate, such as `error rate 0.30% (±0.12)`.
 
 ### When Statespace posts
 

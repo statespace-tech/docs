@@ -96,7 +96,7 @@ The order of the `[experiment.*]` tables is the priority order. When two running
 Each event defines a named count. See [Events](/concepts/events).
 
 <ParamField path="name" type="string" required>
-  The name of the event, such as `purchase` or `add_to_cart`. The results show it as `purchase %`. A name is lowercase snake_case: a lowercase letter, then lowercase letters, digits, or `_`, at most 64 characters.
+  The name of the event, such as `purchase` or `add_to_cart`. The results show it as `purchase (%)`. A name is lowercase snake_case: a lowercase letter, then lowercase letters, digits, or `_`, at most 64 characters.
 </ParamField>
 
 <ParamField path="match" type="CEL → bool" required>

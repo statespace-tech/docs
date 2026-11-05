@@ -1,22 +1,22 @@
 ---
 title: Subjects and assignment
-description: How the proxy assigns each request to an arm or to live, why experiments in one app never overlap, and the visitor cookie.
+description: How the proxy assigns each request to an arm or to live, why experiments in one app never overlap, and the subject cookie.
 ---
 
 import Planned from '/snippets/planned.mdx';
 
-How does the proxy pick the arm of a request, and how does a visitor keep the same arm?
+How does the proxy pick the arm of a request, and how does a subject keep the same arm?
 
 ## Subjects
 
-A subject is whom the split assigns: a visitor, a user, or an account. Each experiment reads the subject ID from the request with its `subject` key. The default is the visitor cookie `ssp_sid`.
+A subject is whom the split assigns: a visitor, a user, or an account. Each experiment reads the subject ID from the request with its `subject` key. The default is the subject cookie `ssp_sid`. It identifies one browser.
 
 ```toml statespace.toml
 # Assign signed-in users by their user ID.
 [experiment.checkout]
 subject = 'request.headers["x-user-id"]'
 
-# Assign US visitors by the visitor cookie.
+# Assign US visitors by the subject cookie.
 [experiment.us-landing]
 eligibility = 'request.headers["cf-ipcountry"] == "US"'
 ```
@@ -59,7 +59,7 @@ The results in one app are these:
 
 Each app has its own salt. So the splits of two apps are independent. A subject can be in an experiment of `shop-web` and in an experiment of `shop-api` at the same time.
 
-## Why a visitor is on an arm
+## Why a subject is on an arm
 
 | Why | Means | In the results |
 | --- | --- | --- |
@@ -80,7 +80,7 @@ The proxy first removes the incoming headers `ssp-experiment` and `ssp-arm`. The
 
 Live never gets these headers. Responses of the arms have `Cache-Control: private`. See [Find it in your own tools](/guides/own-tools) for the other labels of an arm.
 
-## The visitor cookie
+## The subject cookie
 
 When a running experiment uses the default `subject`, a request without `ssp_sid` gets a new ID. The response sets this cookie:
 

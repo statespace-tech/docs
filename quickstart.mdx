@@ -128,7 +128,7 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
   </Step>
 
   <Step title="Set the arms">
-    When the workflow is done, set the arms of `checkout`. The live commit is the first arm. Your change is the second arm. Each arm gets 5% of the visitors.
+    When the workflow is done, set the arms of `checkout`. The live commit is the first arm. Your change is the second arm. Each arm gets 5% of the subjects.
 
     ```shell
     ssp app show shop-dev
@@ -154,7 +154,7 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
   <Step title="Read the evidence">
     <Planned />
 
-    Show the experiment. It prints the results of each arm: visitors, requests per visitor, the error rate, latency, and the percent of visitors with each event.
+    Show the experiment. It prints the results of each arm: subjects, p50 and p90 latency, the error rate, and the percent of subjects with each event.
 
     ```shell
     ssp experiment show checkout --app shop-dev
@@ -163,8 +163,8 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
     Each arm's commit on GitHub has the status `statespace/shop-dev/checkout`. While the experiment runs, the status of your change says, for example:
 
     ```text
-    v1 running · 0.05 · purchase 3.4% (±0.5)
-    · 2,040 visitors · split OK
+    v1 running · 0.05 · purchase 2.61% (±0.91)
+    · 1,188 subjects · split OK
     ```
 
     Statespace updates the status at each change of state, and every hour. Select **Details** to see the experiment in the dashboard.

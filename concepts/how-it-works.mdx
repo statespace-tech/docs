@@ -13,7 +13,7 @@ What runs when you start an experiment, and who decides what?
 | --- | --- | --- |
 | Your CI | GitHub Actions | Builds images or files, and records each build with `statespace-tech/action@v1` |
 | `statespace.toml` | Your repo | Holds the events and experiments |
-| `ssp proxy` | In front of your app | Assigns each request, runs and labels the arms, and counts their visitors |
+| `ssp proxy` | In front of your app | Assigns each request, runs and labels the arms, and counts their subjects |
 | Statespace | `api.statespace.com` | Keeps apps, builds, experiments, and results. Posts commit statuses |
 | `ssp` CLI | Your terminal or agent | Adds apps and tokens. Sets arms, and starts and stops experiments |
 
@@ -50,7 +50,7 @@ The proxy never waits on Statespace during a request. It gets its configuration 
 ## Live and the arms
 
 - **Live** is the service that you run now. It serves every request outside the experiments. Statespace never counts it.
-- **An arm** is one commit in one experiment. The proxy runs a copy of the commit's image for it, or serves the commit's files. The proxy counts its visitors.
+- **An arm** is one commit in one experiment. The proxy runs a copy of the commit's image for it, or serves the commit's files. The proxy counts its subjects.
 - **A unit** is the running copy of one arm. The proxy runs units on the platform of live: Docker, Kubernetes, Cloud Run, ECS Fargate, or Fly.io. On S3 and Cloud Storage, a unit is the build folder of the arm, and the proxy serves its files.
 
 There is no special control arm. To compare a change with what runs now, add the live commit as an arm. Then both arms get the same kind of subjects at the same time, and the proxy counts both the same way.

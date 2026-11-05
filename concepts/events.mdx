@@ -1,6 +1,6 @@
 ---
 title: Events
-description: What the proxy counts for each visitor of an arm, and how an event turns a request and its response into a count.
+description: What the proxy counts for each subject of an arm, and how an event turns a request and its response into a count.
 ---
 
 import Planned from '/snippets/planned.mdx';
@@ -11,7 +11,7 @@ What does the proxy count for the arms, and how do you tell it what to count?
 
 ## What the proxy counts
 
-The proxy counts the visitors of the arms. For each request that an arm serves to an assigned visitor, it adds to the counters of that visitor:
+The proxy counts the subjects of the arms. For each request that an arm serves to an assigned subject, it adds to the counters of that subject:
 
 | Counter | Adds |
 | --- | --- |
@@ -22,8 +22,8 @@ The proxy counts the visitors of the arms. For each request that an arm serves t
 
 - The proxy never counts live.
 - The proxy never counts overrides. See [Overrides](/concepts/overrides).
-- A visitor counts from their first request to an arm in a version.
-- When the arm of a visitor is not ready, the request goes to live. The visitor counts for the [split check](#the-split-check) only.
+- A subject counts from their first request to an arm in a version.
+- When the arm of a subject is not ready, the request goes to live. The subject counts for the [split check](#the-split-check) only.
 - The proxy counts in memory, and never makes a request wait. It sends the counts to Statespace every 60 seconds.
 
 See [What Statespace keeps](/concepts/data) for what leaves the proxy.
@@ -101,9 +101,9 @@ request.method == "POST"
 
 ## The split check
 
-Statespace checks that the arms got visitors in the ratio of their shares. It uses a chi-square test of the visitors of all arms, from 100 visitors. The result is `split OK` or, for example, `split off (p=0.0004)` when p is less than 0.001.
+Statespace checks that the arms got subjects in the ratio of their shares. It uses a chi-square test of the subjects of all arms, from 100 subjects. The result is `split OK` or, for example, `split off (p=0.0004)` when p is less than 0.001.
 
-The check uses the visitors that the hash assigned, also when their arm was not ready. It does not use overrides. The check is a warning only. When the split is off, do not trust the other numbers.
+The check uses the subjects that the hash assigned, also when their arm was not ready. It does not use overrides. The check is a warning only. When the split is off, do not trust the other numbers.
 
 ## Next steps
 

@@ -26,9 +26,9 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
   is a build folder. Any CDN can sit in front of the proxy.
 - Events and experiments live in `statespace.toml`, with `[app.<name>]` sections. An event is a CEL rule
   over one request and its response.
-- The proxy counts the visitors of each arm. Results per arm: visitors, requests per visitor, error rate,
-  latency p50 and p90, and each event's % of visitors, with 95% margins, and the split check. Statespace
-  keeps no requests, bodies, headers, cookies, logs, or visitor IDs.
+- The proxy counts the subjects of each arm. Results per arm: subjects, p50 and p90 latency, the error
+  rate per request, and each event's % of subjects, with 95% margins and 2 decimals, and the split check.
+  Statespace keeps no requests, bodies, headers, cookies, logs, or subject IDs.
 - Each arm carries labels for the customer's own tools: resource labels, `SSP_*` variables,
   `OTEL_RESOURCE_ATTRIBUTES`, `ssp-experiment`/`ssp-arm` headers, and the `ssp_arms` cookie.
 - Evidence goes on each arm's commit as the commit status `statespace/<app>/<experiment>`.

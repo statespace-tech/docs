@@ -31,7 +31,7 @@ visitors ─► site-proxy ─┼─► gs://acme-site/builds/c0ffee1…/
 - Live is the files at the root of the bucket, without the build folders.
 - An arm is the build folder of its commit. The proxy serves the files of that folder to the subjects of the arm.
 - The proxy only reads. It never writes to the bucket, and it never copies files.
-- The proxy counts the visitors and the events of the arms, as on every runtime.
+- The proxy counts the subjects and the events of the arms, as on every runtime.
 - An arm has no process, so it gets no environment or request headers. The cookie `ssp_arms` labels its visitors for browser analytics. See [Find it in your own tools](/guides/own-tools#browser-analytics).
 - The proxy uses the Cloud Storage JSON API with Google credentials: the metadata server, or Application Default Credentials, such as a user, a service account key, or workload identity federation. It uses no HMAC keys.
 

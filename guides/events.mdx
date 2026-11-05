@@ -1,7 +1,7 @@
 ---
 title: Write events
 sidebarTitle: Events
-description: Count what the visitors of each arm do with CEL rules over a request and its response.
+description: Count what the subjects of each arm do with CEL rules over a request and its response.
 ---
 
 import Planned from '/snippets/planned.mdx';
@@ -56,7 +56,7 @@ name = "mobile"
 match = 'request.headers["x-client"] == "mobile"'
 ```
 
-The results show each event as the percent of visitors with the event. So a visitor with 3 orders counts one time in `purchase %`.
+The results show each event as the percent of subjects with one or more matches. So a subject with 3 orders counts one time in `purchase (%)`. The JSON also gives `total`, the number of all matches.
 
 ## Count slow pages and client errors
 

@@ -13,7 +13,7 @@ This page lists the limits and times of Statespace.
 
 | Data | Kept |
 | --- | --- |
-| The record of each visitor of an arm | While the version runs. Statespace deletes it when the version stops |
+| The record of each subject of an arm | While the version runs. Statespace deletes it when the version stops |
 | The results of a stopped version | Until you remove the app |
 | History and results of a `gone` experiment | Kept. `ssp experiment list --all` shows it |
 
@@ -25,10 +25,10 @@ Statespace never keeps data about live or overrides. See [What Statespace keeps]
 | --- | --- |
 | One account on the free plan | 1 GiB. Statespace warns at 80% |
 | One account on another plan | 10 GiB, unless Statespace gives the account its own limit. Statespace warns at 80% |
-| One visitor of a running version | 256 bytes of the storage of the account |
-| Visitors in the memory of one proxy instance, before it sends them | 50,000. Above this, the proxy drops the oldest |
+| One subject of a running version | 256 bytes of the storage of the account |
+| Subjects in the memory of one proxy instance, before it sends them | 50,000. Above this, the proxy drops the oldest |
 
-When an account is full, Statespace takes no new visitors. The visitors that it has stay. `GET /v1/storage` gives the use of the account. To erase a subject, use `POST /v1/subjects/erase`. See [API](/reference/api#other).
+When an account is full, Statespace takes no new subjects. The subjects that it has stay. `GET /v1/storage` gives the use of the account. To erase a subject, use `POST /v1/subjects/erase`. See [API](/reference/api#other).
 
 ## Names and values
 
@@ -51,7 +51,7 @@ When an account is full, Statespace takes no new visitors. The visitors that it 
 | --- | --- |
 | Arms of a starting experiment become ready | 5 minutes at most. Then the start fails |
 | Arms of a stopped experiment leave traffic | Seconds |
-| Visitor cookie `ssp_sid` | 90 days, renewed on each response |
+| Subject cookie `ssp_sid` | 90 days, renewed on each response |
 | Override cookie `ssp` | 1 hour, renewed on each request |
 | Commit status update | At each change of state, and once an hour while the experiment runs |
 | Roles from GitHub | Kept 10 minutes |
@@ -72,6 +72,6 @@ When an account is full, Statespace takes no new visitors. The visitors that it 
 
 | Item | Limit |
 | --- | --- |
-| Margins of an arm | From 30 visitors. Below, the margin is `(–)` |
-| Split check | From 100 visitors in the arms of the experiment. It reports `split off` when p is less than 0.001 |
+| Margins of an arm | From 30 subjects. Below, the margin is `(–)` |
+| Split check | From 100 subjects in the arms of the experiment. It reports `split off` when p is less than 0.001 |
 | Proxy sends its data to Statespace | Every 60 seconds, and when it stops |
