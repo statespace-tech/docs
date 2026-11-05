@@ -24,7 +24,6 @@ Statespace posts a commit status on the commit of each arm. There is one status 
 | The arm | State | Description, for example |
 | --- | --- | --- |
 | Runs | `pending` | `v1 running · 0.05 · purchase 3.4% (±0.5) · 2,040 visitors · split OK` |
-| Runs, the first arm | `pending` | `v1 reference · 0.05 · purchase 2.8% (±0.4) · 2,031 visitors · split OK` |
 | Runs, the split is off | `pending` | `v1 running · 0.05 · purchase 3.4% (±0.5) · 2,040 visitors · split off (p=0.00042)` |
 | Runs, not ready | `pending` | `v1 not ready: the container exits (exit 1) · subjects go to live` |
 | Is stopped | `success` | `v1 stopped · purchase 3.4% (±0.5) · 2,040 visitors` |
@@ -36,13 +35,13 @@ Statespace posts a commit status on the commit of each arm. There is one status 
 The description of an arm in a running experiment has these parts, in this order:
 
 1. the version, such as `v1`;
-2. `running`, or `reference` for the first arm;
+2. `running`;
 3. the share of the arm;
 4. the headline, such as `purchase 3.4% (±0.5)`;
 5. the visitors of the arm;
 6. the split check, `split OK` or `split off (p=0.00042)`, from 100 visitors in all arms.
 
-With 3 or more arms, the line of the first arm says `reference of 2 arms`: the number of the other arms.
+Every arm's line says `running`. No arm is special.
 
 ## The headline
 

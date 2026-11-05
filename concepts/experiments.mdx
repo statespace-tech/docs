@@ -51,11 +51,11 @@ An arm that you do not name never changes. So when you forget an arm, Statespace
 
 You cannot change the arms of a running experiment. Stop it, update it, and start it again.
 
-## The first arm
+## No arm is special
 
-The arm that was added first shows first in the results. `ssp experiment update` marks it `(reference)`, and its commit status says `reference`. In the example above, `c0ffee1` is the first arm. When you remove it, the next oldest arm is first.
+The results show the arms in the order that you added them. No arm is the reference: each arm has its own numbers, and the commit status of each arm says `running`.
 
-To compare a change with live, add the live commit first. Then live shows first.
+To compare a change with live, add the live commit as an arm.
 
 ## Start and stop
 
