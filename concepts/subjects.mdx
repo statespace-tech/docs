@@ -3,8 +3,6 @@ title: Subjects and assignment
 description: How the proxy assigns each request to an arm or to live, why experiments in one app never overlap, and the subject cookie.
 ---
 
-import Planned from '/snippets/planned.mdx';
-
 How does the proxy pick the arm of a request, and how does a subject keep the same arm?
 
 ## Subjects
@@ -68,8 +66,6 @@ Each app has its own salt. So the splits of two apps are independent. A subject 
 | Override | The request names its arm. See [Overrides](/concepts/overrides) | No |
 
 ## Headers to your app
-
-<Planned />
 
 The proxy first removes the incoming headers `ssp-experiment` and `ssp-arm`. Then it adds them to each request of an arm.
 

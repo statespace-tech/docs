@@ -4,8 +4,6 @@ sidebarTitle: Agents
 description: Let a coding agent write statespace.toml, run commits as arms of an experiment, read the evidence, and stop it.
 ---
 
-import Planned from '/snippets/planned.mdx';
-
 A coding agent can run the whole loop: change the code, run the change as an arm, read the evidence, and decide. Every command works without questions and prints JSON with `--json`.
 
 ## Give the agent the skill
@@ -67,8 +65,6 @@ In this example, the live `statespace.toml` of `shop-prod` has the table `[exper
    ```
 
 6. The agent reads the evidence from time to time.
-
-   <Planned />
 
    ```shell
    ssp experiment show search --app shop-prod --json

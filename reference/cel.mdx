@@ -3,8 +3,6 @@ title: CEL variables
 description: The variables and fields that each CEL expression in statespace.toml can use.
 ---
 
-import Planned from '/snippets/planned.mdx';
-
 `statespace.toml` uses [CEL](https://cel.dev) expressions in three places. Each place has its own variables.
 
 | Key | Gives | Variables |
@@ -14,8 +12,6 @@ import Planned from '/snippets/planned.mdx';
 | `[[event]] match` | bool | `request` and `response` |
 
 CI checks each expression when it records a build. An error fails the CI step, with the message. A field that is not on this page is an error.
-
-<Planned />
 
 ## request
 
