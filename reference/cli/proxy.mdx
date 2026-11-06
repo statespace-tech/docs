@@ -28,7 +28,7 @@ These flags apply to each runtime.
 - `ssp proxy` takes no `--app`. The runtime token names the app.
 - `--api` also applies. See [Global flags](/reference/cli/overview#global-flags).
 - `ssp proxy` runs until you stop it. It prints no JSON document.
-- It passes HTTP/1.1, HTTP/2, and WebSocket.
+- It passes HTTP/1.1, HTTP/2, and WebSocket. On Lambda, WebSocket does not pass.
 
 This example runs the proxy on Docker, with the token in the environment:
 
@@ -203,6 +203,39 @@ This example runs the proxy for the Fly.io app `shop`:
 ```shell
 export FLY_API_TOKEN=<secret>
 ssp proxy fly --fly-app shop
+```
+
+## ssp proxy lambda
+
+Run each arm as a copy of an AWS Lambda function. See [AWS Lambda](/runtimes/lambda).
+
+```shell
+ssp proxy lambda --function <name> [--qualifier <alias>] \
+  [--region <region>] [--live-url <url>]
+```
+
+<ParamField body="--function" type="string" required>
+  The Lambda function that runs live. It must deploy from a container image.
+</ParamField>
+
+<ParamField body="--qualifier" type="string" default="$LATEST">
+  The alias or version of live, such as `live`.
+</ParamField>
+
+<ParamField body="--region" type="string" default="the region of the AWS configuration">
+  The AWS region of the function, such as from `AWS_REGION`.
+</ParamField>
+
+<ParamField body="--live-url" type="string" default="an invocation of the function">
+  An HTTP address of live, such as its function URL. Live traffic then goes there. The proxy still invokes the arms.
+</ParamField>
+
+The proxy invokes live and each arm with the event of a function URL. A request body can be at most 6 MB. WebSocket does not pass.
+
+This example runs the proxy for the alias `live` of the function `shop`:
+
+```shell
+ssp proxy lambda --function shop --qualifier live
 ```
 
 ## ssp proxy s3

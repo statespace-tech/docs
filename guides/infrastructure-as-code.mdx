@@ -1,14 +1,14 @@
 ---
 title: Use Statespace with infrastructure as code
 sidebarTitle: Infrastructure as code
-description: Keep Terraform, Pulumi, CloudFormation, Helm, Argo CD, Flux, and Compose as they are. The proxy changes only what it creates.
+description: Keep Terraform, Pulumi, CloudFormation, SAM, Helm, Argo CD, Flux, and Compose as they are. The proxy changes only what it creates.
 ---
 
 Your infrastructure tools need no setting for Statespace. Use this page to see what they see while the proxy runs.
 
 ## What the proxy changes
 
-- The proxy never changes a resource that it did not create. Your service, Deployment, container, and bucket stay as you deployed them.
+- The proxy never changes a resource that it did not create. Your service, Deployment, container, function, and bucket stay as you deployed them.
 - Each arm is a resource that the proxy creates, labels, and deletes. It is not in the state of your tools.
 - When an experiment stops, the proxy deletes its arms.
 - The proxy itself is a resource that you deploy. Manage it with the same tool as live.
@@ -20,6 +20,7 @@ Your infrastructure tools need no setting for Statespace. Use this page to see w
 | Cloud Run | A service `<service>-ssp-…` | `statespace-app` |
 | ECS Fargate | A service and task definition `<service>-ssp-…` | `statespace.com/app` |
 | Fly.io | A Machine `ssp-…`, with no services | `statespace_app` |
+| AWS Lambda | A function `<function>-ssp-…`, with no trigger | `statespace.com/app` |
 | S3, Cloud Storage | A build folder that your CI uploads | None |
 
 The other labels are in [Use your own data tools](/guides/own-tools#resource-labels).
@@ -30,6 +31,7 @@ The other labels are in [Use your own data tools](/guides/own-tools#resource-lab
 | --- | --- |
 | Terraform, OpenTofu, Pulumi | `plan` and `preview` show no change. A full apply of live does not change the arms. |
 | CloudFormation, CDK | Drift detection shows no drift. |
+| AWS SAM, Serverless Framework | `sam deploy` and `serverless deploy` change only the functions of the stack. Move the alias of live as before. |
 | Helm | `helm upgrade`, `helm diff`, and `helm uninstall` see only the objects of the release. |
 | Argo CD | The Application stays `Synced`. With orphaned resource monitoring, it lists the arms as orphaned. |
 | Flux | `prune: true` deletes only the objects that Flux applied. |

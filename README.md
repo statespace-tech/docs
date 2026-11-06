@@ -36,7 +36,7 @@ Pushes and pull requests run both checks in GitHub Actions.
 The site has three tabs. `AGENTS.md` has the rules for each page.
 
 - Docs: Get started (overview, quickstart, installation), Concepts, and Guides.
-- Runtimes: Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io, S3, and Cloud Storage.
+- Runtimes: Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io, AWS Lambda, S3, and Cloud Storage.
 - Reference: `statespace.toml`, CEL, commit statuses, and the CLI.
 
 The pages describe the current release only.

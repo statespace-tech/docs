@@ -20,7 +20,7 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
   layers.
 - Live is the service that the customer runs. It is never recorded. There is no control arm: to compare
   with live, add the live commit as an arm.
-- `ssp proxy docker|cloudrun|kubernetes|fargate|fly|s3|gcs` runs in front of the app. It gets its app from its
+- `ssp proxy docker|cloudrun|kubernetes|fargate|fly|lambda|s3|gcs` runs in front of the app. It gets its app from its
   runtime token. It runs alongside live: it never changes what it did not create, and each arm is a resource
   that it creates, labels, and deletes. The instance that holds the lease runs the arms. `s3` and `gcs` serve static sites: live is the bucket root, and each arm
   is a build folder. Any CDN can sit in front of the proxy.
@@ -67,7 +67,7 @@ Give each page one type (Diátaxis), and keep it to that type.
 | Reference | `reference/` | Complete and scannable; follows the structure of the thing it describes |
 
 The site has three tabs: **Docs** (Get started, Concepts, Guides), **Runtimes** (Containers: Docker,
-Kubernetes, Cloud Run, ECS Fargate, Fly.io; Static sites: S3, Cloud Storage), and **Reference**
+Kubernetes, Cloud Run, ECS Fargate, Fly.io; Functions: AWS Lambda; Static sites: S3, Cloud Storage), and **Reference**
 (`statespace.toml`, CEL, commit status, CLI). Each runtime page has the logo of its platform as its `icon`,
 from `images/runtimes/`: one gray (`#8A8F98`), from Simple Icons. Other pages have no icon. The HTTP API is internal: the CLI, the action, the proxy, and
 the dashboard call it. Do not document its routes. Scripts and agents use the CLI with `--json`. The runtimes are in the order of the CLI README. When you move a page, add a redirect from its

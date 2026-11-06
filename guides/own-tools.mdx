@@ -28,10 +28,11 @@ On S3 and Cloud Storage, an arm is a folder of files. The cookie is its only lab
 | ECS Fargate | Service and task definition tags | `statespace.com/experiment` | `statespace.com/commit` |
 | Cloud Run | Service labels | `statespace-experiment` | `statespace-commit` |
 | Fly.io | Machine metadata | `statespace_experiment` | `statespace_commit` |
+| AWS Lambda | Function tags | `statespace.com/experiment` | `statespace.com/commit` |
 
 ## Environment and headers
 
-The container that runs the arm gets `SSP_EXPERIMENT` (such as `checkout`) and `SSP_ARM` (the commit). The proxy also adds three keys to the `OTEL_RESOURCE_ATTRIBUTES` of live. For example, live has `deployment.environment=prod,service.version=1.4.2`. The arm gets this value:
+The container or function that runs the arm gets `SSP_EXPERIMENT` (such as `checkout`) and `SSP_ARM` (the commit). The proxy also adds three keys to the `OTEL_RESOURCE_ATTRIBUTES` of live. For example, live has `deployment.environment=prod,service.version=1.4.2`. The arm gets this value:
 
 ```text
 deployment.environment=prod,

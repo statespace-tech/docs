@@ -1,0 +1,215 @@
+---
+title: Run the proxy on AWS Lambda
+sidebarTitle: AWS Lambda
+description: Run ssp proxy lambda as an ECS service in front of your function. Each arm is a Lambda function with the configuration of live and another image.
+icon: "/images/runtimes/lambda.svg"
+---
+
+import Prerequisites from '/snippets/runtime/prerequisites.mdx';
+import StepRecord from '/snippets/runtime/step-record.mdx';
+import StepApp from '/snippets/runtime/step-app.mdx';
+import StepCheck from '/snippets/runtime/step-check.mdx';
+import ArmNotReady from '/snippets/runtime/arm-not-ready.mdx';
+import NoLiveBuild from '/snippets/runtime/no-live-build.mdx';
+import Instances from '/snippets/runtime/instances.mdx';
+
+`ssp proxy lambda` runs as an ECS service in front of your function. It runs each arm as a Lambda function with the configuration of live and another image. It invokes live and the arms itself.
+
+```text
+                        ┌─► shop:live                    (live)
+requests ─► shop-proxy ─┼─► shop-ssp-checkout-c0ffee1…  (arm)
+                        └─► shop-ssp-checkout-a1b2c3d…  (arm)
+```
+
+## Prerequisites
+
+<Prerequisites />
+
+- The Lambda function `shop` in `us-east-1`, with the alias `live` on the version that serves your traffic, and the execution role `shop-lambda`.
+- A function that deploys from a container image in Amazon ECR. A function from a .zip file does not work.
+- A function that takes the event of a function URL, as behind a function URL or an API Gateway HTTP API. A web app with the [AWS Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter) takes it.
+- An ECS cluster and a load balancer for the proxy, and the AWS CLI.
+
+## Set up
+
+The [lambda example](https://github.com/statespace-tech/statespace/tree/main/examples/lambda) has these files.
+
+<Steps>
+  <Step title="Record each build">
+    <StepRecord />
+
+    Push the images to Amazon ECR. Lambda takes only an image with one platform: with Docker BuildKit, build with `--provenance=false`.
+  </Step>
+
+  <Step title="Add the app">
+    <StepApp />
+  </Step>
+
+  <Step title="Add a runtime token">
+    Add a token for the app, and put it in Secrets Manager. The execution role of the proxy, `statespace-proxy-execution`, must read it.
+
+    ```shell
+    ssp token add --app shop-prod --note "Lambda proxy"
+    aws secretsmanager create-secret \
+      --name shop-statespace-token \
+      --secret-string '<secret>'
+    ```
+  </Step>
+
+  <Step title="Give the proxy its permissions">
+    Make the task role `statespace-proxy` with this policy. It runs the arms with the execution role of `shop`.
+
+    ```json proxy-policy.json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "lambda:CreateFunction",
+            "lambda:DeleteFunction",
+            "lambda:GetFunction",
+            "lambda:InvokeFunction",
+            "lambda:ListTags",
+            "lambda:TagResource",
+            "lambda:UpdateFunctionCode"
+          ],
+          "Resource": [
+            "arn:aws:lambda:us-east-1:123456789012:function:shop",
+            "arn:aws:lambda:us-east-1:123456789012:function:shop:*",
+            "arn:aws:lambda:us-east-1:123456789012:function:shop-ssp-*"
+          ]
+        },
+        {
+          "Effect": "Allow",
+          "Action": "lambda:ListFunctions",
+          "Resource": "*"
+        },
+        {
+          "Effect": "Allow",
+          "Action": "iam:PassRole",
+          "Resource": "arn:aws:iam::123456789012:role/shop-lambda",
+          "Condition": {
+            "StringEquals": {
+              "iam:PassedToService": "lambda.amazonaws.com"
+            }
+          }
+        }
+      ]
+    }
+    ```
+  </Step>
+
+  <Step title="Run the proxy">
+    Register the task definition of the proxy.
+
+    ```json proxy-task-definition.json
+    {
+      "family": "shop-proxy",
+      "requiresCompatibilities": ["FARGATE"],
+      "networkMode": "awsvpc",
+      "cpu": "256",
+      "memory": "512",
+      "taskRoleArn":
+        "arn:aws:iam::123456789012:role/statespace-proxy",
+      "executionRoleArn":
+        "arn:aws:iam::123456789012:role/statespace-proxy-execution",
+      "containerDefinitions": [
+        {
+          "name": "proxy",
+          "image": "ghcr.io/statespace-tech/statespace:0.5.0",
+          "essential": true,
+          "command": [
+            "proxy", "lambda",
+            "--function", "shop",
+            "--qualifier", "live",
+            "--region", "us-east-1"
+          ],
+          "portMappings": [{"containerPort": 8080}],
+          "secrets": [
+            {
+              "name": "STATESPACE_TOKEN",
+              "valueFrom": "shop-statespace-token"
+            }
+          ]
+        }
+      ]
+    }
+    ```
+
+    Make the service `shop-proxy` with two tasks, behind a target group of your load balancer. The tasks need a route to the Lambda API, such as a NAT gateway or a VPC endpoint.
+
+    ```shell
+    aws ecs register-task-definition \
+      --cli-input-json file://proxy-task-definition.json
+    aws ecs create-service --cluster shop \
+      --service-name shop-proxy \
+      --task-definition shop-proxy \
+      --desired-count 2 --launch-type FARGATE \
+      --network-configuration "awsvpcConfiguration={\
+    subnets=[subnet-0aaa,subnet-0bbb],\
+    securityGroups=[sg-0ccc]}" \
+      --load-balancers "targetGroupArn=<target group>,\
+    containerName=proxy,containerPort=8080"
+    ```
+  </Step>
+
+  <Step title="Send traffic to the proxy">
+    Point your domain, or the load balancer, to the target group of `shop-proxy`. Then remove the function URL and the API Gateway route of `shop`, so that all requests go through the proxy. See [Put a CDN in front](/guides/cdn).
+  </Step>
+
+  <Step title="Check the result">
+    <StepCheck />
+  </Step>
+</Steps>
+
+## How it works
+
+- Live is the function `shop` at `--qualifier`, such as the alias `live`, or at `$LATEST`. The live image is the digest that this version runs.
+- The proxy invokes live and each arm with the event of a function URL, payload format 2.0. It makes the answer into the response, as a function URL does. With `--live-url`, live traffic goes to that HTTP address, such as the function URL of `shop`.
+- Each arm is the function `shop-ssp-<experiment>-<commit 12>`. It copies the role, memory, timeout, architecture, environment, VPC, file systems, tracing, image settings, and log format of `shop`, with another image.
+- An arm gets no trigger and no function URL, so it gets no traffic from outside the proxy. It logs to its own log group, `/aws/lambda/<name of the arm>`.
+- The tags `statespace.com/app`, `statespace.com/experiment`, and `statespace.com/commit` keep the full values. See [Your own data tools](/guides/own-tools).
+- An arm is ready when Lambda says that its function is active.
+- A request body can be at most 6 MB, the limit of an invocation. WebSocket does not pass.
+- When an experiment stops, the proxy deletes the functions of its arms. Their log groups stay.
+- Deploy live as usual, and move the alias. See [Infrastructure as code](/guides/infrastructure-as-code).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="An arm is not ready">
+    <ArmNotReady />
+
+    The reason comes from the state of the function, such as `the function failed: Source image ... does not exist`. For an image error, push the image to Amazon ECR in the region of the function, with one platform.
+  </Accordion>
+  <Accordion title="The proxy says that the function deploys from a .zip file">
+    `ssp proxy lambda` runs only functions that deploy from a container image. Deploy `shop` from an image in Amazon ECR, and record that image in CI.
+  </Accordion>
+  <Accordion title="The app does not understand the requests">
+    The function gets the event of a function URL, not the event of an API Gateway REST API or of a load balancer. Use a library that takes both, or the AWS Lambda Web Adapter.
+  </Accordion>
+  <Accordion title="The proxy gets AccessDenied for iam:PassRole">
+    The policy must name the execution role of `shop`.
+  </Accordion>
+  <Accordion title="The app has no live commit">
+    <NoLiveBuild />
+  </Accordion>
+  <Accordion title="No experiment can start">
+    <Instances />
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Put a CDN in front" icon="globe" href="/guides/cdn">
+    Send requests to live when the proxy is down.
+  </Card>
+  <Card title="ssp proxy lambda" icon="terminal" href="/reference/cli/proxy#ssp-proxy-lambda">
+    Look up every flag.
+  </Card>
+  <Card title="S3" icon="folder" href="/runtimes/s3">
+    Run the proxy in front of a static site in a bucket.
+  </Card>
+</CardGroup>
