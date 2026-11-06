@@ -1,0 +1,103 @@
+---
+title: ssp app
+sidebarTitle: app
+description: Add, list, show, and remove apps.
+---
+
+An app is one running copy of a service, such as `shop-prod`. It is linked to one repo and one folder. See [Apps](/concepts/apps). The [global flags](/reference/cli/overview#global-flags) also apply.
+
+## ssp app add
+
+Add an app for the repo and folder here, or for `--repo` and `--path`. You need the admin role on the repo.
+
+```shell
+ssp app add <name> [--repo <owner/name>] [--path <folder>] \
+  [--note <text>]
+```
+
+<ParamField body="name" type="string" required>
+  The name of the app: 1 to 63 lowercase letters, digits, and `-`. It is unique in the workspace.
+</ParamField>
+
+<ParamField body="--repo" type="string" default="the origin remote">
+  The repo, as `owner/name`, such as `acme/shop`.
+</ParamField>
+
+<ParamField body="--path" type="string" default="the folder of the nearest statespace.toml">
+  The folder of `statespace.toml` in the repo, such as `shop` or `.` for the root.
+</ParamField>
+
+<ParamField body="--note" type="string">
+  Why, in 1 to 200 characters on one line. The audit log and the commit status show it.
+</ParamField>
+
+This example adds `shop-prod` from the root of `acme/shop`:
+
+```shell
+ssp app add shop-prod --note "shop, production"
+```
+
+On standard error, the command prints what it detected, such as `repo acme/shop (from the git remote origin)`. Then it prints the app that it added:
+
+```text
+Added app shop-prod for acme/shop in the root.
+Next: ssp token add --app shop-prod, then run ssp proxy in front of the app.
+```
+
+It fails outside a repo, without a GitHub `origin` remote, or when no `statespace.toml` is in the folder or a parent folder.
+
+## ssp app list
+
+List the apps: repo, folder, live commit, and the number of running experiments.
+
+```shell
+ssp app list
+```
+
+The command takes no other flags.
+
+## ssp app show
+
+Show an app in full: the live commit and its build, the experiments and their state, the settings and their source commit, the orchestrator, the lease holder, and the proxy instances.
+
+```shell
+ssp app show <name>
+```
+
+<ParamField body="name" type="string" required>
+  The app.
+</ParamField>
+
+This example shows `shop-prod`:
+
+```shell
+ssp app show shop-prod
+```
+
+When the app has a problem, such as a live commit without a build, the output shows it on a line that starts with `!`.
+
+## ssp app remove
+
+Delete an app and all its data. You need the admin role on the repo. The command fails while an experiment of the app runs.
+
+```shell
+ssp app remove <name> [--note <text>]
+```
+
+<ParamField body="name" type="string" required>
+  The app.
+</ParamField>
+
+<ParamField body="--note" type="string">
+  Why, in 1 to 200 characters on one line. The audit log and the commit status show it.
+</ParamField>
+
+This example removes `shop-dev`:
+
+```shell
+ssp app remove shop-dev --note "not used"
+```
+
+<Warning>
+  You cannot undo `ssp app remove`. It deletes the experiments, versions, and results of the app.
+</Warning>

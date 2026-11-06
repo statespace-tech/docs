@@ -1,0 +1,61 @@
+---
+title: Data and security
+description: What Statespace keeps about your subjects, for how long, and what protects your app and your data.
+---
+
+This page answers: what data leaves your platform, how long does Statespace keep it, and what protects it?
+
+Statespace keeps only what it needs for the [results](/concepts/events-and-results#results). Your own data tools keep the detail of each request. See [Your own data tools](/guides/own-tools).
+
+## What Statespace keeps
+
+For each subject of an arm in a running version, Statespace keeps one record:
+
+- a one-way hash of the subject ID;
+- the experiment, the version, and the arm;
+- the time of the first and the last request;
+- the counts of requests, of `requests_4xx` and `requests_5xx`, of each latency range, and of each event;
+- whether the arm was ready for the subject.
+
+Statespace keeps the data of each workspace in its own database.
+
+## What Statespace never sees
+
+- Requests, responses, bodies, headers, cookies, paths, and queries. A rule can match a header, but only the event name leaves the proxy.
+- Logs and the output of your app. The proxy reads no logs on any runtime.
+- Subject IDs, such as the value of `ssp_sid` or a user ID.
+- Live traffic and override visits.
+
+## The subject hash
+
+The proxy turns each subject ID into a one-way hash before anything leaves it: `HMAC-SHA256` with the salt of the app. In one app, the same subject ID gives the same hash. So Statespace can add the counts of one subject from several proxy instances.
+
+## Retention and erasure
+
+1. While a version runs, Statespace keeps one record for each subject of its arms.
+2. When the version stops, Statespace writes the final results of each arm as a snapshot. It then deletes the subject records of that version.
+3. The snapshot has totals only. Statespace keeps it until you remove the app. `ssp app remove` deletes the app and all its data.
+
+To erase one subject from the running versions of an app, an admin of the repo opens the app's settings in the dashboard and uses **Erase a subject** with the subject ID. The totals of the arms stay. The audit log keeps the hash, not the subject ID.
+
+## Security
+
+- **GitHub App.** It reads metadata and writes commit statuses. It cannot read or write code. See [Installation](/getting-started/installation#github-app).
+- **CI.** GitHub's OIDC token proves the repo and the commit of each build. CI keeps no Statespace secret.
+- **Builds.** The proxy runs only recorded builds. A stolen runtime token cannot put new code in front of your users.
+- **Runtime tokens.** A token is for one app. It cannot change experiments or read results. See [Runtime tokens](/concepts/how-it-works#runtime-tokens).
+- **Access.** Roles come from GitHub. There are no database logins.
+- **Releases.** The image `ghcr.io/statespace-tech/statespace` is signed with cosign, and has an SBOM and a build provenance. See [SECURITY.md](https://github.com/statespace-tech/statespace/blob/main/SECURITY.md) for how to verify a release.
+
+To report a vulnerability, use GitHub private vulnerability reporting on `statespace-tech/statespace`. Do not open a public issue.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Your own data tools" icon="search" href="/guides/own-tools">
+    Filter your logs, traces, and analytics by arm.
+  </Card>
+  <Card title="How it works" icon="workflow" href="/concepts/how-it-works">
+    See the parts and who can do what.
+  </Card>
+</CardGroup>

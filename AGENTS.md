@@ -37,8 +37,8 @@ Mintlify's own guides and of popular Mintlify sites, such as Trigger.dev and Res
   on; there is no setting.
 - Permissions come from GitHub roles. The only Statespace token is the runtime token of one app.
 
-Document current behavior only. Mark proposed behavior with a visible `Planned` warning. Do not document
-models that were removed. When the spec is silent, do not invent behavior.
+Document current behavior only. Never mention plans, removed features, or earlier models. When the spec
+is silent, do not invent behavior.
 
 ## Words
 
@@ -62,9 +62,25 @@ Give each page one type (Diátaxis), and keep it to that type.
 | Type | Folder | Shape |
 | --- | --- | --- |
 | Tutorial | root (`quickstart`) | What you get, prerequisites, `<Steps>`, a check of the result, next steps |
-| How-to | `getting-started/`, `guides/` | The task in the title, `<Steps>` or short sections, next steps |
+| How-to | `getting-started/`, `runtimes/`, `guides/` | The task in the title, `<Steps>` or short sections, next steps |
 | Explanation | `concepts/` | Starts with the question it answers; no procedures |
 | Reference | `reference/` | Complete and scannable; follows the structure of the thing it describes |
+
+The site has three tabs: **Docs** (Get started, Concepts, Guides), **Runtimes** (Containers: Docker,
+Kubernetes, Cloud Run, ECS Fargate, Fly.io; Static sites: S3, Cloud Storage), and **Reference**
+(`statespace.toml`, CEL, commit status, CLI). Each runtime page has the logo of its platform as its `icon`,
+from `images/runtimes/`: one gray (`#8A8F98`), from Simple Icons. Other pages have no icon. The HTTP API is internal: the CLI, the action, the proxy, and
+the dashboard call it. Do not document its routes. Scripts and agents use the CLI with `--json`. The runtimes are in the order of the CLI README. When you move a page, add a redirect from its
+old URL in `docs.json`.
+
+### Length
+
+- Overview: the README intro, the how-it-works diagram, then cards. Quickstart: 10 steps (or 7), about 250
+  words outside code.
+- Most pages: 200 to 600 words outside code. Use H2 sections, H3 only when needed, never H4.
+- Every runtime page has the same sections, in this order: what it runs (diagram), prerequisites, steps
+  (CI, token, run the proxy, check), how it works, troubleshooting, next steps.
+- Cut what the reader does not need for the task of the page. Link to the one page that has the fact.
 
 - Every page has `title`, `description`, and a short `sidebarTitle` when the title is long.
 - Do not add an H1: Mintlify makes it from `title`. Use sentence case. Do not skip heading levels.

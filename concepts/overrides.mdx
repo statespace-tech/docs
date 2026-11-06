@@ -3,73 +3,50 @@ title: Overrides
 description: How a tester opens an arm of a running experiment with a link.
 ---
 
-How do you look at an arm yourself, without the random split?
+This page answers: how do you look at an arm yourself, without the random split?
 
-An override is a request that names its experiment and arm. Overrides are
-always on: there is no setting.
+An override is a request that names its experiment and arm. Overrides are always on: there is no setting.
 
-## Get a link
+## The link
 
-The value is `<experiment>:<commit>`. The commit is the full commit, or its
-first 7 characters or more.
+Add `?ssp=<experiment>:<commit>` to any URL of the app. The commit is the full commit, or its first 7 characters or more.
 
 ```text
 https://shop.acme.com/?ssp=checkout:a1b2c3d
 ```
 
-Add `?ssp=<experiment>:<commit>` to any URL of the app.
-`ssp experiment show` and the dashboard show the link of each arm while the
-experiment runs:
+`ssp experiment show` and the dashboard show the link of each arm while the experiment runs. With `--json`, the links are in `override_links`.
 
-```text
-Override links:
-  c0ffee1  ?ssp=checkout:c0ffee1
-  a1b2c3d  ?ssp=checkout:a1b2c3d
-```
-
-With `--json`, the links are in `override_links`, by full commit. See
-[ssp experiment show](/reference/cli#ssp-experiment-show).
-
-## Open an arm
+## How the proxy uses it
 
 | Client | Send | The proxy |
 | --- | --- | --- |
 | Browser | `?ssp=<value>` on a URL | Sets the cookie `ssp`, and redirects a `GET` to the same URL without the parameter |
 | API | The header `ssp: <value>` on each request | Uses the arm for that request |
 
-- The cookie keeps the value. It lasts 1 hour, and each request renews it.
+- The cookie `ssp` lasts 1 hour. Each request renews it.
 - An empty `?ssp=` ends the override.
-- A link to an arm that does not run gets a short page, such as
-  "checkout:a1b2c3d is not running on shop-prod. Running:
-  checkout:c0ffee1, checkout:f6a7b8c".
+- A link to an arm that does not run gets a short page with the arms that run.
 - You cannot pick live.
 - Your app never sees the `ssp` parameter, cookie, or header.
 
-Overrides work on every runtime, and behind a CDN when the CDN sends the
-`ssp` parameter and cookie to the proxy. See [Behind a CDN](/guides/cdn).
+Overrides work on every runtime. Behind a CDN, the CDN must send the `ssp` parameter and cookie to the proxy. See [Put a CDN in front](/guides/cdn).
 
 ## Results
 
-Override visits are never in the results. The proxy sends nothing about
-them: no subject, request, or event. An override never sets the cookie
-`ssp_arms`.
+Statespace never counts override visits. The proxy sends nothing about them: no subject, request, or event. An override never sets the cookie `ssp_arms`.
 
 <Warning>
-  A person who knows the experiment and the commit can open the arm while
-  the experiment runs. Do not put secrets in an arm that live does not have.
+  A person who knows the experiment and the commit can open the arm while it runs. Do not put secrets in an arm that live does not have.
 </Warning>
 
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card
-    title="ssp experiment update"
-    icon="terminal"
-    href="/reference/cli#ssp-experiment-update"
-  >
-    Print the arms of an experiment and their commits.
-  </Card>
-  <Card title="Subjects and assignment" icon="cookie" href="/concepts/subjects">
+  <Card title="Subjects and assignment" icon="cookie" href="/concepts/subjects-and-eligibility">
     See the normal assignment.
+  </Card>
+  <Card title="ssp experiment show" icon="terminal" href="/reference/cli/experiment#ssp-experiment-show">
+    Print the override links of an experiment.
   </Card>
 </CardGroup>

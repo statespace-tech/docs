@@ -1,48 +1,50 @@
 ---
-title: Statespace
-sidebarTitle: Introduction
-description: Run commits as the arms of an experiment on a share of live traffic, and read the evidence on each commit.
+title: Introduction
+sidebarTitle: Overview
+description: A/B test code changes on your own infrastructure.
 ---
 
-import TrafficDiagram from '/snippets/traffic-diagram.mdx';
+Statespace lets you A/B test code changes on your own infrastructure. A reverse proxy runs beside your app and routes a small share of your traffic to experimental versions of it. Statespace tags their logs, traces, and requests before they land in your own data tools so your agents can compare and act on them.
 
-Statespace runs commits of your app on small shares of real traffic. It counts what happens to the subjects of each commit, such as browsers or users, and puts the evidence on each commit as a commit status.
-
-An **experiment** compares commits. Each commit is an **arm** with an exact share of the subjects, such as `0.05`. To compare a change with what runs now, make the live commit one of the arms. The proxy in front of your app sends each arm its share. All other visitors get your live service, as before.
-
-<TrafficDiagram />
-
-The proxy runs alongside live. You run and deploy live as you do now, and the proxy never changes it. Each arm is a resource that the proxy creates, labels, and deletes.
-
-Your CI makes the builds: images, or folders of files for a static site. Statespace runs only builds that your CI recorded. Your events and experiments are in `statespace.toml`, in your repo.
-
-## How you use it
-
-1. Your CI builds each push and records the build with `statespace-tech/action@v1`.
-2. `ssp proxy` runs in front of your app.
-3. The table `[experiment.checkout]` in `statespace.toml` defines an experiment.
-4. You set the arms with `ssp experiment update checkout --arm c0ffee1=0.05 --arm a1b2c3d=0.05`.
-5. You start the experiment with `ssp experiment start checkout`.
-6. The commit status `statespace/shop-prod/checkout` on each arm's commit shows the evidence: your headline event, the subjects, and the split check.
-7. You stop the experiment with `ssp experiment stop checkout`.
-
-Statespace shows numbers for each arm. It does not tell you which arm is better. You and your agents decide.
-
-Your own data tools keep the detail. Each arm carries labels that your logs, traces, and analytics can filter by. See [Find it in your own data tools](/guides/own-tools).
+<img
+  className="block dark:hidden"
+  src="https://raw.githubusercontent.com/statespace-tech/statespace/main/assets/how-it-works-dark.svg"
+  alt="Subjects go through the proxy: 80% to main, and 10% to each of the commits c0ffee1 and a1b2c3d. All of it goes on to your own data tools."
+/>
+<img
+  className="hidden dark:block"
+  src="https://raw.githubusercontent.com/statespace-tech/statespace/main/assets/how-it-works-light.svg"
+  alt="Subjects go through the proxy: 80% to main, and 10% to each of the commits c0ffee1 and a1b2c3d. All of it goes on to your own data tools."
+/>
 
 ## Get started
+
+Run your first experiment, or let your agent do the setup.
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
     Run your first experiment on Docker.
   </Card>
-  <Card title="Installation" icon="download" href="/getting-started/installation">
-    Install the GitHub App and the CLI.
+  <Card title="Use with agents" icon="bot" href="/quickstart#use-an-agent">
+    Give your coding agent one prompt, and let it do the setup.
   </Card>
-  <Card title="How it works" icon="workflow" href="/concepts/how-it-works">
-    See the parts and what each part does.
+</CardGroup>
+
+## Learn more
+
+Read how Statespace works, pick your runtime, and look up the details.
+
+<CardGroup cols={2}>
+  <Card title="Concepts" icon="lightbulb" href="/concepts/how-it-works">
+    See the parts, and what each part does.
   </Card>
-  <Card title="CLI reference" icon="terminal" href="/reference/cli">
-    Look up every command and flag.
+  <Card title="Runtimes" icon="server" href="/runtimes/docker">
+    Run the proxy on Docker, Kubernetes, Cloud Run, and more.
+  </Card>
+  <Card title="Your own data tools" icon="chart-line" href="/guides/own-tools">
+    Find each arm in your logs, traces, and analytics.
+  </Card>
+  <Card title="Reference" icon="book-open" href="/reference/cli/overview">
+    Look up `statespace.toml`, CEL, and every command.
   </Card>
 </CardGroup>

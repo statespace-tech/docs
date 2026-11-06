@@ -1,0 +1,168 @@
+---
+title: Run the proxy in front of Cloud Storage
+sidebarTitle: Cloud Storage
+description: Run ssp proxy gcs in front of a static site in a Cloud Storage bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
+icon: "/images/runtimes/gcs.svg"
+---
+
+import Prerequisites from '/snippets/runtime/prerequisites.mdx';
+import StepApp from '/snippets/runtime/step-app.mdx';
+import StepCheck from '/snippets/runtime/step-check.mdx';
+import ArmNotReady from '/snippets/runtime/arm-not-ready.mdx';
+import Instances from '/snippets/runtime/instances.mdx';
+import Serving from '/snippets/files/serving.mdx';
+import Missing from '/snippets/files/missing.mdx';
+import Live from '/snippets/files/live.mdx';
+
+`ssp proxy gcs` serves a static site from a Cloud Storage bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
+
+```text
+                        ┌─► gs://acme-site/  (live)
+visitors ─► shop-proxy ─┼─► gs://acme-site/builds/c0ffee1…/
+                        └─► gs://acme-site/builds/a1b2c3d…/
+```
+
+## Prerequisites
+
+<Prerequisites />
+
+- A site in `acme/shop` that builds its files to `dist/`.
+- The bucket `acme-site` in the project `acme-shop`.
+- A Workload Identity Federation provider for GitHub Actions, and the service account `site-ci` with Storage Object Admin on the bucket.
+- The proxy image `ghcr.io/statespace-tech/statespace:0.5.0`, in a registry that Cloud Run can use.
+
+## Set up
+
+<Steps>
+  <Step title="Record each build">
+    Upload the files of each push to a folder of its commit, and record the folder. See [GitHub Actions](/guides/github-actions).
+
+    ```yaml .github/workflows/build.yml
+    # In a job with id-token: write.
+    - uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: <provider>
+        service_account: >-
+          site-ci@acme-shop.iam.gserviceaccount.com
+    - uses: google-github-actions/setup-gcloud@v2
+    # Upload the files of this commit to its own folder.
+    - run: >-
+        gcloud storage rsync dist/
+        gs://acme-site/builds/${{ github.sha }}/
+        --recursive
+    # Record the folder. Keep this step after the upload.
+    - uses: statespace-tech/action@v1
+      with:
+        files: gs://acme-site/builds/${{ github.sha }}/
+        path: .
+    ```
+
+    The deploy of live records its build too, then copies it to the root. Without `--exclude`, the deploy deletes the builds, and the arms get live.
+
+    ```yaml .github/workflows/deploy.yml
+    # After the upload and the action step:
+    - run: >-
+        gcloud storage rsync
+        gs://acme-site/builds/${{ github.sha }}/
+        gs://acme-site/
+        --recursive
+        --delete-unmatched-destination-objects
+        --exclude 'builds/.*'
+    ```
+  </Step>
+
+  <Step title="Add the app">
+    <StepApp />
+  </Step>
+
+  <Step title="Add a runtime token">
+    Add a token for the app, and put it in Secret Manager.
+
+    ```shell
+    ssp token add --app shop-prod --note "Cloud Storage proxy"
+    printf '%s' '<secret>' | gcloud secrets create \
+      shop-statespace-token --data-file=-
+    ```
+  </Step>
+
+  <Step title="Give the proxy its permissions">
+    Add a service account for the proxy. Let it read the bucket and the secret.
+
+    ```shell
+    gcloud iam service-accounts create shop-proxy \
+      --project acme-shop
+    proxy=shop-proxy@acme-shop.iam.gserviceaccount.com
+    gcloud storage buckets add-iam-policy-binding \
+      gs://acme-site \
+      --member "serviceAccount:$proxy" \
+      --role roles/storage.objectViewer
+    gcloud secrets add-iam-policy-binding \
+      shop-statespace-token \
+      --member "serviceAccount:$proxy" \
+      --role roles/secretmanager.secretAccessor
+    ```
+  </Step>
+
+  <Step title="Run the proxy">
+    Deploy the proxy on Cloud Run. It works between requests, so it needs CPU that is always allocated and one instance at minimum. For a single-page app, add `--fallback,200.html` to `--args`.
+
+    ```shell
+    gcloud run deploy shop-proxy \
+      --region us-east1 \
+      --image <registry>/statespace-tech/statespace:0.5.0 \
+      --service-account "$proxy" \
+      --set-secrets \
+        STATESPACE_TOKEN=shop-statespace-token:latest \
+      --no-cpu-throttling --min-instances 1 \
+      --args=proxy,gcs,--bucket,acme-site,--cache \
+      --allow-unauthenticated
+    ```
+  </Step>
+
+  <Step title="Send traffic to the proxy">
+    Point your domain, such as `shop.acme.com`, to `shop-proxy`, not to the bucket. See [Put a CDN in front](/guides/cdn).
+  </Step>
+
+  <Step title="Check the result">
+    <StepCheck />
+  </Step>
+</Steps>
+
+## How it works
+
+- Live is the files at the root of the bucket, without the folders that hold recorded builds.
+- An arm is the build folder of its commit. The proxy only reads the bucket.
+- An arm has no process. Only the cookie `ssp_arms` labels its subjects, for browser analytics. See [Your own data tools](/guides/own-tools).
+- The proxy uses Google credentials from the metadata server, or Application Default Credentials. It uses no HMAC keys.
+
+<Serving />
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="An arm is not ready">
+    <ArmNotReady />
+
+    <Missing />
+  </Accordion>
+  <Accordion title="The app has no live commit">
+    <Live />
+  </Accordion>
+  <Accordion title="No experiment can start">
+    <Instances />
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Put a CDN in front" icon="globe" href="/guides/cdn">
+    Put CloudFront or Cloudflare in front of the proxy.
+  </Card>
+  <Card title="ssp proxy gcs" icon="terminal" href="/reference/cli/proxy#ssp-proxy-gcs">
+    Look up every flag.
+  </Card>
+  <Card title="S3" icon="folder" href="/runtimes/s3">
+    Run the proxy in front of an S3 bucket.
+  </Card>
+</CardGroup>

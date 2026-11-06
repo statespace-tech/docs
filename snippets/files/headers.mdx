@@ -1,4 +1,0 @@
-- `Content-Type` comes from the metadata of the object. When the object has none, or only `binary/octet-stream` or `application/octet-stream`, it comes from the extension of the key.
-- A response keeps the `ETag`, `Last-Modified`, and `Cache-Control` of the object.
-- A request with an `If-None-Match` that matches the `ETag` gets 304 Not Modified, without a body.
-- Arm responses are marked `private`, as on every runtime. When the object has no cache rule of its own, such as `max-age`, an arm response gets `private, no-cache` and no `Last-Modified`. Thus a browser checks again on each visit, and a shared cache keeps no copy.

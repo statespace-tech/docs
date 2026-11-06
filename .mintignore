@@ -3,3 +3,6 @@
 # Draft content
 drafts/
 *.draft.mdx
+
+# Instructions for writers and agents, not pages
+AGENTS.md

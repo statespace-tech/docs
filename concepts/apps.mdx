@@ -1,53 +1,52 @@
 ---
 title: Apps, builds, and live
-sidebarTitle: Apps and live
+sidebarTitle: Apps
 description: What an app is, what a build is, and how Statespace finds the live commit.
 ---
 
-What is an app, and how does Statespace know which commit runs live?
+This page answers: what is an app, and how does Statespace know which commit runs live?
 
 ## Apps
 
-An app is one running copy of a service. One proxy is in front of it. A development copy and a production copy of one service are two apps, such as `shop-dev` and `shop-prod`.
+An app is one running copy of a service, with one proxy in front of it. A development copy and a production copy of one service are two apps, such as `shop-dev` and `shop-prod`.
 
 ```shell
 ssp app add shop-prod --note "shop, production"
 ```
 
 - An app is linked to one repo and one folder: the folder of `statespace.toml`. Its builds come from that repo.
-- Several apps can come from one folder. Each app can have its own section in `statespace.toml`, such as `[app.shop-dev]`.
-- Each experiment in `statespace.toml` exists in each app of the folder. Its arms and its state are different for each app.
-- Each app is an independent layer. See [Apps are layers](/concepts/subjects#apps-are-layers).
-- Only `ssp app add` makes an app. A runtime token is for one app, and the proxy gets its app from its token.
-- A name has 1 to 63 characters: lowercase letters, digits, and `-`. It is unique in the workspace.
+- Several apps can come from one folder. Each experiment of the folder exists in each app, with its own arms and state.
+- An app can have its own settings in an `[app.<name>]` section of `statespace.toml`.
+- Each app is an independent layer. See [Apps are layers](/concepts/subjects-and-eligibility#apps-are-layers).
+- Only `ssp app add` makes an app. The proxy gets its app from its runtime token.
+- `ssp app remove` deletes the app and all its data.
+
+See [ssp app](/reference/cli/app) for the name rules and flags.
 
 ## Builds
 
 A build is the record of what one commit runs. It is one of these:
 
-- **An image**, by digest, such as `ghcr.io/acme/shop@sha256:2222…`. Docker, Kubernetes, Cloud Run, ECS Fargate, and Fly.io run images.
-- **A folder of files** in a bucket, such as `s3://acme-site/builds/a1b2c3d…/`, with a hash of the files. S3 and Cloud Storage serve files.
+- **An image**, by digest, such as `ghcr.io/acme/shop@sha256:…`. Docker, Kubernetes, Cloud Run, ECS Fargate, and Fly.io run images.
+- **A folder of files** in a bucket, such as `s3://acme-site/builds/a1b2c3d…/`. S3 and Cloud Storage serve files.
 
-Your CI makes the record with `statespace-tech/action@v1` after it pushes the image or uploads the files. GitHub's OIDC token proves the repo and the commit, so CI keeps no Statespace secret. The action fails the step when the image or the folder does not exist.
+Your CI records each build with `statespace-tech/action@v1`. GitHub's OIDC token proves the repo and the commit, so CI keeps no Statespace secret. See [GitHub Actions](/guides/github-actions).
 
 - Statespace records builds of every branch. A branch name means nothing to Statespace.
-- Statespace never changes a build.
-- The proxy runs only recorded builds. A stolen runtime token cannot put new code in front of your users.
-- Statespace never deletes a build. You decide how long your registry and your bucket keep them.
-- A build can be for one app. Use this when your build puts different values in the build for each app. See [Build labels](/guides/github-actions#build-labels).
+- A build can be for one app only, such as when it holds values for that app.
+- Statespace never changes or deletes a build. Your registry and your bucket keep them.
+- The proxy runs only recorded builds. So a stolen runtime token cannot put new code in front of your users.
 
 ## Live
 
-Live is the service that you run and deploy as usual. Statespace does not deploy it, and the proxy never changes it.
+Live is the service that you run and deploy as usual. Statespace does not deploy it.
 
-The proxy reports what live runs: an image, or a hash of the files at the root of the bucket. Statespace finds the build of that image or those files. The commit of that build is the **live commit**. For example, live runs `ghcr.io/acme/shop@sha256:2222…`, and its build is commit `c0ffee1`.
+The proxy reports what live runs: an image, or a hash of the files at the bucket root. Statespace finds the build of that image or those files. The commit of that build is the **live commit**. `ssp app show` prints it.
 
-The `statespace.toml` in the build of the live commit holds the settings and the experiments of the app. So a change takes effect when its commit runs as live. See [What a release does](/concepts/experiments#what-a-release-does).
-
-To compare a change with live, add the live commit as an arm. `ssp app show` prints the live commit.
+The `statespace.toml` in the build of the live commit holds the settings and experiments of the app. So a change to the file takes effect when its commit runs as live. See [What a release does](/concepts/experiments#what-a-release-does).
 
 <Warning>
-  When live runs an image or files without a build, the app has no live commit, and no experiment can start. `ssp app show` says "Live runs an image without a build. Add statespace-tech/action to the deploy workflow", or "Live serves files without a build. Add statespace-tech/action to the deploy workflow".
+  When live runs an image or files without a build, the app has no live commit, and no experiment can start. Add `statespace-tech/action` to the deploy workflow.
 </Warning>
 
 ## Next steps
@@ -56,7 +55,7 @@ To compare a change with live, add the live commit as an arm. `ssp app show` pri
   <Card title="Experiments" icon="flask-conical" href="/concepts/experiments">
     See arms, shares, and versions.
   </Card>
-  <Card title="Build every push" icon="github" href="/guides/github-actions">
+  <Card title="GitHub Actions" icon="github" href="/guides/github-actions">
     Record builds from GitHub Actions.
   </Card>
 </CardGroup>

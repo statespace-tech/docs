@@ -1,0 +1,13 @@
+The proxy maps each path to a key in the build folder, like a static website endpoint:
+
+| Path | Key |
+| --- | --- |
+| `/` | `index.html` |
+| `/docs/` | `docs/index.html` |
+| `/docs` | `docs`, then `docs/index.html`, then `docs.html` |
+| No match | `404.html` with status 404, or a plain 404 |
+| No match, no extension, with `--fallback 200.html` | `200.html` with status 200 |
+
+- The proxy answers only `GET` and `HEAD`, and makes no redirects. Make redirects in your [CDN](/guides/cdn).
+- `Content-Type` comes from the object metadata, or else from the extension. `ETag`, `Last-Modified`, and `Cache-Control` pass through. An arm response without its own cache rule gets `private, no-cache`.
+- `--cache` keeps files in 256 MB of memory: arm files until the arm stops, live files for 10 seconds.

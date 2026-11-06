@@ -1,36 +1,44 @@
 ---
 title: Quickstart
-description: Run an experiment on Docker that compares the live commit with a change, read the evidence on the commits, and stop it.
+description: Run an experiment on Docker that compares the live commit with a change, read the evidence, and stop it.
 ---
 
 import BuildWorkflow from '/snippets/build-workflow.mdx';
 import StarterToml from '/snippets/starter-toml.mdx';
 
-In this tutorial, you test a change to the app `shop-dev` on live traffic. The app runs on one machine with Docker. At the end, the experiment `checkout` runs: 5% of the subjects get the live commit, and 5% get your change. The commit status `statespace/shop-dev/checkout` on each commit shows the evidence.
+In this tutorial, you run the experiment `checkout` on the app `shop-dev`. 5% of the subjects get the live commit, and 5% get your change.
+
+## Use an agent
+
+Give this prompt to your coding agent:
+
+```text
+Read https://statespace.com/skill.md and follow it.
+```
+
+The skill tells the agent how to set up Statespace, run experiments, and read the evidence. The agent uses your GitHub credential. See [Permissions](/concepts/how-it-works#permissions). To do the steps yourself, continue below.
 
 ## Prerequisites
 
-- A GitHub repo with a `Dockerfile`, such as `acme/shop`. The `Dockerfile` names one port with `EXPOSE`, such as `EXPOSE 3000`.
-- A Linux machine with Docker and Docker Compose. You run the app on this machine with Compose.
-- The admin role on the repo. You need it to add the app and its token.
+- A GitHub repo, such as `acme/shop`, with a `Dockerfile` that has one `EXPOSE` port.
+- A Linux machine with Docker and Docker Compose.
+- The role Admin on the repo.
 
 ## Run your first experiment
 
 <Steps>
   <Step title="Install the GitHub App">
-    On [statespace.com](https://statespace.com), select **Connect GitHub**. Install the Statespace GitHub App on the account that owns the repo. The App can read metadata and write commit statuses. It cannot read or write code.
+    On [statespace.com](https://statespace.com), select **Connect GitHub**. Install the App on the account that owns the repo.
   </Step>
 
   <Step title="Write statespace.toml">
-    In the root folder of the repo, write this starter file. It has one event and one experiment. A coding agent can write this file for you.
+    Put this file in the root folder of the repo. Change the event to a route of your app.
 
     <StarterToml />
-
-    Change the event to a route of your app. See [statespace.toml](/reference/statespace-toml) for every key.
   </Step>
 
   <Step title="Build every push">
-    Add the workflow below to the repo. It builds each push to each branch, pushes the image to GitHub Packages, and records the build. A static site records a folder of files instead. See [GitHub Actions](/guides/github-actions).
+    Add this workflow. It builds each push and records the build.
 
     <BuildWorkflow />
 
@@ -41,31 +49,15 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
     git commit -m "Record builds with Statespace"
     git push
     ```
-
-    When the workflow is done, the build of this commit is recorded.
   </Step>
 
-  <Step title="Install the CLI">
-    Install the CLI, and sign in with the same GitHub account.
+  <Step title="Add the app and a token">
+    Install the CLI, and sign in with the same GitHub account. In the repo folder, add the app and a runtime token. The CLI shows the secret one time only.
 
     ```shell
     curl -fsSL https://statespace.com/install.sh | bash
     ssp login
-    ```
-  </Step>
-
-  <Step title="Add the app">
-    In the repo folder, add the app. The CLI reads the repo from the `origin` remote, and the folder from the nearest `statespace.toml`. It prints what it found.
-
-    ```shell
     ssp app add shop-dev --note "shop on the dev machine"
-    ```
-  </Step>
-
-  <Step title="Add a runtime token">
-    Add a token for the proxy. The CLI shows the secret only one time.
-
-    ```shell
     ssp token add --app shop-dev --note "Docker proxy"
     ```
 
@@ -77,7 +69,7 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
   </Step>
 
   <Step title="Run the proxy">
-    On the machine, write `compose.yaml`. The service `shop` runs live: the build of `main`, by digest. The service `ssp` runs the proxy next to it, on port 80. When your app runs with Compose already, add `container_name: shop` and the service `ssp` to your file.
+    On the machine, write `compose.yaml`. `shop` runs live, the build of `main`. `ssp` runs the proxy on port 80.
 
     ```yaml compose.yaml
     services:
@@ -104,19 +96,15 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
         stop_grace_period: 30s
     ```
 
-    Start the project. Point your traffic at port 80.
+    Start the project, and point your traffic at port 80. See [Docker](/runtimes/docker) for the details.
 
     ```shell
     docker compose up -d
     ```
-
-    The proxy sends live traffic to the container `shop`. It runs each arm as a copy of that container. The socket gives `ssp` control of Docker on the machine. See [Docker](/guides/docker#the-docker-socket).
-
-    The commit of `main` is now the live commit. Its `statespace.toml` defines the experiment `checkout`.
   </Step>
 
   <Step title="Push a change">
-    Make a change on a new branch, and push it. CI builds the commit and records it.
+    Push a change on a new branch. CI builds and records it.
 
     ```shell
     git switch -c one-page-checkout
@@ -126,7 +114,7 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
   </Step>
 
   <Step title="Set the arms">
-    When the workflow is done, set the arms of `checkout`. The live commit is the first arm. Your change is the second arm. Each arm gets 5% of the subjects.
+    When the workflow is done, set the arms. `ssp app show` prints the live commit: use it in place of `c0ffee1`.
 
     ```shell
     ssp app show shop-dev
@@ -134,47 +122,32 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
       --arm c0ffee1=0.05 \
       --arm "$(git rev-parse HEAD)=0.05"
     ```
-
-    Use the live commit that `ssp app show` prints in place of `c0ffee1`. The command prints the arms and the total of the shares.
   </Step>
 
   <Step title="Start the experiment">
-    Start the experiment. The proxy starts one copy of each arm. The command waits until each arm is ready, for 5 minutes at most.
+    Start the experiment. The command waits until each arm is ready, for 5 minutes at most.
 
     ```shell
     ssp experiment start checkout --app shop-dev \
       --note "one-page checkout"
     ```
-
-    When both arms are ready, the experiment is `running`, and the proxy sends each arm its share.
   </Step>
 
   <Step title="Read the evidence">
-    Show the experiment. It prints the results of each arm: the p50, p95, and p99 latency, and for each event the share of subjects with one or more matches, with a 95% interval. The events `requests_4xx` and `requests_5xx` come first.
+    Show the results of each arm. Each arm's commit also has the status `statespace/shop-dev/checkout`.
 
     ```shell
     ssp experiment show checkout --app shop-dev
     ```
-
-    Each arm's commit on GitHub has the status `statespace/shop-dev/checkout`. While the experiment runs, the status of your change says, for example:
-
-    ```text
-    v1 running · 0.05 · purchase 0.0261 [0.0184, 0.0368]
-    · 1,188 subjects · split OK
-    ```
-
-    Statespace updates the status at each change of state, and every hour. Select **Details** to see the experiment in the dashboard.
   </Step>
 
   <Step title="Stop the experiment">
-    When you have the evidence that you need, stop the experiment. The arms leave traffic in seconds. Statespace keeps the results.
+    Stop the experiment. The arms leave traffic in seconds. To ship the change, merge it and deploy it as usual.
 
     ```shell
     ssp experiment stop checkout --app shop-dev \
       --note "enough data"
     ```
-
-    To ship the change, merge the branch and deploy it as usual.
   </Step>
 </Steps>
 
@@ -182,15 +155,15 @@ In this tutorial, you test a change to the app `shop-dev` on live traffic. The a
 
 <CardGroup cols={2}>
   <Card title="Experiments" icon="flask-conical" href="/concepts/experiments">
-    See arms, shares, and versions.
+    See arms, shares, versions, and stop.
   </Card>
-  <Card title="Events" icon="chart-column" href="/guides/events">
+  <Card title="Events and results" icon="chart-column" href="/concepts/events-and-results">
     Count what matters to you.
   </Card>
-  <Card title="Stop in an emergency" icon="octagon-x" href="/guides/emergency-stop">
-    Stop experiments at once.
+  <Card title="Runtimes" icon="server" href="/runtimes/kubernetes">
+    Run the proxy on Kubernetes, Cloud Run, and more.
   </Card>
-  <Card title="Cloud Run" icon="cloud" href="/guides/cloud-run">
-    Run the proxy in front of a Cloud Run service.
+  <Card title="GitHub Actions" icon="github" href="/guides/github-actions">
+    Record images or folders of files.
   </Card>
 </CardGroup>

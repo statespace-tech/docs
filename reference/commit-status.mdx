@@ -1,17 +1,9 @@
 ---
 title: Commit status
-description: Each state and description of the statespace/<app>/<experiment> commit status on an arm's commit.
+description: The states and descriptions of the statespace/<app>/<experiment> commit status on the commit of each arm.
 ---
 
-Statespace posts a commit status on the commit of each arm. There is one status for each app and experiment. Its context is `statespace/<app>/<experiment>`, such as `statespace/shop-prod/checkout`.
-
-- Statespace posts at each change of state: start, stop, removal, and an arm that is not ready.
-- While the experiment runs, Statespace posts once an hour, only when the description changed.
-- Statespace posts only for arms of running experiments, and one last time at stop or removal. Old lines stay as they were last written.
-- GitHub accepts 1,000 statuses for each commit and context at most. Statespace stops the hourly posts at 950, to keep room for changes of state.
-- The description has 140 characters at most.
-- **Details** opens the experiment in the dashboard: `https://statespace.com/dashboard/apps/<app>/experiments/<experiment>?workspace=<login>`.
-- The state says where the arm is. It never says that the arm is good or bad. It is never `failure`.
+Statespace posts a commit status on the commit of each arm. There is one status for each app and experiment. Its context is `statespace/<app>/<experiment>`, such as `statespace/shop-prod/checkout`. Your CI does nothing for it.
 
 ## States
 
@@ -24,29 +16,32 @@ Statespace posts a commit status on the commit of each arm. There is one status 
 | Is stopped by a release | `success` | `v4 stopped: definition changed in live d00d123 · signup 0.0261 [0.0184, 0.0368] · 1,188 subjects` |
 | Is removed | `success` | `removed · last v4 · signup 0.0261 [0.0184, 0.0368] · 1,188 subjects` |
 
-## The running description
+The state tells where the arm is. It never tells that the arm is good or bad, and it is never `failure`.
 
-The description of an arm in a running experiment has these parts, in this order:
+## Description
 
-1. the version, such as `v4`;
-2. `running`;
-3. the share of the arm;
-4. the headline, such as `signup 0.0261 [0.0184, 0.0368]`;
-5. the subjects of the arm, such as `1,188 subjects`;
-6. the split check, `split OK` or `split off`, from 100 subjects in all arms.
+The description of a running arm has these parts, in this order:
 
-Every arm's line says `running`. No arm is special.
+1. The version, such as `v4`, and `running`. Every arm says `running`.
+2. The share of the arm, such as `0.05`.
+3. The headline, such as `signup 0.0261 [0.0184, 0.0368]`.
+4. The subjects of the arm, such as `1,188 subjects`.
+5. The split check, `split OK` or `split off`. It shows from 100 subjects in all arms.
 
-## The headline
+The headline is the first event of the version's `statespace.toml`: the share of the subjects of the arm with one or more matches, with 4 decimals, and its 95% interval. Without events, the headline is `requests_5xx`. See [Events and results](/concepts/events-and-results).
 
-- The headline is the first event of the version's `statespace.toml`. It is the share of the subjects of the arm with one or more matches, as a fraction with 4 decimals, and its 95% interval.
-- When the version has no events, the headline is `requests_5xx`: the share of the subjects with one or more responses with a status from 500 to 599, such as `requests_5xx 0.0438 [0.0331, 0.0578] · 1,188 subjects`.
 - Each line has the numbers of its own arm only.
 - Below 30 subjects, the interval is `[–]`, such as `lead 0.0000 [–] · 3 subjects`.
-- Without a value, the headline shows `–`, such as `lead – · 0 subjects`.
-- One subject shows as `1 subject`.
-- The line of a stopped or removed arm shows the snapshot of its version.
+- Without a value, the headline is `–`, such as `lead – · 0 subjects`.
+- The line of a stopped or removed arm shows the final results of its version.
+- The description has 140 characters at most.
 
-## Permission
+## When Statespace posts
 
-The Statespace GitHub App needs only the permission to write commit statuses for this. Your CI does nothing for it.
+- At each change of state: start, stop, removal, and an arm that is not ready.
+- Once an hour while the experiment runs, only when the description changed.
+- Only for the arms of running experiments, and one last time at stop or removal. Older statuses stay as they were.
+
+GitHub accepts at most 1,000 statuses for each commit and context. Statespace stops the hourly posts at 950, to keep room for changes of state.
+
+**Details** opens the experiment in the dashboard: `https://statespace.com/dashboard/apps/<app>/experiments/<experiment>?workspace=<login>`. The Statespace GitHub App needs only the permission to write commit statuses.

@@ -1,0 +1,117 @@
+---
+title: Troubleshooting
+description: Find the cause and the fix of problems that can occur on every runtime.
+---
+
+Use this page for problems on every runtime. Each runtime page has a troubleshooting section for its own problems.
+
+## The proxy
+
+<AccordionGroup>
+  <Accordion title="The proxy stops: Statespace refused the runtime token">
+    **Cause:** Statespace answered 401, 403, or 404 for the token. The token is wrong, or someone removed it.
+
+    **Fix:** Add a token, and give it to the proxy in `STATESPACE_TOKEN`:
+
+    ```shell
+    ssp token add --app shop-prod
+    ```
+
+    Without a token, the proxy does not start, and asks for `--token`.
+  </Accordion>
+  <Accordion title="The proxy logs: could not reach Statespace">
+    **Cause:** The proxy cannot connect to `https://api.statespace.com`. It keeps running and tries again. Until it connects, it sends every request to live. When it loses the connection, it keeps the arms for 5 minutes, then sends every request to live.
+
+    **Fix:** Let the proxy make outbound HTTPS requests to `api.statespace.com`.
+  </Accordion>
+</AccordionGroup>
+
+## Start an experiment
+
+<AccordionGroup>
+  <Accordion title="No build of a1b2c3d for shop-prod">
+    **Cause:** CI did not record a build of the commit for the app. The workflow did not run, or the action step failed.
+
+    **Fix:** Push the commit, and check the action step in the run. See [Build in GitHub Actions](/guides/github-actions). When the commit has a build of the wrong kind, the message names the kind to record.
+  </Accordion>
+  <Accordion title="Live runs an image without a build">
+    **Cause:** The workflow that deploys live does not record its build, so the app has no live commit. On S3 and Cloud Storage, the message is `Live serves files without a build`.
+
+    **Fix:** Add `statespace-tech/action` to the deploy workflow. See [Record the build of live](/guides/github-actions#record-the-build-of-live).
+  </Accordion>
+  <Accordion title="The proxy instances report different live images, files, or settings">
+    **Cause:** Instances of the proxy see different versions of live, such as during a deploy. While they differ, no experiment can start, and running experiments send their subjects to live.
+
+    **Fix:** Wait for the deploy to finish. Experiments run again when the instances agree.
+  </Accordion>
+  <Accordion title="An arm is not ready">
+    **Cause:** The arm did not start on the runtime. `ssp experiment start` waits up to 5 minutes. Then it stops the arms and prints the reason of each one:
+
+    ```text
+    starting checkout on shop-prod
+      c0ffee1   ready
+      a1b2c3d   not ready: the container exits at start (exit 1)
+    checkout did not start. Nothing changed.
+    ```
+
+    The version shows the note `arms were not ready in 5 minutes`.
+
+    **Fix:** Fix the reason, and start again. See the page of your runtime, such as [Docker](/runtimes/docker).
+
+    When an arm stops being ready while it runs, its subjects go to live, and the commit status says `not ready`. The experiment does not stop. `ssp experiment update checkout` prints the state of each arm.
+  </Accordion>
+</AccordionGroup>
+
+## A running experiment
+
+<AccordionGroup>
+  <Accordion title="The experiment stopped: definition changed in live">
+    **Cause:** A release changed the `subject`, `eligibility`, `max_traffic`, or events of the experiment, or a shared event. The note names the new live commit, such as `definition changed in live d00d123`.
+
+    **Fix:** Start the experiment again. The new version uses the new definition. See [What a release does](/concepts/experiments#what-a-release-does).
+  </Accordion>
+  <Accordion title="The split check is off">
+    **Cause:** The arms got subjects in a ratio too far from their shares. The check counts each subject that the hash assigned, also when the arm was not ready. It does not count overrides.
+
+    **Fix:** Do not trust the other numbers of this version. Check that every request of the site goes through the proxy. Then stop the experiment, and start a new version.
+  </Accordion>
+  <Accordion title="No subjects are counted">
+    **Cause:** The proxy counts only subjects that the hash assigns to an arm of a running experiment. It never counts:
+
+    - requests that live serves;
+    - overrides, such as `?ssp=checkout:a1b2c3d`;
+    - requests where `subject` gives no string, or `eligibility` is false or an error.
+
+    **Fix:** Open the site without an override, and check:
+
+    1. The experiment is `running` in `ssp experiment list`.
+    2. A response of an arm sets the cookie `ssp_arms`.
+    3. The `ssp_sid` cookie or the `subject` header gets to the proxy, also through a CDN.
+
+    The proxy sends its counts every 60 seconds.
+  </Accordion>
+  <Accordion title="An event never matches">
+    **Cause:** The rule does not match the request as the proxy sees it. A missing field is no match, not an error:
+
+    - Header names are lowercase: `request.headers["x-user-id"]`.
+    - `request.path` has no query. Use `request.query.ref`.
+    - `request.host` is lowercase, without the port.
+    - `response.status` is a number, such as `response.status == 201`.
+    - The proxy never reads a body. To count what only the body shows, send a response header, such as `x-app-event`.
+    - The proxy evaluates events only on requests of an arm. Live and overrides do not count.
+    - The `name` is snake_case, such as `add_to_cart`. CI refuses `Sign-Up`, so that build is not recorded.
+
+    **Fix:** Correct the rule, and release it to live. The release stops the experiments that use the event, so start them again. See [CEL](/reference/cel).
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Events and results" icon="chart-column" href="/concepts/events-and-results">
+    See what the proxy counts.
+  </Card>
+  <Card title="ssp experiment" icon="terminal" href="/reference/cli/experiment">
+    Look up the commands of an experiment.
+  </Card>
+</CardGroup>

@@ -1,66 +1,74 @@
 ---
 title: How it works
-description: The parts of Statespace, and what each part does with a request.
+description: The parts of Statespace, what each part does with a request, and who can do what.
 ---
 
 import TrafficDiagram from '/snippets/traffic-diagram.mdx';
 
-What runs when you start an experiment, and who decides what?
+This page answers: what runs when you start an experiment, and who can change it?
 
 ## The parts
 
 | Part | Where it runs | What it does |
 | --- | --- | --- |
-| Your CI | GitHub Actions | Builds images or files, and records each build with `statespace-tech/action@v1` |
+| Your CI | GitHub Actions | Makes builds, and records each one with `statespace-tech/action@v1` |
 | `statespace.toml` | Your repo | Holds the events and experiments |
-| `ssp proxy` | In front of your app | Assigns each request, runs and labels the arms, and counts their subjects |
+| `ssp proxy` | In front of your app | Assigns each request, runs the arms, and counts their subjects |
 | Statespace | `api.statespace.com` | Keeps apps, builds, experiments, and results. Posts commit statuses |
 | `ssp` CLI | Your terminal or agent | Adds apps and tokens. Sets arms, and starts and stops experiments |
 
-Your app does not know Statespace. It runs no proxy and needs no code change.
+Your app needs no code change.
 
 ## Alongside live
 
-`ssp` runs alongside live, never inside it.
+**Live** is the service that you run and deploy now. The proxy runs next to live, in front of it. It never changes a resource that it did not create. Each arm is a resource that the proxy creates, labels, and deletes, such as a container.
 
-- You run live as you do now, with your own deploys and your infrastructure as code. Live keeps its own address.
-- `ssp` runs next to live, in front of it. It never changes a resource that it did not create.
-- Each arm is a resource that `ssp` creates, labels, and deletes, such as a container, a Deployment, or a Cloud Run service.
-
-This gives you three things:
-
-1. The tools that manage live keep working with no setting, such as Terraform, Helm, Argo CD, or Compose. See [Infrastructure as code](/guides/infrastructure-as-code).
-2. When `ssp` is down, the load balancer or CDN in front of it can send traffic to the address of live. See [Fall back to live](/guides/fall-back-to-live).
-3. When you remove `ssp`, your setup stays as it is.
+So the tools that manage live keep working, such as Terraform or Helm. See [Infrastructure as code](/guides/infrastructure-as-code). When the proxy is down, a CDN can send traffic to live. See [Put a CDN in front](/guides/cdn).
 
 ## A request
 
 <TrafficDiagram />
 
-In this example, the app `shop-prod` runs two experiments. `checkout` has two arms of 5% each. `us-landing` has one arm of 5% that you can see. For each request, the proxy does these steps:
+In this example, `shop-prod` runs two experiments. The proxy hashes the subject of each request to an arm of an experiment, or to live. See [Subjects and assignment](/concepts/subjects-and-eligibility).
 
-1. It takes the running experiments in the order of `statespace.toml`.
-2. For each experiment, it reads the subject ID and checks `eligibility`.
-3. It hashes the subject ID to a point between 0 and 1.
-4. When the point is in the range of an arm of the experiment, the request goes to that arm.
-5. When no experiment takes the request, it goes to live.
+The proxy never waits on Statespace during a request. It gets its configuration in the background.
 
-The proxy never waits on Statespace during a request. It gets its configuration in the background. When something is wrong, the request goes to live. See [Subjects and assignment](/concepts/subjects).
-
-## Live and the arms
-
-- **Live** is the service that you run now. It serves every request outside the experiments. Statespace never counts it.
-- **An arm** is one commit in one experiment. The proxy runs a copy of the commit's image for it, or serves the commit's files. The proxy counts its subjects.
-- **A unit** is the running copy of one arm. The proxy runs units on the platform of live: Docker, Kubernetes, Cloud Run, ECS Fargate, or Fly.io. On S3 and Cloud Storage, a unit is the build folder of the arm, and the proxy serves its files.
-
-There is no special control arm. To compare a change with what runs now, add the live commit as an arm. Then both arms get the same kind of subjects at the same time, and the proxy counts both the same way.
+An **arm** is one commit in one experiment. A **unit** is the running copy of one arm. There is no control arm: to compare a change with live, add the live commit as an arm. Statespace never counts live.
 
 ## Who decides
 
-- Your CI decides which builds exist. The proxy runs only recorded builds.
-- A person or an agent with permission on the repo sets the arms and starts each experiment. Statespace never starts an experiment by itself.
-- `statespace.toml` in your repo defines the settings and the experiments. They change only with a commit.
+- Your CI decides which builds exist. `statespace.toml` defines the events and experiments, and changes only with a commit.
+- A person or an agent starts each experiment. Statespace never starts one by itself.
 - Statespace shows numbers for each arm. You and your agents decide what they mean.
+
+## Permissions
+
+Each app is linked to a repo. Your role on that repo on GitHub decides what you can do. There are no Statespace roles. The CLI and the dashboard use the same rule.
+
+| Level | Allows | GitHub role |
+| --- | --- | --- |
+| `read` | See apps, experiments, and results | Read, Triage |
+| `write` | Update, start, and stop experiments | Write, Maintain |
+| `admin` | Add and remove apps and runtime tokens. Erase subjects | Admin |
+
+Statespace keeps roles for 10 minutes. So stop works while GitHub is down.
+
+### Credentials
+
+The CLI uses the first credential that it finds, in this order:
+
+1. `STATESPACE_TOKEN`.
+2. The session from `ssp login`.
+3. A GitHub user token in `GH_TOKEN` or `GITHUB_TOKEN`: `gho_`, `ghp_`, `ghu_`, or `github_pat_`. Statespace asks GitHub who it is.
+4. In GitHub Actions, the OIDC token of the job. A workflow of the app's repo counts as `write`.
+
+`ssp whoami` shows which credential the CLI uses.
+
+### Runtime tokens
+
+A runtime token is the only kind of Statespace token. It is for one app, and the proxy uses it. An app can have several tokens, so you can rotate them.
+
+A runtime token can read the name and runtime configuration of its app, hold the lease, and send counts. It cannot change experiments or read results. The CLI shows its secret one time only: keep it in a secret manager.
 
 ## Next steps
 

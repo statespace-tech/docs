@@ -1,0 +1,162 @@
+---
+title: Run the proxy on Fly.io
+sidebarTitle: Fly.io
+description: Run ssp proxy fly as its own Fly.io app in front of your app. Each arm is a Machine of your app with another image.
+icon: "/images/runtimes/fly.svg"
+---
+
+import Prerequisites from '/snippets/runtime/prerequisites.mdx';
+import StepRecord from '/snippets/runtime/step-record.mdx';
+import StepApp from '/snippets/runtime/step-app.mdx';
+import StepCheck from '/snippets/runtime/step-check.mdx';
+import ArmNotReady from '/snippets/runtime/arm-not-ready.mdx';
+import NoLiveBuild from '/snippets/runtime/no-live-build.mdx';
+import Instances from '/snippets/runtime/instances.mdx';
+
+`ssp proxy fly` runs as its own Fly.io app in front of your app. It runs each arm as a Machine of your app with another image.
+
+```text
+                             ┌─► shop.flycast        (live)
+requests ─► shop-statespace ─┼─► checkout c0ffee1 VM (arm)
+                             └─► checkout a1b2c3d VM (arm)
+```
+
+## Prerequisites
+
+<Prerequisites />
+
+- The Fly.io app `shop` in the organization `acme`, and the `fly` CLI.
+- An app that listens on `[::]`, not only on `0.0.0.0`. For example, start uvicorn with `--host ::`.
+- The images that CI records, in `registry.fly.io/shop` or in a public registry.
+
+## Set up
+
+The [fly example](https://github.com/statespace-tech/statespace/tree/main/examples/fly) has these files.
+
+<Steps>
+  <Step title="Record each build">
+    <StepRecord />
+  </Step>
+
+  <Step title="Add the app">
+    <StepApp />
+  </Step>
+
+  <Step title="Add a runtime token">
+    Add a token for the app. Make the proxy's app `shop-statespace` in the organization of `shop`.
+
+    ```shell
+    ssp token add --app shop-prod --note "Fly.io proxy"
+    fly apps create shop-statespace --org acme
+    ```
+  </Step>
+
+  <Step title="Give the proxy its permissions">
+    Make a deploy token of `shop`, which can manage only its Machines. Renew it before it expires in 90 days. Set both tokens as secrets of the proxy.
+
+    ```shell
+    fly tokens create deploy -a shop -x 2160h
+    fly secrets set -a shop-statespace --stage \
+      STATESPACE_TOKEN='<secret>' \
+      FLY_API_TOKEN='<deploy token>'
+    ```
+
+    Give `shop` a private Flycast address for live traffic.
+
+    ```shell
+    fly ips allocate-v6 --private -a shop
+    ```
+  </Step>
+
+  <Step title="Run the proxy">
+    Deploy the proxy with this `fly.toml`. Keep two Machines on, because the proxy works between requests.
+
+    ```toml fly.toml
+    app = "shop-statespace"
+    primary_region = "iad"
+
+    [build]
+      image = "ghcr.io/statespace-tech/statespace:0.5.0"
+
+    # The command goes after the entry point, ssp.
+    [processes]
+      app = "proxy fly --fly-app shop"
+
+    [http_service]
+      internal_port = 8080
+      force_https = true
+      auto_stop_machines = "off"
+      auto_start_machines = true
+      min_machines_running = 2
+    ```
+
+    ```shell
+    fly deploy -c fly.toml
+    ```
+  </Step>
+
+  <Step title="Send traffic to the proxy">
+    Point your domain, such as `shop.acme.com`, to `shop-statespace`. Then release the public addresses of `shop`, so that all requests go through the proxy.
+
+    ```shell
+    fly ips list -a shop
+    fly ips release -a shop <public address>
+    ```
+  </Step>
+
+  <Step title="Check the result">
+    <StepCheck />
+  </Step>
+</Steps>
+
+## How it works
+
+- Live is the Machines of `shop` in the process group `app` that the proxy did not make. The live image is the digest that they all run. The proxy sends live traffic to `http://shop.flycast`, or to `--live-url`.
+- Each arm is a Machine `ssp-<experiment>-<commit 12>`: a copy of a live Machine with another image. It gets the secrets of `shop`.
+- It has no services, so it gets no public or Flycast traffic. It has no mounts and no `fly_*` metadata, so `fly deploy` and `fly scale` do not change it.
+- The metadata `statespace_app`, `statespace_experiment`, and `statespace_commit` keep the full values. See [Your own data tools](/guides/own-tools).
+- The proxy sends the requests of an arm to the private IPv6 address of its Machine.
+- An arm is ready when its Machine is `started`, runs the image of the arm, passes its checks, and accepts a connection.
+- When an experiment stops, the proxy destroys the Machines of its arms.
+
+<Warning>
+  The arms get the secrets of `shop`. Never set a secret that starts with `STATESPACE_` on `shop`.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="An arm is not ready">
+    <ArmNotReady />
+
+    The reason comes from the state, the checks, and the exit events of the Machine.
+  </Accordion>
+  <Accordion title="An arm refuses connections">
+    The app of the arm listens only on `0.0.0.0`. Make it listen on `[::]`, and use the new commit as the arm.
+  </Accordion>
+  <Accordion title="The proxy cannot manage Machines">
+    The deploy token expired, or it is the token of another app. Make a deploy token of `shop`, and set it as `FLY_API_TOKEN`.
+  </Accordion>
+  <Accordion title="The app has no live commit">
+    <NoLiveBuild />
+
+    During a deploy, the Machines of `shop` run different images. Live is known again when the deploy ends.
+  </Accordion>
+  <Accordion title="No experiment can start">
+    <Instances />
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Put a CDN in front" icon="globe" href="/guides/cdn">
+    Send requests to live when the proxy is down.
+  </Card>
+  <Card title="ssp proxy fly" icon="terminal" href="/reference/cli/proxy#ssp-proxy-fly">
+    Look up every flag.
+  </Card>
+  <Card title="S3" icon="folder" href="/runtimes/s3">
+    Run the proxy in front of a static site in a bucket.
+  </Card>
+</CardGroup>

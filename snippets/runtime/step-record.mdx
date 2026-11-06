@@ -1,0 +1,11 @@
+Record the image of each push, and of each deploy of live, with `statespace-tech/action@v1`. See [GitHub Actions](/guides/github-actions).
+
+```yaml .github/workflows/build.yml
+# Record the image of this commit after the build.
+- uses: statespace-tech/action@v1
+  with:
+    image: >-
+      ghcr.io/acme/shop@${{ steps.build.outputs.digest }}
+    # The folder of statespace.toml.
+    path: .
+```

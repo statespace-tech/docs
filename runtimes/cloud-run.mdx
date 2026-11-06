@@ -1,0 +1,163 @@
+---
+title: Run the proxy on Cloud Run
+sidebarTitle: Cloud Run
+description: Run ssp proxy cloudrun as its own Cloud Run service in front of your service. Each arm is a copy of your service with another image.
+icon: "/images/runtimes/cloud-run.svg"
+---
+
+import Prerequisites from '/snippets/runtime/prerequisites.mdx';
+import StepRecord from '/snippets/runtime/step-record.mdx';
+import StepApp from '/snippets/runtime/step-app.mdx';
+import StepCheck from '/snippets/runtime/step-check.mdx';
+import ArmNotReady from '/snippets/runtime/arm-not-ready.mdx';
+import NoLiveBuild from '/snippets/runtime/no-live-build.mdx';
+import Instances from '/snippets/runtime/instances.mdx';
+
+`ssp proxy cloudrun` runs as its own Cloud Run service in front of your service. It runs each arm as a copy of your service with another image.
+
+```text
+                        ┌─► shop                        (live)
+requests ─► shop-proxy ─┼─► shop-ssp-checkout-c0ffee1…  (arm)
+                        └─► shop-ssp-checkout-a1b2c3d…  (arm)
+```
+
+## Prerequisites
+
+<Prerequisites />
+
+- The Cloud Run service `shop` in `us-east1`, in the project `acme-shop`, with the runtime service account `shop-runtime`.
+- The images that CI records, in the Artifact Registry repository `shop`.
+- The proxy image `ghcr.io/statespace-tech/statespace:0.5.0`, in a registry that Cloud Run can use.
+
+## Set up
+
+The [cloudrun example](https://github.com/statespace-tech/statespace/tree/main/examples/cloudrun) has these commands.
+
+<Steps>
+  <Step title="Record each build">
+    <StepRecord />
+  </Step>
+
+  <Step title="Add the app">
+    <StepApp />
+  </Step>
+
+  <Step title="Add a runtime token">
+    Add a token for the app, and put it in Secret Manager.
+
+    ```shell
+    ssp token add --app shop-prod --note "Cloud Run proxy"
+    printf '%s' '<secret>' | gcloud secrets create \
+      shop-statespace-token --data-file=-
+    ```
+  </Step>
+
+  <Step title="Give the proxy its permissions">
+    Add a service account and a custom role for the proxy.
+
+    ```shell
+    gcloud iam service-accounts create shop-proxy \
+      --project acme-shop
+    proxy=shop-proxy@acme-shop.iam.gserviceaccount.com
+    gcloud iam roles create statespaceProxy \
+      --project acme-shop \
+      --title "Statespace proxy" \
+      --permissions=run.services.create,\
+    run.services.delete,run.services.get,\
+    run.services.list,run.services.getIamPolicy,\
+    run.services.setIamPolicy,run.revisions.get,\
+    run.operations.get,run.routes.invoke
+    ```
+
+    Give the account the role, the use of the runtime account, the images, and the secret.
+
+    ```shell
+    gcloud projects add-iam-policy-binding acme-shop \
+      --member "serviceAccount:$proxy" \
+      --role projects/acme-shop/roles/statespaceProxy
+    gcloud iam service-accounts add-iam-policy-binding \
+      shop-runtime@acme-shop.iam.gserviceaccount.com \
+      --member "serviceAccount:$proxy" \
+      --role roles/iam.serviceAccountUser
+    gcloud artifacts repositories add-iam-policy-binding \
+      shop --location us-east1 \
+      --member "serviceAccount:$proxy" \
+      --role roles/artifactregistry.reader
+    gcloud secrets add-iam-policy-binding \
+      shop-statespace-token \
+      --member "serviceAccount:$proxy" \
+      --role roles/secretmanager.secretAccessor
+    ```
+  </Step>
+
+  <Step title="Run the proxy">
+    Deploy the proxy as the service `shop-proxy`. It works between requests, so it needs CPU that is always allocated and one instance at minimum.
+
+    ```shell
+    gcloud run deploy shop-proxy \
+      --region us-east1 \
+      --image <registry>/statespace-tech/statespace:0.5.0 \
+      --service-account "$proxy" \
+      --set-secrets \
+        STATESPACE_TOKEN=shop-statespace-token:latest \
+      --no-cpu-throttling --min-instances 1 \
+      --args=proxy,cloudrun,--service,shop,--region,us-east1 \
+      --allow-unauthenticated
+    ```
+  </Step>
+
+  <Step title="Send traffic to the proxy">
+    Point your domain, such as `shop.acme.com`, to `shop-proxy`. `shop` keeps its URL, so a load balancer can fall back to it. See [Put a CDN in front](/guides/cdn).
+  </Step>
+
+  <Step title="Check the result">
+    <StepCheck />
+  </Step>
+</Steps>
+
+## How it works
+
+- Live is the URL of `shop`. The live image is the image of the revision that gets the most traffic. The proxy never changes `shop`.
+- Each arm is the service `shop-ssp-<experiment>-<commit 12>`, in the project and region of `shop`. A name longer than 49 characters ends with a short hash.
+- The service of an arm copies the template, ingress, launch stage, Binary Authorization policy, and labels of `shop`, with another image. It gets no traffic split, custom domain, or IAM policy.
+- The labels `statespace-app`, `statespace-experiment`, and `statespace-commit` keep the full values. See [Your own data tools](/guides/own-tools).
+- Only the proxy can call an arm: it gives its own account Cloud Run Invoker on it. Its ID token goes in `X-Serverless-Authorization`, so your app keeps `Authorization`.
+- An arm is ready when its service is `Ready` and serves its latest revision, with the image of the arm.
+- When an experiment stops, the proxy deletes the services of its arms.
+- `gcloud run deploy` and Terraform see no change to `shop`. See [Infrastructure as code](/guides/infrastructure-as-code).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="An arm is not ready">
+    <ArmNotReady />
+
+    The reason comes from the terminal condition of the service of the arm.
+  </Accordion>
+  <Accordion title="The proxy gets PERMISSION_DENIED">
+    Check the bindings of the permissions step. Cloud Run deploys an arm only when the proxy can act as `shop-runtime` and read the image.
+  </Accordion>
+  <Accordion title="Requests to an arm time out">
+    An arm has the ingress of `shop`. When the ingress is internal, the proxy must reach the arms through the same VPC as `shop`.
+  </Accordion>
+  <Accordion title="The app has no live commit">
+    <NoLiveBuild />
+  </Accordion>
+  <Accordion title="No experiment can start">
+    <Instances />
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Put a CDN in front" icon="globe" href="/guides/cdn">
+    Send requests to live when the proxy is down.
+  </Card>
+  <Card title="ssp proxy cloudrun" icon="terminal" href="/reference/cli/proxy#ssp-proxy-cloudrun">
+    Look up every flag.
+  </Card>
+  <Card title="ECS Fargate" icon="server" href="/runtimes/fargate">
+    Run the proxy in front of an ECS service.
+  </Card>
+</CardGroup>

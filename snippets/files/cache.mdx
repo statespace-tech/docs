@@ -1,6 +1,0 @@
-By default, the proxy reads the bucket for each request. With `--cache`, each instance of the proxy keeps files in memory, in one cache of 256 MB. When the cache is full, the proxy removes the files that it used least recently.
-
-- It keeps a file of an arm until the arm stops. A recorded build does not change.
-- It keeps a file of live for 10 seconds. So a deploy of live shows in 10 seconds or less.
-
-Use `--cache` to make responses faster and to read the bucket less.

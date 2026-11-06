@@ -1,0 +1,154 @@
+---
+title: Run the proxy in front of S3
+sidebarTitle: S3
+description: Run ssp proxy s3 in front of a static site in an S3 bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
+icon: "/images/runtimes/s3.svg"
+---
+
+import Prerequisites from '/snippets/runtime/prerequisites.mdx';
+import BuildWorkflowFiles from '/snippets/build-workflow-files.mdx';
+import StepApp from '/snippets/runtime/step-app.mdx';
+import StepCheck from '/snippets/runtime/step-check.mdx';
+import ArmNotReady from '/snippets/runtime/arm-not-ready.mdx';
+import Instances from '/snippets/runtime/instances.mdx';
+import Serving from '/snippets/files/serving.mdx';
+import Missing from '/snippets/files/missing.mdx';
+import Live from '/snippets/files/live.mdx';
+
+`ssp proxy s3` serves a static site from an S3 bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
+
+```text
+                        ┌─► s3://acme-site/  (live)
+visitors ─► shop-proxy ─┼─► s3://acme-site/builds/c0ffee1…/
+                        └─► s3://acme-site/builds/a1b2c3d…/
+```
+
+## Prerequisites
+
+<Prerequisites />
+
+- A site in `acme/shop` that builds its files to `dist/`.
+- The bucket `acme-site` in `us-east-1`, or a bucket in an S3-compatible store.
+- The IAM role `acme-site-ci`, which GitHub Actions assumes with OIDC.
+- A container service near the bucket, such as ECS Fargate.
+
+## Set up
+
+<Steps>
+  <Step title="Record each build">
+    Upload the files of each push to a folder of its commit, and record the folder. See [GitHub Actions](/guides/github-actions).
+
+    <BuildWorkflowFiles />
+
+    The deploy of live records its build too, then copies it to the root. Without `--exclude 'builds/*'`, the deploy deletes the builds, and the arms get live.
+
+    ```yaml .github/workflows/deploy.yml
+    # After the upload and the action step:
+    - run: >-
+        aws s3 sync
+        s3://acme-site/builds/${{ github.sha }}/
+        s3://acme-site/
+        --delete --exclude 'builds/*'
+    ```
+
+    CI needs `s3:PutObject`, `s3:GetObject`, and `s3:ListBucket`. The deploy also needs `s3:DeleteObject`.
+  </Step>
+
+  <Step title="Add the app">
+    <StepApp />
+  </Step>
+
+  <Step title="Add a runtime token">
+    Add a token for the app. Give the secret to the proxy as `STATESPACE_TOKEN`, such as from Secrets Manager.
+
+    ```shell
+    ssp token add --app shop-prod --note "S3 proxy"
+    ```
+  </Step>
+
+  <Step title="Give the proxy its permissions">
+    Make the role `shop-proxy` with this policy. The proxy only reads and lists.
+
+    ```json proxy-policy.json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "s3:ListBucket",
+          "Resource": "arn:aws:s3:::acme-site"
+        },
+        {
+          "Effect": "Allow",
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:::acme-site/*"
+        }
+      ]
+    }
+    ```
+  </Step>
+
+  <Step title="Run the proxy">
+    Run the proxy with the role `shop-proxy`. Keep one instance on, with CPU that is always allocated.
+
+    ```shell
+    ssp proxy s3 --bucket acme-site \
+      --region us-east-1 --cache
+    ```
+
+    For an S3-compatible store, such as Cloudflare R2, add `--endpoint`. For a single-page app, add `--fallback 200.html`.
+
+    ```shell
+    ssp proxy s3 --bucket acme-site \
+      --endpoint https://<account>.r2.cloudflarestorage.com \
+      --region auto
+    ```
+  </Step>
+
+  <Step title="Send traffic to the proxy">
+    Point your domain, such as `shop.acme.com`, to the proxy, not to the bucket. See [Put a CDN in front](/guides/cdn).
+  </Step>
+
+  <Step title="Check the result">
+    <StepCheck />
+  </Step>
+</Steps>
+
+## How it works
+
+- Live is the files at the root of the bucket, without the folders that hold recorded builds.
+- An arm is the build folder of its commit. The proxy only reads the bucket.
+- An arm has no process. Only the cookie `ssp_arms` labels its subjects, for browser analytics. See [Your own data tools](/guides/own-tools).
+- The proxy uses the AWS default credential chain, such as an ECS task role.
+
+<Serving />
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="An arm is not ready">
+    <ArmNotReady />
+
+    <Missing />
+  </Accordion>
+  <Accordion title="The app has no live commit">
+    <Live />
+  </Accordion>
+  <Accordion title="No experiment can start">
+    <Instances />
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Put a CDN in front" icon="globe" href="/guides/cdn">
+    Put CloudFront or Cloudflare in front of the proxy.
+  </Card>
+  <Card title="ssp proxy s3" icon="terminal" href="/reference/cli/proxy#ssp-proxy-s3">
+    Look up every flag.
+  </Card>
+  <Card title="Cloud Storage" icon="folder" href="/runtimes/gcs">
+    Run the proxy in front of a Cloud Storage bucket.
+  </Card>
+</CardGroup>

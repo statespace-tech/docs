@@ -1,0 +1,142 @@
+---
+title: Run the proxy on Docker
+sidebarTitle: Docker
+description: Run ssp proxy docker next to the live container that you run, such as with Docker Compose. Each arm is a copy of that container with another image.
+icon: "/images/runtimes/docker.svg"
+---
+
+import Prerequisites from '/snippets/runtime/prerequisites.mdx';
+import StepRecord from '/snippets/runtime/step-record.mdx';
+import StepApp from '/snippets/runtime/step-app.mdx';
+import StepCheck from '/snippets/runtime/step-check.mdx';
+import ArmNotReady from '/snippets/runtime/arm-not-ready.mdx';
+import NoLiveBuild from '/snippets/runtime/no-live-build.mdx';
+
+`ssp proxy docker` runs next to the live container that you run, such as with Docker Compose. It runs each arm as a copy of that container with another image.
+
+```text
+                 ┌─► container shop      (live)
+requests ─► ssp ─┼─► checkout c0ffee1    (arm)
+                 └─► checkout a1b2c3d    (arm)
+```
+
+## Prerequisites
+
+<Prerequisites />
+
+- A Linux machine with Docker and Docker Compose, sized for live and one container for each arm.
+- An image that exposes one TCP port, such as `EXPOSE 3000`. Otherwise, add `--live-port`.
+
+## Set up
+
+The [fastapi example](https://github.com/statespace-tech/statespace/tree/main/examples/fastapi) has these files.
+
+<Steps>
+  <Step title="Record each build">
+    <StepRecord />
+  </Step>
+
+  <Step title="Add the app">
+    <StepApp />
+  </Step>
+
+  <Step title="Add a runtime token">
+    Add a token for the app. On the machine, put the secret in `.env`, next to `compose.yaml`.
+
+    ```shell
+    ssp token add --app shop-prod --note "Docker proxy"
+    echo 'STATESPACE_TOKEN=<secret>' > .env
+    ```
+  </Step>
+
+  <Step title="Run the proxy">
+    Give the live container a fixed name, such as `shop`. Add the service `ssp`, and move the public port from `shop` to `ssp`.
+
+    ```yaml compose.yaml
+    services:
+      shop:
+        image: ghcr.io/acme/shop@sha256:<digest>
+        # ssp finds live by this name.
+        container_name: shop
+        restart: unless-stopped
+      ssp:
+        image: ghcr.io/statespace-tech/statespace:0.5.0
+        command: ["proxy", "docker",
+          "--live-container", "shop",
+          "--health", "/health"]
+        environment:
+          STATESPACE_TOKEN: ${STATESPACE_TOKEN}
+        ports:
+          - "80:8080"
+        volumes:
+          # ssp starts and stops the arms with the socket.
+          - /var/run/docker.sock:/var/run/docker.sock
+        # The Docker socket belongs to root.
+        user: root
+        depends_on: [shop]
+        restart: unless-stopped
+        # ssp lets requests finish and removes the arms.
+        stop_grace_period: 30s
+    ```
+
+    ```shell
+    docker compose up -d
+    ```
+
+    <Warning>
+      The socket gives `ssp` control of Docker, and thus root access to the machine. Mount it only in the `ssp` service.
+    </Warning>
+  </Step>
+
+  <Step title="Send traffic to the proxy">
+    Publish no public port of `shop`: requests that go around the proxy are never in an arm. When a reverse proxy, such as nginx, already listens on port 80, change its upstream from `shop:3000` to `ssp:8080`. See [Put a CDN in front](/guides/cdn).
+  </Step>
+
+  <Step title="Check the result">
+    <StepCheck />
+  </Step>
+</Steps>
+
+## How it works
+
+- Live is the container that `--live-container` names. The proxy never runs, changes, or stops it. It checks the container every 2 seconds, so it follows a new live container within seconds.
+- The live port is `--live-port`, or the only TCP port that the container exposes.
+- Each arm is a copy of the live container with another image. It keeps the environment, command, entry point, mounts, limits, and networks of live.
+- An arm gets no labels, name, aliases, published ports, or restart policy of live. So `docker compose up --remove-orphans` and `docker compose down` do not remove it. See [Infrastructure as code](/guides/infrastructure-as-code).
+- The proxy labels each arm `com.statespace.app`, `com.statespace.experiment`, `com.statespace.commit`, and more. A new proxy adopts the arms after a crash. See [Your own data tools](/guides/own-tools).
+- An arm is ready when it accepts a TCP connection, or when it answers `--health` with a 2xx status.
+- When an experiment stops, the proxy removes its arms. When the proxy stops, it removes all its arms.
+- The proxy uses the Docker Engine API at `DOCKER_HOST` or `/var/run/docker.sock`.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="An arm is not ready">
+    <ArmNotReady />
+
+    The reason comes from the state of the container, such as `the container exits at start (exit 1)` or `exit 137, out of memory`.
+  </Accordion>
+  <Accordion title="The proxy cannot pull the image of an arm">
+    The proxy pulls with the credentials in `auths` of `$DOCKER_CONFIG/config.json`, by default `~/.docker/config.json`. It does not read credential helpers. Run `docker login` so that `auths` has the registry.
+  </Accordion>
+  <Accordion title="The proxy does not find the live port">
+    The proxy says `container shop does not expose exactly one TCP port; pass --live-port`. Add `--live-port 3000` to the command.
+  </Accordion>
+  <Accordion title="The app has no live commit">
+    <NoLiveBuild />
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Put a CDN in front" icon="globe" href="/guides/cdn">
+    Send requests to live when the proxy is down.
+  </Card>
+  <Card title="ssp proxy docker" icon="terminal" href="/reference/cli/proxy#ssp-proxy-docker">
+    Look up every flag.
+  </Card>
+  <Card title="Kubernetes" icon="ship-wheel" href="/runtimes/kubernetes">
+    Run the proxy in front of a Deployment.
+  </Card>
+</CardGroup>

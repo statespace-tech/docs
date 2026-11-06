@@ -1,0 +1,206 @@
+---
+title: ssp experiment
+sidebarTitle: experiment
+description: List experiments, set their arms, start and stop them, and show their results.
+---
+
+An experiment is a named comparison of commits in one app. Its table is in `statespace.toml`, and its arms are set with `ssp experiment update`. See [Experiments](/concepts/experiments).
+
+Each command takes `--app`. The [global flags](/reference/cli/overview#global-flags) also apply.
+
+<ParamField body="--app" type="string" default="the only app of the repo and folder here">
+  The app. Environment variable: `STATESPACE_APP`. See [How the CLI finds the app](/reference/cli/overview#how-the-cli-finds-the-app).
+</ParamField>
+
+## ssp experiment list
+
+List the experiments of an app: state, version, arms, and headline.
+
+```shell
+ssp experiment list [--running | --all]
+```
+
+<ParamField body="--running" type="boolean" default="false">
+  Show only the running experiments. You cannot use it with `--all`.
+</ParamField>
+
+<ParamField body="--all" type="boolean" default="false">
+  Also show the `gone` experiments: their table left `statespace.toml`.
+</ParamField>
+
+This example lists the running experiments of `shop-prod`:
+
+```shell
+ssp experiment list --app shop-prod --running
+```
+
+Each row has the arms, such as `c0ffee1=0.05 a1b2c3d=0.05`, and the headline of each arm, such as `signup: c0ffee1 0.0208, a1b2c3d 0.0261`.
+
+To stop all experiments of an app, list them with `--running`, then give their names to [`ssp experiment stop`](#ssp-experiment-stop).
+
+## ssp experiment show
+
+Show the results of one version of an experiment for each arm, where to find the arms in your own data tools, the override links while the version runs, and the versions.
+
+```shell
+ssp experiment show <name> [--version <N>]
+```
+
+<ParamField body="name" type="string" required>
+  The experiment.
+</ParamField>
+
+<ParamField body="--version" type="number" default="the current or last version">
+  The version of the results, such as `3`. A stopped version shows its snapshot: its results when it stopped.
+</ParamField>
+
+This example shows the results of `checkout`:
+
+```shell
+ssp experiment show checkout --app shop-prod
+```
+
+```text
+checkout v1 · shop-prod · since 2026-11-04 09:12 UTC · 2,392 subjects · split ok
+
+latency (ms)                 c0ffee1                   a1b2c3d
+  p50                        41                        44
+  p95                        180                       205
+  p99                        420                       610
+
+events (estimate [95% CI])   c0ffee1                   a1b2c3d
+  requests_4xx               0.1121 [0.0950, 0.1318]   0.1178 [0.1003, 0.1378]
+  requests_5xx               0.0274 [0.0193, 0.0388]   0.0438 [0.0331, 0.0578]
+  signup                     0.0208 [0.0136, 0.0306]   0.0261 [0.0184, 0.0368]
+  search                     0.2804 [0.2554, 0.3068]   0.2753 [0.2499, 0.3007]
+
+Find it in your own data tools: statespace.arm = "c0ffee1…" | "a1b2c3d…"
+
+Override links:
+  c0ffee1  ?ssp=checkout:c0ffee1
+  a1b2c3d  ?ssp=checkout:a1b2c3d
+
+Versions:
+  VERSION  ARMS                       STARTED                       STOPPED  NOTE
+  1        a1b2c3d=0.05 c0ffee1=0.05  2026-11-04 09:12 UTC by octo  -        -
+```
+
+- The first line gives the version, the app, and the time: `since <start> UTC` while the version runs, or `<start> – <stop> UTC`. Then the subjects of all arms, and the split check: `ok`, `off`, or `–` below 100 subjects.
+- `latency (ms)` gives p50, p95, and p99 of each arm, in whole milliseconds.
+- `events` gives `requests_4xx`, `requests_5xx`, then each event in file order. Each value is a share of subjects with 4 decimals, and its 95% interval. Below 30 subjects in an arm, the interval is `[–]`. See [Events and results](/concepts/events-and-results).
+- `Override links` shows only while the version runs. See [Overrides](/concepts/overrides).
+- Before the first start, the command prints only `checkout · shop-prod · not started`.
+
+To see the arms and their state, use `ssp experiment update <name>` without `--arm`.
+
+## ssp experiment update
+
+Add, change, or remove arms. Only the arms that you name change. Without `--arm`, the command prints the arms. You need the write role on the repo.
+
+```shell
+ssp experiment update <name> [--arm <commit>=<share>]... \
+  [--note <text>]
+```
+
+<ParamField body="name" type="string" required>
+  The experiment.
+</ParamField>
+
+<ParamField body="--arm" type="string">
+  An arm and its share of the app's subjects, such as `a1b2c3d=0.05`. Repeat it for each arm. A new commit is added. An arm gets the new share. `=0` removes the arm, and its results stay.
+</ParamField>
+
+<ParamField body="--note" type="string">
+  Why, in 1 to 200 characters on one line. The audit log and the commit status show it.
+</ParamField>
+
+This example replaces the arm `a1b2c3d` with `f6a7b8c`:
+
+```shell
+ssp experiment update checkout \
+  --arm a1b2c3d=0 --arm f6a7b8c=0.05
+```
+
+The command prints the arms after the change. `+` marks an added arm, `~` a changed arm, and `−` a removed arm:
+
+```text
+checkout · shop-prod · stopped
+  − a1b2c3d   0.05
+  + f6a7b8c   0.05
+    c0ffee1   0.06
+  total 0.11 of max_traffic 0.2
+Next: ssp experiment start checkout
+```
+
+The command fails, and changes nothing, when:
+
+- the experiment runs: "checkout is running. Stop it first: ssp experiment stop checkout";
+- the shares add up to more than `max_traffic`;
+- a commit has no build for the app: "No build of a1b2c3d for shop-prod. Push it so CI builds it.";
+- a commit prefix matches more than one build. The error lists the matches;
+- `=0` names a commit that is not an arm: "e5f6a7b is not an arm of checkout".
+
+## ssp experiment start
+
+Start a new version, and wait until every arm is ready. You need the write role on the repo.
+
+```shell
+ssp experiment start <name> [--note <text>]
+```
+
+<ParamField body="name" type="string" required>
+  The experiment.
+</ParamField>
+
+<ParamField body="--note" type="string">
+  Why, in 1 to 200 characters on one line. The audit log and the commit status show it.
+</ParamField>
+
+This example starts `checkout`:
+
+```shell
+ssp experiment start checkout --note "one-page checkout"
+```
+
+The command checks, in this order:
+
+1. The experiment has 2 or more arms.
+2. The shares add up to `max_traffic` or less.
+3. Each arm has a build for the app.
+4. The shares of all running experiments of the app, and of this one, add up to 1 or less.
+
+When a check fails, nothing changes. Then the experiment is `starting`, and the command prints each arm when it is ready. When an arm is not ready in 5 minutes, the experiment is `stopped` again, and the command gives the reason:
+
+```text
+starting checkout on shop-prod
+  c0ffee1   ready
+  a1b2c3d   not ready: the container exits at start (exit 1)
+checkout did not start. Nothing changed.
+```
+
+The command also warns when another running experiment can claim the same requests, such as "checkout and us-landing can claim the same requests; checkout is first in statespace.toml".
+
+## ssp experiment stop
+
+Stop one or more experiments. Their arms leave traffic in seconds. You need the write role on the repo.
+
+```shell
+ssp experiment stop <name>... [--note <text>]
+```
+
+<ParamField body="name" type="string" required>
+  One or more experiments.
+</ParamField>
+
+<ParamField body="--note" type="string">
+  Why, in 1 to 200 characters on one line. The audit log and the commit status show it.
+</ParamField>
+
+This example stops two experiments:
+
+```shell
+ssp experiment stop checkout us-landing --app shop-prod \
+  --note "incident 214"
+```
+
+A stop on a stopped experiment changes nothing, and says so.

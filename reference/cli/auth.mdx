@@ -1,0 +1,57 @@
+---
+title: ssp login, logout, and whoami
+sidebarTitle: login, logout, whoami
+description: Sign in to Statespace with GitHub, sign out, and show the credential that the CLI uses.
+---
+
+These commands manage the session of the CLI. For the order in which the CLI picks a credential, see [Credentials](/reference/cli/overview#credentials). The [global flags](/reference/cli/overview#global-flags) also apply.
+
+## ssp login
+
+Sign in with GitHub, and keep the session on this computer.
+
+```shell
+ssp login [--no-open]
+```
+
+<ParamField body="--no-open" type="boolean" default="false">
+  Print the sign-in URL. Do not open a browser.
+</ParamField>
+
+The CLI shows a code and opens the browser. Approve the code in the browser. This is the only command that waits for you.
+
+```text
+Confirm this code in your browser: WDJB-MJHT
+Signed in as octo.
+```
+
+The session also keeps the API URL, from `--api` or `STATESPACE_API`. The other commands then use this URL.
+
+## ssp logout
+
+Sign this terminal out. The CLI forgets the session, also when it cannot reach Statespace.
+
+```shell
+ssp logout
+```
+
+The command takes no other flags. It prints `Signed out.`, or `No session was saved.` when there was no session.
+
+## ssp whoami
+
+Show who you are to Statespace, and the credential that the CLI uses.
+
+```shell
+ssp whoami
+```
+
+The command takes no other flags. It prints, for example:
+
+```text
+Signed in as: octo
+Credential:   the ssp login session
+Kind:         session
+API:          https://api.statespace.com
+```
+
+`Kind` is `session`, `github`, `workflow`, or `runtime`. With a runtime token, the output also shows the `App` of the token.

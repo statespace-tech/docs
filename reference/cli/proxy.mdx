@@ -1,0 +1,267 @@
+---
+title: ssp proxy
+sidebarTitle: proxy
+description: Run the proxy in front of an app's live service, on each runtime, with its flags.
+---
+
+`ssp proxy` runs in front of the live service of an app. It sends live traffic to live, and runs the arms of experiments. It never changes what it did not create. Each runtime has its own subcommand and page. All other settings come from [`statespace.toml`](/reference/statespace-toml).
+
+## ssp proxy
+
+Run the proxy on one runtime.
+
+```shell
+ssp proxy <runtime> --token <token> [--listen <address>] \
+  [runtime flags]
+```
+
+These flags apply to each runtime.
+
+<ParamField body="--token" type="string" required>
+  The runtime token of the app, from [`ssp token add`](/reference/cli/token#ssp-token-add). Environment variable: `STATESPACE_TOKEN`. At start, the proxy asks Statespace which app the token is for. When Statespace refuses the token, the proxy stops with an error.
+</ParamField>
+
+<ParamField body="--listen" type="string" default="0.0.0.0:8080">
+  The public address of the proxy. Environment variable: `STATESPACE_LISTEN`.
+</ParamField>
+
+- `ssp proxy` takes no `--app`. The runtime token names the app.
+- `--api` also applies. See [Global flags](/reference/cli/overview#global-flags).
+- `ssp proxy` runs until you stop it. It prints no JSON document.
+- It passes HTTP/1.1, HTTP/2, and WebSocket.
+
+This example runs the proxy on Docker, with the token in the environment:
+
+```shell
+export STATESPACE_TOKEN=<secret>
+ssp proxy docker --live-container shop
+```
+
+## ssp proxy docker
+
+Forward to a live container, and run each arm as a copy of it. See [Docker](/runtimes/docker).
+
+```shell
+ssp proxy docker --live-container <name> [--live-port <port>] \
+  [--health <path>]
+```
+
+<ParamField body="--live-container" type="string" required>
+  The container that runs live, by name or ID, such as the container of a Compose service. You run it. The proxy only forwards to it, and follows it when it is created again.
+</ParamField>
+
+<ParamField body="--live-port" type="number" default="the only TCP port that the container exposes">
+  The port that live listens on in its container.
+</ParamField>
+
+<ParamField body="--health" type="string">
+  A path that must answer with a 2xx status before the container of an arm gets traffic. Without it, a container is ready when its port accepts connections.
+</ParamField>
+
+This example runs the proxy next to the container `shop`:
+
+```shell
+ssp proxy docker --live-container shop --health /health
+```
+
+## ssp proxy kubernetes
+
+Run each arm as a copy of a Kubernetes Deployment. See [Kubernetes](/runtimes/kubernetes).
+
+```shell
+ssp proxy kubernetes --deployment <name> \
+  [--namespace <namespace>] [--service <name>] \
+  [--container <name>]
+```
+
+<ParamField body="--deployment" type="string" required>
+  The Deployment that runs live.
+</ParamField>
+
+<ParamField body="--namespace" type="string" default="the namespace of the proxy">
+  The namespace of the Deployment.
+</ParamField>
+
+<ParamField body="--service" type="string" default="the name of the Deployment">
+  The Service of live.
+</ParamField>
+
+<ParamField body="--container" type="string" default="the first container">
+  The container of the app in the pod.
+</ParamField>
+
+This example runs the proxy for the Deployment `shop`:
+
+```shell
+ssp proxy kubernetes --deployment shop --namespace prod
+```
+
+## ssp proxy cloudrun
+
+Run each arm as a copy of a Cloud Run service. See [Cloud Run](/runtimes/cloud-run).
+
+```shell
+ssp proxy cloudrun --service <name> --region <region> \
+  [--project <project>]
+```
+
+<ParamField body="--service" type="string" required>
+  The Cloud Run service that runs live.
+</ParamField>
+
+<ParamField body="--region" type="string" required>
+  The region of the service, such as `us-east1`.
+</ParamField>
+
+<ParamField body="--project" type="string" default="the project of the proxy">
+  The Google Cloud project.
+</ParamField>
+
+This example runs the proxy for the service `shop`:
+
+```shell
+ssp proxy cloudrun --service shop --region us-east1
+```
+
+## ssp proxy fargate
+
+Run each arm as a copy of an ECS service on Fargate. See [ECS Fargate](/runtimes/fargate).
+
+```shell
+ssp proxy fargate --cluster <cluster> --service <name> \
+  [--region <region>] [--live-url <url>] \
+  [--container <name>] [--unit-ip <private|public>]
+```
+
+<ParamField body="--cluster" type="string" required>
+  The ECS cluster of the service.
+</ParamField>
+
+<ParamField body="--service" type="string" required>
+  The ECS service that runs live.
+</ParamField>
+
+<ParamField body="--region" type="string" default="the region of the AWS configuration">
+  The AWS region of the cluster, such as from `AWS_REGION`.
+</ParamField>
+
+<ParamField body="--live-url" type="string" default="the Service Connect name of live">
+  Where the proxy sends live traffic, such as the URL of the load balancer of live.
+</ParamField>
+
+<ParamField body="--container" type="string" default="the first container with a port mapping">
+  The container of the app in the task definition.
+</ParamField>
+
+<ParamField body="--unit-ip" type="string" default="private">
+  The IP address of the task of an arm that the proxy sends to: `private` or `public`. Use `public` only when the proxy runs outside the VPC of the tasks.
+</ParamField>
+
+This example runs the proxy for the service `shop` in the cluster `shop`:
+
+```shell
+ssp proxy fargate --cluster shop --service shop \
+  --live-url http://internal-shop.example.com
+```
+
+## ssp proxy fly
+
+Run each arm as a Machine of a Fly.io app. See [Fly.io](/runtimes/fly).
+
+```shell
+ssp proxy fly --fly-app <app> --fly-token <token> \
+  [--region <region>] [--process-group <group>] \
+  [--port <port>] [--live-url <url>]
+```
+
+<ParamField body="--fly-app" type="string" required>
+  The Fly.io app whose Machines run live.
+</ParamField>
+
+<ParamField body="--fly-token" type="string" required>
+  A Fly.io token that can manage the Machines of the app, such as a deploy token. Environment variable: `FLY_API_TOKEN`.
+</ParamField>
+
+<ParamField body="--region" type="string" default="the region of a live Machine">
+  The region of new Machines.
+</ParamField>
+
+<ParamField body="--process-group" type="string" default="app">
+  The process group of live. Fly.io calls the group of an app without `[processes]` `app`.
+</ParamField>
+
+<ParamField body="--port" type="number" default="the internal port of the first service of live">
+  The port that the app listens on.
+</ParamField>
+
+<ParamField body="--live-url" type="string" default="http://<fly app>.flycast">
+  Where the proxy sends live traffic.
+</ParamField>
+
+This example runs the proxy for the Fly.io app `shop`:
+
+```shell
+export FLY_API_TOKEN=<secret>
+ssp proxy fly --fly-app shop
+```
+
+## ssp proxy s3
+
+Serve a static site and the arms from build folders in an S3 bucket. Live is the root of the bucket. See [S3](/runtimes/s3).
+
+```shell
+ssp proxy s3 --bucket <bucket> [--endpoint <url>] \
+  [--region <region>] [--cache] [--fallback <file>]
+```
+
+<ParamField body="--bucket" type="string" required>
+  The bucket. Live is its root.
+</ParamField>
+
+<ParamField body="--endpoint" type="string">
+  An S3-compatible endpoint, such as Cloudflare R2, Backblaze B2, DigitalOcean Spaces, or MinIO. The bucket is the first segment of the path. Environment variable: `AWS_ENDPOINT_URL_S3`.
+</ParamField>
+
+<ParamField body="--region" type="string" default="the region of the AWS configuration">
+  The region of the bucket, such as from `AWS_REGION`. With `--endpoint`, the default is `us-east-1`.
+</ParamField>
+
+<ParamField body="--cache" type="boolean" default="false">
+  Keep files in memory, in one cache of 256 MB: the files of an arm until the arm stops, and the files of live for 10 seconds.
+</ParamField>
+
+<ParamField body="--fallback" type="string">
+  The file of a build, such as `200.html`, for a single-page app. A path without a file extension that matches no file gets this file, with the status 200.
+</ParamField>
+
+This example serves the bucket `acme-site` with a cache:
+
+```shell
+ssp proxy s3 --bucket acme-site --region us-east-1 --cache
+```
+
+## ssp proxy gcs
+
+Serve a static site and the arms from build folders in a Cloud Storage bucket. Live is the root of the bucket. See [Cloud Storage](/runtimes/gcs).
+
+```shell
+ssp proxy gcs --bucket <bucket> [--cache] [--fallback <file>]
+```
+
+<ParamField body="--bucket" type="string" required>
+  The bucket. Live is its root.
+</ParamField>
+
+<ParamField body="--cache" type="boolean" default="false">
+  Keep files in memory, in one cache of 256 MB: the files of an arm until the arm stops, and the files of live for 10 seconds.
+</ParamField>
+
+<ParamField body="--fallback" type="string">
+  The file of a build, such as `200.html`, for a single-page app. A path without a file extension that matches no file gets this file, with the status 200.
+</ParamField>
+
+This example serves the bucket `acme-site` with a cache:
+
+```shell
+ssp proxy gcs --bucket acme-site --cache
+```

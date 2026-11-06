@@ -1,0 +1,109 @@
+---
+title: Events and results
+description: What the proxy counts for each subject of an arm, how an event turns a request into a count, and how to read the results.
+---
+
+This page answers: what does Statespace count for each arm, and how do you read the results?
+
+## What the proxy counts
+
+For each request that an arm serves to an assigned subject, the proxy adds to the counters of that subject:
+
+| Counter | Adds 1 when |
+| --- | --- |
+| Requests | Always |
+| `requests_4xx` | The response status is from 400 to 499 |
+| `requests_5xx` | The response status is from 500 to 599 |
+| Latency | Always, in the range of the time to the response headers |
+| Each event | The rule of the event matches |
+
+- The proxy never counts live or [overrides](/concepts/overrides).
+- When the arm of a subject is not ready, the request goes to live. The subject counts only for the [split check](#the-split-check).
+- The proxy counts in memory, and never makes a request wait. It sends the counts every 60 seconds.
+
+See [Data and security](/concepts/data-and-security) for what leaves the proxy.
+
+## Events
+
+An event is a named CEL rule over one request and its response. The proxy checks each rule when the response headers arrive. It never reads a body.
+
+```toml statespace.toml
+# A visitor signs up.
+[[event]]
+name = "signup"
+match = '''
+request.method == "POST"
+  && request.path == "/signup"
+  && response.status < 300
+'''
+```
+
+When the request does not show the event, let your app name it in a response header, such as `x-app-event: purchase`. Then match `response.headers["x-app-event"]`.
+
+- Events at the top of `statespace.toml` are **shared**: every experiment counts them. An experiment can also have its **own** events, in `[[experiment.<name>.event]]`. Own events come after the shared ones.
+- The first event is the **headline**. It shows on the commit status.
+- `requests_4xx` and `requests_5xx` are built-in events. Every experiment has them, and you cannot use their names.
+
+See [CEL](/reference/cel) for every field and rule, and [statespace.toml](/reference/statespace-toml) for the name rules.
+
+<Warning>
+  A release that changes a shared event stops every running experiment of the app. See [What a release does](/concepts/experiments#what-a-release-does).
+</Warning>
+
+## Results
+
+`ssp experiment show` shows the results of one version, with one column for each arm. It shows no difference between the arms, and it picks no winner.
+
+```shell
+ssp experiment show checkout --app shop-prod
+```
+
+After a first line, such as `checkout v1 · shop-prod · since 2026-11-04 09:12 UTC · 2,392 subjects · split ok`, the command prints the results:
+
+```text
+latency (ms)                 c0ffee1                   a1b2c3d
+  p50                        41                        44
+  p95                        180                       205
+  p99                        420                       610
+
+events (estimate [95% CI])   c0ffee1                   a1b2c3d
+  requests_4xx               0.1121 [0.0950, 0.1318]   0.1178 [0.1003, 0.1378]
+  requests_5xx               0.0274 [0.0193, 0.0388]   0.0438 [0.0331, 0.0578]
+  signup                     0.0208 [0.0136, 0.0306]   0.0261 [0.0184, 0.0368]
+```
+
+- **Latency** is the p50, p95, and p99 of the time to the response headers, in whole milliseconds. Above 10000 ms, a percentile shows `10000`.
+- **Each event** is the share of the arm's subjects with one or more matches. So a subject with 3 orders counts one time. The built-in events come first, then your events in file order.
+- A share is a fraction with 4 decimals: `0.0261` is 2.61% of the subjects.
+- `[0.0184, 0.0368]` is the 95% Wilson interval of the share. Below 30 subjects in an arm, it shows `[–]`. When the intervals of two arms overlap, the data does not show a difference yet.
+- A value without data shows `–`.
+
+The command also shows where to find the arms in your [own data tools](/guides/own-tools), the override links, and the versions. `--json` gives the same data. `--version 2` shows version 2. A stopped version shows its final results.
+
+## The split check
+
+Statespace checks that the arms got subjects in the ratio of their shares. The check starts at 100 subjects in all arms. It shows `split ok`, or `split off` when the ratio is too far from the shares to come from chance (less than 1 time in 1,000).
+
+The check counts subjects whose arm was not ready. It does not count overrides. When the split is off, do not trust the other numbers.
+
+## On the commit
+
+Statespace posts the commit status `statespace/<app>/<experiment>` on the commit of each arm, with the headline of that arm:
+
+```text
+v4 running · 0.05 · signup 0.0261 [0.0184, 0.0368]
+· 1,188 subjects · split OK
+```
+
+The state is `pending` while the arm runs, and `success` after. It never says that an arm is good or bad. See [Commit status](/reference/commit-status) for each state and when Statespace posts.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="CEL" icon="braces" href="/reference/cel">
+    Look up every field of an event rule.
+  </Card>
+  <Card title="Your own data tools" icon="search" href="/guides/own-tools">
+    Find the detail of each arm in your logs and analytics.
+  </Card>
+</CardGroup>

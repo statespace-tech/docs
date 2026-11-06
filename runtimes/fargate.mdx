@@ -1,0 +1,212 @@
+---
+title: Run the proxy on ECS Fargate
+sidebarTitle: ECS Fargate
+description: Run ssp proxy fargate as its own ECS service in front of your service. Each arm is an ECS service in the same cluster, with another image.
+icon: "/images/runtimes/fargate.svg"
+---
+
+import Prerequisites from '/snippets/runtime/prerequisites.mdx';
+import StepRecord from '/snippets/runtime/step-record.mdx';
+import StepApp from '/snippets/runtime/step-app.mdx';
+import StepCheck from '/snippets/runtime/step-check.mdx';
+import ArmNotReady from '/snippets/runtime/arm-not-ready.mdx';
+import NoLiveBuild from '/snippets/runtime/no-live-build.mdx';
+import Instances from '/snippets/runtime/instances.mdx';
+
+`ssp proxy fargate` runs as its own ECS service in front of your service. It runs each arm as an ECS service in the same cluster, with another image.
+
+```text
+                        ┌─► shop load balancer      (live)
+requests ─► shop-proxy ─┼─► checkout c0ffee1 tasks  (arm)
+                        └─► checkout a1b2c3d tasks  (arm)
+```
+
+## Prerequisites
+
+<Prerequisites />
+
+- The ECS service `shop` in the cluster `shop`, in `us-east-1`, with the task role `shop-task` and the execution role `shop-task-execution`.
+- An internal load balancer in front of `shop`, or a Service Connect name.
+- The images that CI records, in a registry that the execution role of `shop` can read, such as Amazon ECR.
+- The AWS CLI.
+
+## Set up
+
+The [fargate example](https://github.com/statespace-tech/statespace/tree/main/examples/fargate) has these files.
+
+<Steps>
+  <Step title="Record each build">
+    <StepRecord />
+  </Step>
+
+  <Step title="Add the app">
+    <StepApp />
+  </Step>
+
+  <Step title="Add a runtime token">
+    Add a token for the app, and put it in Secrets Manager. The execution role of the proxy, `statespace-proxy-execution`, must read it.
+
+    ```shell
+    ssp token add --app shop-prod --note "Fargate proxy"
+    aws secretsmanager create-secret \
+      --name shop-statespace-token \
+      --secret-string '<secret>'
+    ```
+  </Step>
+
+  <Step title="Give the proxy its permissions">
+    Make the task role `statespace-proxy` with this policy. It runs the arms with the roles of `shop`.
+
+    ```json proxy-policy.json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "ecs:CreateService",
+            "ecs:DeleteService",
+            "ecs:DeleteTaskDefinitions",
+            "ecs:DeregisterTaskDefinition",
+            "ecs:DescribeServices",
+            "ecs:DescribeTaskDefinition",
+            "ecs:DescribeTasks",
+            "ecs:ListServices",
+            "ecs:ListTaskDefinitions",
+            "ecs:ListTasks",
+            "ecs:RegisterTaskDefinition",
+            "ecs:TagResource",
+            "ecs:UpdateService"
+          ],
+          "Resource": "*"
+        },
+        {
+          "Effect": "Allow",
+          "Action": "iam:PassRole",
+          "Resource": [
+            "arn:aws:iam::123456789012:role/shop-task",
+            "arn:aws:iam::123456789012:role/shop-task-execution"
+          ],
+          "Condition": {
+            "StringEquals": {
+              "iam:PassedToService": "ecs-tasks.amazonaws.com"
+            }
+          }
+        }
+      ]
+    }
+    ```
+
+    In the security group of `shop`, let the proxy connect to the port of the app. The arms use this group.
+  </Step>
+
+  <Step title="Run the proxy">
+    Register the task definition of the proxy. Set `--live-url` to the internal load balancer of `shop`.
+
+    ```json proxy-task-definition.json
+    {
+      "family": "shop-proxy",
+      "requiresCompatibilities": ["FARGATE"],
+      "networkMode": "awsvpc",
+      "cpu": "256",
+      "memory": "512",
+      "taskRoleArn":
+        "arn:aws:iam::123456789012:role/statespace-proxy",
+      "executionRoleArn":
+        "arn:aws:iam::123456789012:role/statespace-proxy-execution",
+      "containerDefinitions": [
+        {
+          "name": "proxy",
+          "image": "ghcr.io/statespace-tech/statespace:0.5.0",
+          "essential": true,
+          "command": [
+            "proxy", "fargate",
+            "--cluster", "shop",
+            "--service", "shop",
+            "--region", "us-east-1",
+            "--live-url", "http://internal-shop.example.com"
+          ],
+          "portMappings": [{"containerPort": 8080}],
+          "secrets": [
+            {
+              "name": "STATESPACE_TOKEN",
+              "valueFrom": "shop-statespace-token"
+            }
+          ]
+        }
+      ]
+    }
+    ```
+
+    Make the service `shop-proxy` with two tasks, behind a target group of your load balancer.
+
+    ```shell
+    aws ecs register-task-definition \
+      --cli-input-json file://proxy-task-definition.json
+    aws ecs create-service --cluster shop \
+      --service-name shop-proxy \
+      --task-definition shop-proxy \
+      --desired-count 2 --launch-type FARGATE \
+      --network-configuration "awsvpcConfiguration={\
+    subnets=[subnet-0aaa,subnet-0bbb],\
+    securityGroups=[sg-0ccc]}" \
+      --load-balancers "targetGroupArn=<target group>,\
+    containerName=proxy,containerPort=8080"
+    ```
+  </Step>
+
+  <Step title="Send traffic to the proxy">
+    Point your public load balancer to the target group of `shop-proxy`, not to `shop`. See [Put a CDN in front](/guides/cdn).
+  </Step>
+
+  <Step title="Check the result">
+    <StepCheck />
+  </Step>
+</Steps>
+
+## How it works
+
+- Live is the ECS service `shop`. The live image is the digest that the tasks of its primary deployment run. Live traffic goes to `--live-url`, or to the Service Connect name of `shop`.
+- Each arm is the service `shop-ssp-<experiment>-<commit 12>`, from a copy of the task definition of `shop` with another image. It copies the network, launch, and deployment settings of `shop`, but no load balancer or service discovery.
+- The tags `statespace.com/app`, `statespace.com/experiment`, and `statespace.com/commit` keep the full values. See [Your own data tools](/guides/own-tools).
+- The desired count of an arm is the desired count of `shop` times the share, at least 1.
+- The proxy sends the requests of an arm to the private IP address of a task. It uses its task role.
+- An arm is ready when one of its tasks runs the image of the arm and is healthy. A container without a health check must accept a TCP connection.
+- When an experiment stops, the proxy deletes the services of its arms and their task definitions.
+- Deploy live as usual. See [Infrastructure as code](/guides/infrastructure-as-code).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="An arm is not ready">
+    <ArmNotReady />
+
+    The reason is the stop reason of the last stopped task of the arm. For an image pull error, let the execution role of `shop` read the registry of the builds.
+  </Accordion>
+  <Accordion title="Requests to an arm time out">
+    Check the security group step. When the proxy runs outside the VPC of the tasks, add `--unit-ip public` and `ec2:DescribeNetworkInterfaces`. Use this only for tests.
+  </Accordion>
+  <Accordion title="The proxy gets AccessDenied for iam:PassRole">
+    The policy must name the task role and the execution role of `shop`.
+  </Accordion>
+  <Accordion title="The app has no live commit">
+    <NoLiveBuild />
+  </Accordion>
+  <Accordion title="No experiment can start">
+    <Instances />
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Put a CDN in front" icon="globe" href="/guides/cdn">
+    Send requests to live when the proxy is down.
+  </Card>
+  <Card title="ssp proxy fargate" icon="terminal" href="/reference/cli/proxy#ssp-proxy-fargate">
+    Look up every flag.
+  </Card>
+  <Card title="Fly.io" icon="plane" href="/runtimes/fly">
+    Run the proxy in front of a Fly.io app.
+  </Card>
+</CardGroup>

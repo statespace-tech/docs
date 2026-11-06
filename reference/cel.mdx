@@ -1,48 +1,58 @@
 ---
-title: CEL variables
-description: The variables and fields that each CEL expression in statespace.toml can use.
+title: CEL
+description: The fields of request and response that each CEL expression in statespace.toml can use, with example rules.
 ---
 
-`statespace.toml` uses [CEL](https://cel.dev) expressions in three places. Each place has its own variables.
+`statespace.toml` uses [CEL](https://cel.dev) expressions in three keys. Each key has its own variables.
 
 | Key | Gives | Variables |
 | --- | --- | --- |
 | `subject` | string | `request` |
 | `eligibility` | bool | `request` |
-| `[[event]] match` | bool | `request` and `response` |
+| `match` of an event | bool | `request` and `response` |
 
 CI checks each expression when it records a build. An error fails the CI step, with the message. A field that is not on this page is an error.
 
 ## request
 
-| Field | Type | Example |
+| Field | Type | Example value |
 | --- | --- | --- |
-| `request.method` | string | `request.method == "POST"` |
-| `request.host` | string | `request.host == "shop.acme.com"` |
-| `request.path` | string | `request.path == "/checkout"` |
-| `request.query` | map of strings | `request.query.ref == "mail"` |
-| `request.headers` | map of strings | `request.headers["x-user-id"]` |
-| `request.cookies` | map of strings | `request.cookies.ssp_sid` |
+| `request.method` | string | `"POST"` |
+| `request.host` | string | `"shop.acme.com"` |
+| `request.path` | string | `"/checkout"` |
+| `request.query` | map of strings | `{"ref": "mail"}` |
+| `request.headers` | map of strings | `{"cf-ipcountry": "US"}` |
+| `request.cookies` | map of strings | `{"plan": "pro"}` |
 
 Header names are lowercase.
 
 ## response
 
-Only `[[event]] match` can use `response`.
+Only the `match` of an event can use `response`.
 
-| Field | Type | Example |
+| Field | Type | Example value |
 | --- | --- | --- |
-| `response.status` | number | `response.status < 300` |
-| `response.headers` | map of strings | `response.headers["x-app-event"]` |
-| `response.ms` | number | `response.ms > 1000.0` |
+| `response.status` | int | `201` |
+| `response.headers` | map of strings | `{"x-app-event": "purchase"}` |
+| `response.ms` | double | `84.0` |
 
-- `response.status` is the status that the visitor got. When the arm fails, the proxy answers itself, such as with a 502.
+- `response.status` is the status that the arm sent. When an arm does not answer, the proxy does not count the request: it sends a request without a body to live, and answers a request with a body with a 502.
 - `response.ms` is the time to the response headers, in milliseconds.
 - Header names are lowercase.
 
-## Subject and eligibility
+## How the proxy evaluates
 
-The proxy evaluates `subject` and `eligibility` before it sends the request. So they use `request` only.
+- `subject` and `eligibility` run before the proxy sends the request.
+- When `subject` gives no string, the experiment skips the request.
+- When `eligibility` is false or has an error, the experiment skips the request.
+- Each `match` runs one time for each request of an arm, when the response headers arrive. The proxy never reads a body.
+- In a `match`, a missing field is no match. It is not an error.
+- A `match` that does not give a bool fails in CI.
+- The proxy can match headers and cookies. It never sends or keeps them. It counts only the name of the event.
+
+## Examples
+
+This experiment takes the subject from a header, and admits only requests from the US.
 
 ```toml statespace.toml
 [experiment.checkout]
@@ -50,15 +60,10 @@ subject = 'request.headers["x-user-id"]'
 eligibility = 'request.headers["cf-ipcountry"] == "US"'
 ```
 
-- `subject` and `eligibility` are keys of an `[experiment.<name>]` table.
-- When `subject` gives no string, the experiment skips the request.
-- When `eligibility` is false or has an error, the experiment skips the request.
-
-## Event match
-
-The proxy evaluates each `match` one time for each request of an arm, when the response headers arrive. It never reads a body.
+These events count a request and its status.
 
 ```toml statespace.toml
+# A visitor sends an order.
 [[event]]
 name = "purchase"
 match = '''
@@ -66,8 +71,35 @@ request.method == "POST"
   && request.path == "/checkout"
   && response.status < 300
 '''
+
+# A visitor comes from a mail campaign.
+[[event]]
+name = "from_mail"
+match = 'request.query.ref == "mail"'
 ```
 
-- A missing field is no match. It is not an error.
-- A `match` that does not give a boolean fails in CI.
-- The proxy can match headers and cookies. It never sends or keeps them.
+These events count slow pages and missing pages.
+
+```toml statespace.toml
+# A visitor waits more than one second.
+[[event]]
+name = "slow_page"
+match = 'response.ms > 1000.0'
+
+# A visitor gets a page that does not exist.
+[[event]]
+name = "not_found"
+match = 'response.status == 404'
+```
+
+Your app can name an event that no request shows, such as a paid order, in a response header. This event matches that header.
+
+```toml statespace.toml
+[[event]]
+name = "purchase"
+match = '''
+response.headers["x-app-event"] == "purchase"
+'''
+```
+
+The proxy sends the header on to the visitor. Use a header value that tells nothing private.

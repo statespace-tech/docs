@@ -33,21 +33,14 @@ Pushes and pull requests run both checks in GitHub Actions.
 
 ## Structure
 
-The documentation has four sections.
+The site has three tabs. `AGENTS.md` has the rules for each page.
 
-- Get started: the introduction, the quickstart, and installation.
-- Concepts: how it works, apps and live, experiments, subjects and assignment, events, results and
-  evidence, what Statespace keeps, overrides, and permissions.
-- Guides: CI on GitHub Actions; the proxy on Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io,
-  S3, and Cloud Storage; a CDN in front of the proxy; fallback to live; infrastructure as code; events;
-  arms in your own data tools; emergency stops; and agents.
-- Reference: the CLI, `statespace.toml` with a starter file, the API, CEL variables, commit statuses,
-  and limits.
+- Docs: Get started (overview, quickstart, installation), Concepts, and Guides.
+- Runtimes: Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io, S3, and Cloud Storage.
+- Reference: `statespace.toml`, CEL, commit statuses, and the CLI.
 
-## Content status
-
-Pages describe either current behavior or proposed UX. Every page for an unimplemented feature must start with a visible planned-feature warning.
+The pages describe the current release only.
 
 ## License
 
-MIT
+Apache 2.0. See `LICENSE`.

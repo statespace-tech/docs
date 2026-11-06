@@ -1,0 +1,14 @@
+Show the app. It shows the live commit, the proxy instances, and the orchestrator. Then start `checkout` with the live commit and a new commit as arms.
+
+```shell
+ssp app show shop-prod
+ssp experiment update checkout --app shop-prod \
+  --arm c0ffee1=0.05 --arm a1b2c3d=0.05
+ssp experiment start checkout --app shop-prod
+```
+
+Open an arm with its override link. `ssp experiment show checkout` prints the link of each arm. See [Overrides](/concepts/overrides).
+
+```text
+https://shop.acme.com/?ssp=checkout:a1b2c3d
+```

@@ -1,3 +1,0 @@
-You can run many instances of the proxy. Every instance routes requests. Only the instance that holds the app's lease starts and stops the arms. When that instance stops, another instance gets the lease in about 30 seconds.
-
-All instances must report the same settings and the same live files. While they do not, no experiment of the app can start, the running ones send their requests to live, and `ssp app show` says why.

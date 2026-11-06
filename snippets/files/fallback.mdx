@@ -1,6 +1,0 @@
-A single-page app routes its paths in the browser. For such an app, give the proxy a fallback file, such as `--fallback 200.html`:
-
-1. A path without a file extension that matches no key, such as `/orders/42`, gets the fallback file of the same build, with the status 200.
-2. A path with an extension that matches no key, such as `/app.js`, still gets the 404 response.
-
-The proxy makes no redirects. Make them in your CDN, such as with Cloudflare Redirect Rules or CloudFront Functions. See [Behind a CDN](/guides/cdn#redirects).

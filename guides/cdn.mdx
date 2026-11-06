@@ -1,112 +1,153 @@
 ---
 title: Put a CDN in front of the proxy
-sidebarTitle: Behind a CDN
-description: Put CloudFront or Cloudflare in front of ssp proxy on any runtime. Send pages to the proxy, and keep hashed static files in the cache.
+sidebarTitle: Put a CDN in front
+description: Put CloudFront or Cloudflare in front of ssp proxy on any runtime, and fall back to live when the proxy is down.
 ---
 
-A CDN can sit in front of `ssp proxy` on any runtime. The CDN keeps static files near your visitors. The proxy picks the arm of each page request. A request goes through these parts:
-
-1. The CDN gets the request from the visitor.
-2. The CDN sends it to the load balancer of the proxy.
-3. The proxy sends it to an arm or to live.
+A CDN can sit in front of `ssp proxy` on any runtime. The CDN keeps static files. The proxy picks the arm of each page request.
 
 ## Rules for any CDN
 
-### Send pages to the proxy
-
-One URL gives different pages to different subjects. So the CDN must send each page request to the proxy, and must not keep a copy of a page for other visitors.
-
-- Do not cache pages in the CDN.
-- Send cookies to the proxy, at least `ssp_sid` and `ssp`. The proxy reads the subject from `ssp_sid`, and overrides from `ssp`.
-- Send the query parameter `ssp` to the proxy. It opens an [override](/concepts/overrides).
-- Send the headers that `subject` and `eligibility` read, such as `x-user-id`.
-
-The proxy marks arm responses `Cache-Control: private, no-cache`. A CDN that obeys `Cache-Control` keeps no copy of them.
-
-### Cache hashed static files
-
-A file with a hash of its content in its name, such as `/assets/app.3f9a1c.js`, is the same in each build that has it. So a cached copy is correct for every arm and for live. Keep these files in the CDN cache, such as for one year.
+- **Use the proxy as the origin**, such as the load balancer in front of the proxy. A request that does not go through the proxy is never in an arm.
+- **Do not cache pages.** One URL gives different pages to different subjects. The proxy marks arm responses `Cache-Control: private, no-cache`.
+- **Send the cookies `ssp_sid` and `ssp`, and the query parameter `ssp`.** The proxy reads the subject from `ssp_sid` and [overrides](/concepts/overrides) from `ssp`.
+- **Send the headers that `subject` and `eligibility` read.**
+- **Cache hashed static files**, such as `/assets/app.3f9a1c.js`. A file with a hash of its content in its name is the same in each build.
+- **Make redirects in the CDN.** The proxy makes no redirects.
 
 <Warning>
-  Do not cache a file without a hash in its name that two builds can have with different content, such as `/favicon.ico` or `/robots.txt`. A visitor can then get the file of another arm or of live. Send such files to the proxy without caching, or give them hashed names.
+  Do not cache a file without a hash in its name, such as `/favicon.ico`. A visitor can then get the file of another arm or of live.
 </Warning>
-
-### Use the proxy as the origin
-
-The origin of the CDN is the address of the proxy, such as:
-
-- the Application Load Balancer in front of the proxy on ECS Fargate;
-- the URL of the proxy's Cloud Run service;
-- the load balancer of the proxy's Kubernetes Service.
-
-Do not use the bucket or the live service as the origin. Requests that do not go through the proxy are never in an arm. Use live only as a [fallback](/guides/fall-back-to-live).
-
-### Redirects
-
-The proxy makes no redirects. Make them in the CDN, such as with Cloudflare Redirect Rules or CloudFront Functions.
 
 ## CloudFront
 
 <Steps>
   <Step title="Add the origin">
-    In the distribution, add an origin with the domain of the proxy, such as the DNS name of the load balancer. Use HTTPS when the load balancer has a certificate.
+    Add an origin with the DNS name of the load balancer of the proxy.
   </Step>
-
   <Step title="Send pages to the proxy">
-    In the default cache behavior (`*`), set these managed policies:
+    In the default cache behavior (`*`), set the managed cache policy `CachingDisabled` and the origin request policy `AllViewer`.
 
-    1. The cache policy `CachingDisabled`. Its TTLs are 0, so CloudFront keeps no page.
-    2. The origin request policy `AllViewer`. It sends all headers, cookies, and query strings to the proxy.
-
-    When the origin needs its own host name in the `Host` header, use `AllViewerExceptHostHeader`. CloudFront then sends the domain of the origin as `Host`.
-
-    Do not use `CachingOptimized` for pages. Its minimum TTL is 1 second, so CloudFront keeps a page for at least 1 second, also with `private` or `no-cache`.
+    When `eligibility` reads a CloudFront header, such as `cloudfront-viewer-country`, use `AllViewerAndCloudFrontHeaders-2022-06`.
   </Step>
-
   <Step title="Cache hashed static files">
-    Add a cache behavior for the folder of the hashed files, such as `/assets/*`. Set the managed cache policy `CachingOptimized`. Its default TTL is 24 hours, and its maximum TTL is 365 days.
-  </Step>
-
-  <Step title="Send viewer headers that the rules read">
-    When `eligibility` reads a CloudFront header, such as `cloudfront-viewer-country`, use the managed origin request policy `AllViewerAndCloudFrontHeaders-2022-06` in the default behavior. It sends all viewer values and the CloudFront headers, such as `CloudFront-Viewer-Country`.
+    Add a cache behavior for the folder of the hashed files, such as `/assets/*`, with the managed cache policy `CachingOptimized`.
   </Step>
 </Steps>
+
+Do not use `CachingOptimized` for pages. Its minimum TTL is 1 second, so CloudFront keeps each page for 1 second, also with `no-cache`.
 
 ## Cloudflare
 
 <Steps>
   <Step title="Point the domain to the proxy">
-    Add a DNS record for your domain, such as a `CNAME` from `site.acme.com` to the DNS name of the load balancer. Turn on the proxy status (orange cloud).
+    Add a `CNAME` from `shop.acme.com` to the load balancer of the proxy. Turn on the proxy status.
   </Step>
-
   <Step title="Set the encryption mode">
-    Set the SSL/TLS encryption mode to **Full (strict)**. The certificate of the origin must be valid, from a public certificate authority or from Cloudflare's Origin CA, and must match the host name.
+    Set SSL/TLS to **Full (strict)**.
   </Step>
-
-  <Step title="Keep pages out of the cache">
-    By default, Cloudflare does not cache HTML or JSON. It also does not cache a response with `private`, `no-store`, `no-cache`, or `max-age=0`. Do not add a cache rule that makes pages **Eligible for cache**.
-  </Step>
-
   <Step title="Cache hashed static files">
-    Add a cache rule for the folder of the hashed files, such as when the URI path starts with `/assets/`. Set the cache eligibility to **Eligible for cache**.
+    Add a cache rule for the folder of the hashed files, such as a URI path that starts with `/assets/`. Set it to **Eligible for cache**.
   </Step>
-
   <Step title="Bypass the cache for shared names">
-    By default, Cloudflare caches some files without a hash in their names, such as `/favicon.ico` and `/robots.txt`. Add a cache rule for these files. Set the cache eligibility to **Bypass cache**.
+    Cloudflare caches `/favicon.ico` and `/robots.txt` by default. Add a cache rule for them with **Bypass cache**.
   </Step>
 </Steps>
 
-Cloudflare sends all request headers to the origin, with the cookies. To get the header `cf-ipcountry` for `eligibility`, turn on the Managed Transform **Add visitor location headers**.
+Do not add a rule that makes pages **Eligible for cache**. To get `cf-ipcountry` for `eligibility`, turn on the Managed Transform **Add visitor location headers**.
 
 ## Fall back to live
 
-This part is optional. The CDN can send requests to live when the proxy is down, such as with a CloudFront origin group or a Cloudflare fallback pool. See [Fall back to live](/guides/fall-back-to-live).
+Live keeps its own address. So the CDN or load balancer in front of the proxy can send traffic to live when the proxy is down. Without a fallback, run two or more instances of the proxy to keep your app up during a restart.
+
+During a fallback, all visitors get live, and the proxy counts nothing. When the proxy is back, each subject gets the same arm as before.
+
+Point the fallback to the address of live, such as the live container or Service. On S3 and Cloud Storage, use an origin that serves the root of the bucket. It does not use the path rules of the proxy.
+
+<Tabs>
+  <Tab title="nginx">
+    nginx uses `shop`, the backup server, only when it cannot use `ssp`:
+
+    ```nginx nginx.conf
+    upstream shop_front {
+        server ssp:8080;
+        server shop:3000 backup;
+    }
+
+    server {
+        listen 80;
+        location / {
+            proxy_pass http://shop_front;
+            proxy_set_header Host $host;
+            proxy_connect_timeout 2s;
+            proxy_next_upstream error timeout
+                http_502 http_503;
+        }
+    }
+    ```
+
+    The proxy answers 503 while it does not know the address of live.
+  </Tab>
+  <Tab title="Caddy">
+    Caddy sends each request to the first available upstream:
+
+    ```text Caddyfile
+    shop.acme.com {
+        reverse_proxy ssp:8080 shop:3000 {
+            lb_policy first
+            lb_try_duration 5s
+            fail_duration 30s
+        }
+    }
+    ```
+  </Tab>
+  <Tab title="Traefik">
+    Traefik uses `live` when the health check of `ssp` fails:
+
+    ```yaml dynamic.yaml
+    http:
+      services:
+        shop-front:
+          failover:
+            service: ssp
+            fallback: live
+        ssp:
+          loadBalancer:
+            healthCheck:
+              path: /health
+              interval: 5s
+            servers:
+              - url: http://ssp:8080
+        live:
+          loadBalancer:
+            servers:
+              - url: http://shop:3000
+    ```
+  </Tab>
+  <Tab title="Cloudflare">
+    In Cloudflare Load Balancing:
+
+    1. Add a pool for the proxy, with a health monitor.
+    2. Add a pool for live.
+    3. In the load balancer, use the pool of the proxy, and set the pool of live as the fallback pool.
+  </Tab>
+  <Tab title="CloudFront">
+    1. Add two origins: the proxy and live.
+    2. Make an origin group. The primary origin is the proxy. The secondary origin is live.
+    3. Choose the failover status codes 500, 502, 503, and 504.
+    4. Set the origin group as the origin of the default cache behavior.
+
+    CloudFront fails over only for `GET`, `HEAD`, and `OPTIONS`.
+  </Tab>
+</Tabs>
+
+A fallback on status codes also sends to live the requests that an arm answers with those codes.
 
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="S3" icon="folder" href="/guides/s3">
-    Run the proxy in front of an S3 bucket.
+  <Card title="How it works" icon="workflow" href="/concepts/how-it-works">
+    See how the proxy runs alongside live.
   </Card>
   <Card title="Overrides" icon="link" href="/concepts/overrides">
     Open an arm with a link.

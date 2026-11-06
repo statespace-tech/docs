@@ -1,0 +1,200 @@
+---
+title: Run the proxy on Kubernetes
+sidebarTitle: Kubernetes
+description: Run ssp proxy kubernetes as its own Deployment in front of your app. Each arm is a copy of your Deployment with another image.
+icon: "/images/runtimes/kubernetes.svg"
+---
+
+import Prerequisites from '/snippets/runtime/prerequisites.mdx';
+import StepRecord from '/snippets/runtime/step-record.mdx';
+import StepApp from '/snippets/runtime/step-app.mdx';
+import StepCheck from '/snippets/runtime/step-check.mdx';
+import ArmNotReady from '/snippets/runtime/arm-not-ready.mdx';
+import NoLiveBuild from '/snippets/runtime/no-live-build.mdx';
+import Instances from '/snippets/runtime/instances.mdx';
+
+`ssp proxy kubernetes` runs as its own Deployment in front of your app. It runs each arm as a copy of your Deployment with another image.
+
+```text
+                         ┌─► Service shop     (live)
+requests ─► shop-proxy ──┼─► checkout c0ffee1 (arm)
+                         └─► checkout a1b2c3d (arm)
+```
+
+## Prerequisites
+
+<Prerequisites />
+
+- The Deployment `shop` and its Service `shop`, in the namespace `prod`, on any cluster, such as GKE, EKS, or AKS.
+- `kubectl` with the rights to make a Role in the namespace.
+
+## Set up
+
+The [kubernetes example](https://github.com/statespace-tech/statespace/tree/main/examples/kubernetes) has these manifests.
+
+<Steps>
+  <Step title="Record each build">
+    <StepRecord />
+  </Step>
+
+  <Step title="Add the app">
+    <StepApp />
+  </Step>
+
+  <Step title="Add a runtime token">
+    Add a token for the app, and put it in a Secret.
+
+    ```shell
+    ssp token add --app shop-prod --note "Kubernetes proxy"
+    kubectl -n prod create secret generic statespace \
+      --from-literal=token=<secret>
+    ```
+  </Step>
+
+  <Step title="Give the proxy its permissions">
+    The proxy manages Deployments and Services, and reads pods, in the namespace.
+
+    ```yaml shop-proxy-rbac.yaml
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: shop-proxy
+      namespace: prod
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: shop-proxy
+      namespace: prod
+    rules:
+      - apiGroups: ["apps"]
+        resources: ["deployments"]
+        verbs: ["get", "list", "watch",
+                "create", "update", "delete"]
+      - apiGroups: [""]
+        resources: ["services"]
+        verbs: ["get", "list",
+                "create", "update", "delete"]
+      - apiGroups: [""]
+        resources: ["pods"]
+        verbs: ["get", "list", "watch"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: shop-proxy
+      namespace: prod
+    subjects:
+      - kind: ServiceAccount
+        name: shop-proxy
+        namespace: prod
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: shop-proxy
+    ```
+  </Step>
+
+  <Step title="Run the proxy">
+    Run the proxy as a Deployment with a Service, and apply both files.
+
+    ```yaml shop-proxy.yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: shop-proxy
+      namespace: prod
+    spec:
+      replicas: 2
+      selector:
+        matchLabels: {app: shop-proxy}
+      template:
+        metadata:
+          labels: {app: shop-proxy}
+        spec:
+          serviceAccountName: shop-proxy
+          containers:
+            - name: proxy
+              image: ghcr.io/statespace-tech/statespace:0.5.0
+              args: ["proxy", "kubernetes",
+                     "--deployment", "shop"]
+              env:
+                - name: STATESPACE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: statespace
+                      key: token
+              ports:
+                - containerPort: 8080
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: shop-proxy
+      namespace: prod
+    spec:
+      selector: {app: shop-proxy}
+      ports:
+        - port: 80
+          targetPort: 8080
+    ```
+
+    ```shell
+    kubectl apply -f shop-proxy-rbac.yaml
+    kubectl apply -f shop-proxy.yaml
+    ```
+  </Step>
+
+  <Step title="Send traffic to the proxy">
+    Point your Ingress or load balancer to the Service `shop-proxy`, not to `shop`. See [Put a CDN in front](/guides/cdn).
+  </Step>
+
+  <Step title="Check the result">
+    <StepCheck />
+  </Step>
+</Steps>
+
+## How it works
+
+- Live is the Service of the Deployment, `--service`, by default the name of the Deployment. The live image is the digest that its ready pods report.
+- Each arm is a Deployment and a Service, `shop-ssp-<experiment>-<commit 12>`. A name longer than 63 characters ends with a short hash.
+- The Deployment of an arm copies the pod spec of `shop`, and changes only the image. Its replicas are the replicas of `shop` times the share, at least 1.
+- The pods of an arm carry only the labels `statespace.com/app`, `statespace.com/experiment`, `statespace.com/commit`, and `statespace.com/unit`. So the Service `shop` never sends them traffic. See [Your own data tools](/guides/own-tools).
+- An arm is ready when its rollout is done and one replica is ready.
+- When an experiment stops, the proxy deletes the Deployments and Services of its arms.
+- Your Deployment does not change. Helm, Argo CD, and Flux keep working. See [Infrastructure as code](/guides/infrastructure-as-code).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="An arm is not ready">
+    <ArmNotReady />
+
+    The reason comes from the pods of the arm, such as `a pod is CrashLoopBackOff (last: OOMKilled, exit 137)` or `a pod is ImagePullBackOff`. For an image pull error, let the cluster pull from the registry of the builds.
+  </Accordion>
+  <Accordion title="The proxy gets 403 Forbidden">
+    The Role is missing, or it is in another namespace. Without `--namespace`, the proxy uses its own namespace. Apply `shop-proxy-rbac.yaml` in the namespace of `shop`.
+  </Accordion>
+  <Accordion title="The app has no live commit">
+    <NoLiveBuild />
+
+    During a rollout, the pods of `shop` run different images. Live is known again when the rollout ends.
+  </Accordion>
+  <Accordion title="No experiment can start">
+    <Instances />
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Put a CDN in front" icon="globe" href="/guides/cdn">
+    Send requests to live when the proxy is down.
+  </Card>
+  <Card title="ssp proxy kubernetes" icon="terminal" href="/reference/cli/proxy#ssp-proxy-kubernetes">
+    Look up every flag.
+  </Card>
+  <Card title="Cloud Run" icon="cloud" href="/runtimes/cloud-run">
+    Run the proxy in front of a Cloud Run service.
+  </Card>
+</CardGroup>

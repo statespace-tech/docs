@@ -1,7 +1,7 @@
 ---
-title: Build every push on GitHub Actions
+title: Build in GitHub Actions
 sidebarTitle: GitHub Actions
-description: Build the commits that can become arms, and record each build with statespace-tech/action.
+description: Record each build of your app with statespace-tech/action, so its commit can become an arm.
 ---
 
 import BuildWorkflow from '/snippets/build-workflow.mdx';
@@ -9,45 +9,34 @@ import BuildWorkflowFiles from '/snippets/build-workflow-files.mdx';
 import ActionStep from '/snippets/action-step.mdx';
 import ActionStepFiles from '/snippets/action-step-files.mdx';
 
-Statespace runs only builds that your CI recorded. This guide records builds from GitHub Actions.
+The proxy runs only builds that your CI recorded. Use this guide to record each build with `statespace-tech/action@v1`.
 
-## Kinds of build
+## Record each build
 
-A build is an image or a folder of files. The runtime of your app tells you which kind to record.
+Record each commit that can become an arm. The workflows below record each push to each branch. A branch name means nothing to Statespace.
 
-| Build | Input | Runtimes |
-| --- | --- | --- |
-| An image, by digest | `image` | Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io |
-| A folder of files in a bucket | `files` | S3, Cloud Storage |
-
-Each runtime uses only its own kind. One commit, folder, and label holds one build. So an image build and a files build of one commit need different `app` labels. See [Build labels](#build-labels).
-
-## Build every push
-
-Build each commit that can become an arm. The simplest way is to build each push to each branch.
+The runtime of the app sets the kind of build. Docker, Kubernetes, Cloud Run, ECS Fargate, and Fly.io run an image. S3 and Cloud Storage serve a folder of files.
 
 <Tabs>
   <Tab title="Image">
-    The workflow builds the image, pushes it, and records it by digest.
+    This workflow builds the image, pushes it, and records it by digest.
 
     <BuildWorkflow />
   </Tab>
   <Tab title="Files">
-    The workflow builds the site, uploads the files to a folder for the commit, and records the folder. Both lines name the full location.
+    This workflow builds the site, uploads it to a folder for the commit, and records the folder. You choose the folder name.
 
     <BuildWorkflowFiles />
-
-    You choose the folder. Statespace has no rule for its name. For Cloud Storage, see [Cloud Storage](/guides/gcs#record-each-build).
   </Tab>
 </Tabs>
 
-To build fewer commits, use a branch pattern, such as `branches: ["main", "try/**"]`. A branch name means nothing to Statespace. Only the build record counts.
+The job needs `id-token: write`. The action sends the GitHub OIDC token of the job. Statespace gets the repo and the commit from it, so CI keeps no Statespace secret.
 
-The job needs `id-token: write`. The action sends the job's GitHub OIDC token, and Statespace gets the repo and the commit from it. CI keeps no Statespace secret.
+Put the action step after your tests to record only tested commits.
 
 ## Record the build of live
 
-Statespace finds the live commit from the build that live runs. So the workflow that deploys live must record that build too. Add the action step to that workflow.
+Statespace finds the live commit from the build that live runs. Add the action step to the workflow that deploys live too.
 
 <Tabs>
   <Tab title="Image">
@@ -56,7 +45,7 @@ Statespace finds the live commit from the build that live runs. So the workflow 
     <ActionStep />
   </Tab>
   <Tab title="Files">
-    Upload the files to the folder of the commit, and record the folder. Then copy the folder to the root of the bucket. See [Deploy live](/guides/s3#deploy-live).
+    Record the folder after the upload. Then copy the folder to the root of the bucket. See [S3](/runtimes/s3) or [Cloud Storage](/runtimes/gcs).
 
     <ActionStepFiles />
   </Tab>
@@ -64,83 +53,28 @@ Statespace finds the live commit from the build that live runs. So the workflow 
 
 When live runs a build that is not recorded, no experiment of the app can start.
 
-## Checks of the build
+## When the step fails
 
-The action checks that the build exists before it records it. When a check fails, the step fails, and Statespace records nothing.
+The step fails, and Statespace records nothing, when:
 
-- **Image.** The registry must have the image, by digest. The action checks it with `docker manifest inspect`. A wrong repository fails the step.
-- **Files.** The action lists the folder, downloads the files, and computes a hash of them. An empty folder, or a folder that the job cannot read, fails the step.
+- the registry does not have the image by digest, or the job cannot read it;
+- the folder is empty, or the job cannot read it;
+- `statespace.toml` has a wrong key, a wrong type, or a CEL error. The step prints the message.
 
-So the job needs read access to the image or the folder. The credentials that pushed the build give this access.
-
-## Build each commit the same way
-
-Statespace records one build for each commit, and never changes it. When CI builds the same commit again, for example on a branch and then on `main`, the second build must be the same as the first. If it is different, the action fails with `<commit> has a build without app already`.
-
-Many tools put the time of the build or a random ID into the build. Use the commit instead:
-
-| Tool | Setting |
-| --- | --- |
-| SvelteKit | `kit.version.name`: the commit, such as `process.env.GITHUB_SHA` |
-| Next.js | `generateBuildId`: return the commit |
-| Docker | Build from the same files, and do not copy the time into the image |
-
-When two builds of a commit must be different, give each build its own `app`. See [Build labels](#build-labels).
-
-## Inputs
-
-Give exactly one of `image` and `files`.
-
-<ParamField body="image" type="string">
-  The image, by digest, such as `ghcr.io/acme/shop@sha256:2222…`. The action resolves a tag to its digest with `docker`.
-</ParamField>
-
-<ParamField body="files" type="string">
-  The folder of the files, as `s3://<bucket>/<folder>/` or `gs://<bucket>/<folder>/`, such as `s3://acme-site/builds/a1b2c3d…/`. It ends with `/`. It cannot be the root of the bucket: the root holds live.
-</ParamField>
-
-<ParamField body="path" type="string">
-  The folder of `statespace.toml`, from the root of the repo, such as `.` or `services/shop`.
-</ParamField>
-
-<ParamField body="app" type="string">
-  The app that this build is for. Without it, the build serves every app of the repo and folder. See [Build labels](#build-labels).
-</ParamField>
-
-## Checks of statespace.toml
-
-The action sends `statespace.toml` with the build. Statespace checks the file.
-
-- A wrong key, a wrong type, or a CEL error fails the step, with the message.
-- A section `[app.<name>]` that matches no app gives a warning. The step does not fail.
-
-So a commit with a bad file gets no build, and cannot become an arm.
+A section `[app.<name>]` that matches no app gives a warning only.
 
 ## Build labels
 
-Some builds put different values in the build for each app. For example, a web app can put its API address in the bundle at build time. Then make one build for each app, and give each build its app. This example builds images. A folder of files takes `app` in the same way.
+Some builds put a different value in the build for each app, such as the API address of `shop-dev` and `shop-prod`. Make one build for each app, and give it `app`. This job builds once for each app in its matrix:
 
 ```yaml .github/workflows/build.yml
 jobs:
   build:
-    runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - app: shop-dev
-            api: https://api.dev.acme.com
-          - app: shop-prod
-            api: https://api.acme.com
+        app: [shop-dev, shop-prod]
     steps:
-      # Check out, and sign in to the registry, as above.
-      - uses: docker/build-push-action@v6
-        id: build
-        with:
-          context: .
-          push: true
-          build-args: API_URL=${{ matrix.api }}
-          tags: >-
-            ghcr.io/acme/shop:${{ matrix.app }}-${{ github.sha }}
+      # Build the image for matrix.app, as above.
       - uses: statespace-tech/action@v1
         with:
           image: >-
@@ -149,29 +83,54 @@ jobs:
           app: ${{ matrix.app }}
 ```
 
-These rules choose the build of a commit for an app:
-
 1. A build with `app: shop-prod` serves only `shop-prod`.
-2. For `shop-prod`, a build with `app: shop-prod` wins over a build without `app`.
+2. For `shop-prod`, it wins over a build of the same commit without `app`.
 3. A build without `app` serves every app of the repo and folder.
 
-Two builds of one commit and folder without `app` must be the same: the same image, or the same files. The same build again is accepted. A different build fails with this message:
+`ssp experiment update` prints the build that it chose for each arm.
+
+## Reproducible builds
+
+Statespace records one build for each commit, folder, and label, and never changes it. When CI builds a commit again, such as on a branch and then on `main`, the result must be the same. The same image or files again is accepted. A different build fails the step:
 
 ```text
 a1b2c3d has a build without app already. Add app: so
 Statespace knows which build is for which app
 ```
 
-`ssp experiment update` prints the build that it chose for each arm.
+Many tools put the time or a random ID in the build. Use the commit instead:
+
+| Tool | Setting |
+| --- | --- |
+| SvelteKit | `kit.version.name`: the commit, such as `process.env.GITHUB_SHA` |
+| Next.js | `generateBuildId`: return the commit |
+| Docker | Build from the same files, and do not copy the time into the image |
+
+## Inputs
+
+Give exactly one of `image` and `files`.
+
+<ParamField body="image" type="string">
+  The image by digest, such as `ghcr.io/acme/shop@sha256:…`. The action resolves a tag to its digest.
+</ParamField>
+
+<ParamField body="files" type="string">
+  The folder, as `s3://<bucket>/<folder>/` or `gs://<bucket>/<folder>/`. It ends with `/`. It cannot be the root of the bucket.
+</ParamField>
+
+<ParamField body="path" type="string" default=".">
+  The folder of `statespace.toml`, from the root of the repo.
+</ParamField>
+
+<ParamField body="app" type="string">
+  The app that this build is for. See [Build labels](#build-labels).
+</ParamField>
 
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Docker" icon="container" href="/guides/docker">
+  <Card title="Docker" icon="container" href="/runtimes/docker">
     Run the proxy on one machine.
-  </Card>
-  <Card title="S3" icon="folder" href="/guides/s3">
-    Run the proxy in front of a static site in a bucket.
   </Card>
   <Card title="statespace.toml" icon="file-cog" href="/reference/statespace-toml">
     Look up every key.

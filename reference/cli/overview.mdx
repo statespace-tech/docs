@@ -1,0 +1,99 @@
+---
+title: CLI overview
+sidebarTitle: Overview
+description: The commands of ssp, its global flags, its credentials, how it finds the app, and its output rules.
+---
+
+`ssp` adds apps and runtime tokens, sets and runs experiments, and runs the proxy. `statespace` is the same program. To install it, see [Installation](/getting-started/installation).
+
+```text
+ssp app         add | list | show | remove
+ssp experiment  list | show | update | start | stop
+ssp token       add | list | remove
+ssp proxy       docker | kubernetes | cloudrun | fargate
+                | fly | s3 | gcs
+ssp login | logout | whoami
+```
+
+| Page | Commands |
+| --- | --- |
+| [login, logout, whoami](/reference/cli/auth) | Sign in and out, and show the credential |
+| [app](/reference/cli/app) | Add, list, show, and remove apps |
+| [experiment](/reference/cli/experiment) | Set arms, start, stop, and read results |
+| [token](/reference/cli/token) | Add, list, and remove runtime tokens |
+| [proxy](/reference/cli/proxy) | Run the proxy on each runtime |
+
+## Conventions
+
+- Commands have the form `ssp <noun> <verb> <object>`. The object is positional, such as the app or the experiment.
+- A commit is the full commit, or its first 7 characters or more.
+- A share is a fraction, such as `0.05`. It is never `5` or `5%`.
+- No command asks a question, except `ssp login`.
+- Each command that changes something takes `--note`: 1 to 200 characters on one line. The audit log and the commit status show it.
+
+## Global flags
+
+Every command takes these flags.
+
+<ParamField body="--api" type="string" default="https://api.statespace.com">
+  The Statespace API URL. Environment variable: `STATESPACE_API`. Without the flag, the CLI uses the API of the `ssp login` session, then the default.
+</ParamField>
+
+<ParamField body="--json" type="boolean" default="false">
+  Print one JSON document instead of text. See [Output](#output).
+</ParamField>
+
+<ParamField body="--help, -h" type="boolean">
+  Print the help of the command.
+</ParamField>
+
+<ParamField body="--version, -V" type="boolean">
+  Print the version of `ssp`.
+</ParamField>
+
+## Credentials
+
+The CLI uses the first credential that it finds, in this order:
+
+1. `STATESPACE_TOKEN`.
+2. The session of [`ssp login`](/reference/cli/auth#ssp-login).
+3. A GitHub user token in `GH_TOKEN` or `GITHUB_TOKEN`. It starts with `gho_`, `ghp_`, `ghu_`, or `github_pat_`.
+4. In GitHub Actions, the OIDC token of the job. The job needs `permissions: id-token: write`.
+
+[`ssp whoami`](/reference/cli/auth#ssp-whoami) tells which credential the CLI uses. Your role on the repo of the app sets what you can do. See [How it works](/concepts/how-it-works).
+
+<Note>
+  `ssp proxy` reads its runtime token from `STATESPACE_TOKEN`. A runtime token cannot change experiments. Do not set it in the shell where you run the other commands.
+</Note>
+
+`ssp login` keeps the session in `statespace/config.toml` in your configuration folder, such as `~/.config` on Linux or `~/Library/Application Support` on macOS. `STATESPACE_CONFIG` sets another path for this file.
+
+## How the CLI finds the app
+
+`ssp experiment` and `ssp token add` take `--app`. The CLI uses the first of:
+
+1. `--app`.
+2. The environment variable `STATESPACE_APP`.
+3. The only app that is linked to the repo and folder here.
+
+For the third, the repo comes from the `origin` remote. The folder is the folder of the nearest `statespace.toml`, from the current folder up to the root of the repo. The CLI prints the app that it chose:
+
+```text
+Using app shop-prod, the only app of acme/shop in the root.
+```
+
+When no app or more than one app is linked to the repo and folder, the command fails and asks for `--app`. `ssp proxy` takes no `--app`: it gets the app from its runtime token.
+
+## Output
+
+- Results go to standard output. Notes and warnings go to standard error.
+- With `--json`, each command prints exactly one JSON document, except `ssp proxy`.
+- The JSON carries exactly the information of the text output, and never more. Full commits and RFC 3339 times replace the short commits and the UTC times of the text.
+
+## Exit codes
+
+| Code | Means |
+| --- | --- |
+| `0` | The command succeeded |
+| `1` | An error. With `--json`, standard error has `{"error": "..."}` |
+| `2` | A wrong argument or flag, without `--json`. With `--json`, the code is `1` |

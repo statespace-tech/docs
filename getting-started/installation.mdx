@@ -1,33 +1,36 @@
 ---
 title: Installation
-description: Install the Statespace GitHub App and the CLI, and give your coding agent the skill.
+description: Install the Statespace GitHub App and the CLI, find the proxy image, and upgrade them.
 ---
 
-Set up Statespace for your GitHub account, your terminal, and your coding agents.
+Install the GitHub App and the CLI. Then upgrade them when a new version comes out.
 
 ## GitHub App
 
 On [statespace.com](https://statespace.com), select **Connect GitHub**. Install the Statespace GitHub App on the account that owns your repos. The same screen signs you in.
 
-The App asks for these permissions. It cannot read or write code.
+The App asks for two permissions. It cannot read or write code.
 
 | Permission | Access | Why |
 | --- | --- | --- |
-| Metadata | Read | List the repos of the installation, and find the role of each person on a repo |
-| Commit statuses | Read and write | Post the `statespace/<app>/<experiment>` status on each arm's commit |
+| Metadata | Read | List the repos, and find the role of each person on a repo |
+| Commit statuses | Read and write | Post the status `statespace/<app>/<experiment>` on each arm's commit |
 
-Permissions in Statespace come from GitHub. See [Permissions](/concepts/permissions).
+Your role on GitHub decides what you can do. See [Permissions](/concepts/how-it-works#permissions).
 
 ## CLI
 
-Install the CLI on macOS or Linux.
+Install the CLI on macOS or Linux. The command is `ssp`. `statespace` is the same program.
 
 ```shell
 curl -fsSL https://statespace.com/install.sh | bash
 ```
 
-The command is `ssp`. `statespace` is the same program: `statespace login`
-and `ssp login` do the same thing.
+You can also install it from crates.io.
+
+```shell
+cargo install statespace
+```
 
 Sign in with GitHub. The CLI shows a code. Approve the code in the browser.
 
@@ -42,30 +45,63 @@ ssp --version
 ssp whoami
 ```
 
-Statespace reviews access to each new workspace. Until Statespace activates
-your workspace, it is pending: you can sign in, but other commands fail with
-`<workspace> is pending: Statespace is reviewing your access`. To ask about
-your access, [contact us](https://statespace.com/contact).
-
-To use an API other than `https://api.statespace.com`, set `STATESPACE_API`.
-
-```shell
-export STATESPACE_API=http://127.0.0.1:8080
-```
+Statespace reviews access to each new workspace. Until then, the workspace is pending: you can sign in, but other commands fail with `<workspace> is pending: Statespace is reviewing your access`. To ask about your access, [contact us](https://statespace.com/contact).
 
 ## Proxy image
 
-The proxy runs in front of your app on Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io, S3, or Cloud Storage. It runs from the image `ghcr.io/statespace-tech/statespace`. On a machine with Docker, it can also run as the `ssp` binary.
+The proxy runs from the image `ghcr.io/statespace-tech/statespace`. Use a fixed version, such as `ghcr.io/statespace-tech/statespace:0.5.0`. On a machine with Docker, the proxy can also run as the `ssp` binary. See [Runtimes](/runtimes/docker).
 
-## Coding agents
+## Upgrade
 
-Give this prompt to your coding agent. The skill tells the agent how to install the CLI, write `statespace.toml`, run experiments, and read the evidence.
+Releases use semantic versioning. Before 1.0, a change of the second number, such as `0.5` to `0.6`, can break things.
 
-```text
-Read https://statespace.com/skill.md and follow it.
-```
+<Warning>
+  A proxy does not adopt the arms that a proxy of an earlier version with breaking changes started. Before such an upgrade, stop the experiments of the app.
+</Warning>
 
-See [Agents](/guides/agents) for the workflow.
+<Steps>
+  <Step title="Stop the experiments">
+    For an upgrade with breaking changes, list the running experiments, and stop them.
+
+    ```shell
+    ssp experiment list --app shop-prod --running
+    ssp experiment stop checkout us-landing \
+      --app shop-prod --note "upgrade Statespace"
+    ```
+  </Step>
+
+  <Step title="Upgrade the CLI">
+    Run the install command again. It installs the latest release.
+
+    ```shell
+    curl -fsSL https://statespace.com/install.sh | bash
+    ```
+
+    To install one version, use crates.io.
+
+    ```shell
+    cargo install statespace --version 0.5.0
+    ```
+  </Step>
+
+  <Step title="Upgrade the proxy">
+    Change the tag of the proxy image, such as to `0.5.0`, and deploy the proxy again as you deployed it first.
+
+    ```yaml compose.yaml
+    ssp:
+      image: ghcr.io/statespace-tech/statespace:0.5.0
+    ```
+  </Step>
+
+  <Step title="Start the experiments again">
+    Start each experiment that you stopped. Each start is a new version.
+
+    ```shell
+    ssp experiment start checkout --app shop-prod \
+      --note "after upgrade"
+    ```
+  </Step>
+</Steps>
 
 ## Next steps
 
@@ -73,7 +109,7 @@ See [Agents](/guides/agents) for the workflow.
   <Card title="Quickstart" icon="rocket" href="/quickstart">
     Run your first experiment on Docker.
   </Card>
-  <Card title="Build every push" icon="github" href="/guides/github-actions">
+  <Card title="GitHub Actions" icon="github" href="/guides/github-actions">
     Record builds from GitHub Actions.
   </Card>
 </CardGroup>

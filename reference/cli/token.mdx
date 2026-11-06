@@ -1,0 +1,75 @@
+---
+title: ssp token
+sidebarTitle: token
+description: Add, list, and remove the runtime tokens that ssp proxy uses.
+---
+
+A runtime token is the only Statespace token. It belongs to one app. `ssp proxy` uses it to read the app's runtime configuration, report, and send counts. It cannot change experiments or read results. An app can have several tokens, for rotation. The [global flags](/reference/cli/overview#global-flags) also apply.
+
+## ssp token add
+
+Add a runtime token for an app. You need the admin role on the repo. The command prints the secret only one time.
+
+```shell
+ssp token add [--app <app>] [--note <text>]
+```
+
+<ParamField body="--app" type="string" default="the only app of the repo and folder here">
+  The app of the token. Environment variable: `STATESPACE_APP`. See [How the CLI finds the app](/reference/cli/overview#how-the-cli-finds-the-app).
+</ParamField>
+
+<ParamField body="--note" type="string">
+  Why, in 1 to 200 characters on one line. The audit log and the commit status show it.
+</ParamField>
+
+This example adds a token for the Cloud Run proxy of `shop-prod`:
+
+```shell
+ssp token add --app shop-prod --note "Cloud Run proxy"
+```
+
+The command prints the token, its ID, and its app. Give the token to the proxy in `STATESPACE_TOKEN`.
+
+<Warning>
+  Keep the output out of logs. Statespace cannot show the secret again.
+</Warning>
+
+## ssp token list
+
+List the runtime tokens, without their secrets: ID, app, note, when it was created, and when it was last used.
+
+```shell
+ssp token list [--app <app>]
+```
+
+<ParamField body="--app" type="string">
+  Show only the tokens of this app. Without it, the command lists the tokens of all apps that you can read.
+</ParamField>
+
+This example lists the tokens of `shop-prod`:
+
+```shell
+ssp token list --app shop-prod
+```
+
+## ssp token remove
+
+Remove a runtime token by its ID. You need the admin role on the repo. Proxies that use the token stop at their next request to Statespace.
+
+```shell
+ssp token remove <id> [--note <text>]
+```
+
+<ParamField body="id" type="string" required>
+  The ID of the token. `ssp token list` shows it.
+</ParamField>
+
+<ParamField body="--note" type="string">
+  Why, in 1 to 200 characters on one line. The audit log and the commit status show it.
+</ParamField>
+
+This example removes a token after a rotation:
+
+```shell
+ssp token remove <id> --note "rotated"
+```

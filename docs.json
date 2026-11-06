@@ -28,62 +28,108 @@
     "library": "lucide"
   },
   "styling": {
-    "eyebrows": "breadcrumbs",
-    "codeblocks": "system"
+    "eyebrows": "breadcrumbs"
   },
   "navigation": {
-    "groups": [
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "icon": "github",
+          "href": "https://github.com/statespace-tech/statespace"
+        },
+        {
+          "anchor": "Discord",
+          "icon": "discord",
+          "href": "https://discord.gg/qKEFpqG9mr"
+        },
+        {
+          "anchor": "Dashboard",
+          "icon": "layout-dashboard",
+          "href": "https://statespace.com/dashboard"
+        }
+      ]
+    },
+    "tabs": [
       {
-        "group": "Get started",
-        "pages": [
-          "index",
-          "quickstart",
-          "getting-started/installation"
+        "tab": "Docs",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": [
+              "index",
+              "quickstart",
+              "getting-started/installation"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/apps",
+              "concepts/experiments",
+              "concepts/subjects-and-eligibility",
+              "concepts/events-and-results",
+              "concepts/overrides",
+              "concepts/data-and-security"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/github-actions",
+              "guides/own-tools",
+              "guides/cdn",
+              "guides/infrastructure-as-code",
+              "guides/troubleshooting"
+            ]
+          }
         ]
       },
       {
-        "group": "Concepts",
-        "pages": [
-          "concepts/how-it-works",
-          "concepts/apps",
-          "concepts/experiments",
-          "concepts/subjects",
-          "concepts/events",
-          "concepts/evidence",
-          "concepts/data",
-          "concepts/overrides",
-          "concepts/permissions"
+        "tab": "Runtimes",
+        "groups": [
+          {
+            "group": "Containers",
+            "pages": [
+              "runtimes/docker",
+              "runtimes/kubernetes",
+              "runtimes/cloud-run",
+              "runtimes/fargate",
+              "runtimes/fly"
+            ]
+          },
+          {
+            "group": "Static sites",
+            "pages": [
+              "runtimes/s3",
+              "runtimes/gcs"
+            ]
+          }
         ]
       },
       {
-        "group": "Guides",
-        "pages": [
-          "guides/github-actions",
-          "guides/docker",
-          "guides/cloud-run",
-          "guides/kubernetes",
-          "guides/fargate",
-          "guides/fly",
-          "guides/s3",
-          "guides/gcs",
-          "guides/cdn",
-          "guides/fall-back-to-live",
-          "guides/infrastructure-as-code",
-          "guides/events",
-          "guides/own-tools",
-          "guides/emergency-stop",
-          "guides/agents"
-        ]
-      },
-      {
-        "group": "Reference",
-        "pages": [
-          "reference/cli",
-          "reference/statespace-toml",
-          "reference/api",
-          "reference/cel",
-          "reference/commit-status",
-          "reference/limits"
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Configuration",
+            "pages": [
+              "reference/statespace-toml",
+              "reference/cel",
+              "reference/commit-status"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "reference/cli/overview",
+              "reference/cli/auth",
+              "reference/cli/app",
+              "reference/cli/experiment",
+              "reference/cli/token",
+              "reference/cli/proxy"
+            ]
+          }
         ]
       }
     ]
@@ -101,8 +147,8 @@
   "navbar": {
     "links": [
       {
-        "label": "Website",
-        "href": "https://statespace.com"
+        "label": "Support",
+        "href": "https://statespace.com/contact"
       },
       {
         "type": "github",
@@ -111,43 +157,101 @@
     ],
     "primary": {
       "type": "button",
-      "label": "Get started",
-      "href": "https://statespace.com/signup"
+      "label": "Dashboard",
+      "href": "https://statespace.com/dashboard"
     }
   },
   "footer": {
     "socials": {
       "github": "https://github.com/statespace-tech",
-      "discord": "https://discord.gg/2jtfwu7xB",
+      "discord": "https://discord.gg/qKEFpqG9mr",
       "linkedin": "https://www.linkedin.com/company/statespace-tech/"
-    },
-    "links": [
-      {
-        "header": "Statespace",
-        "items": [
-          {
-            "label": "Website",
-            "href": "https://statespace.com"
-          },
-          {
-            "label": "CLI",
-            "href": "https://github.com/statespace-tech/statespace"
-          }
-        ]
-      }
-    ]
-  },
-  "fonts": {
-    "family": "DM Sans"
+    }
   },
   "redirects": [
     {
+      "source": "/guides/docker",
+      "destination": "/runtimes/docker"
+    },
+    {
+      "source": "/guides/kubernetes",
+      "destination": "/runtimes/kubernetes"
+    },
+    {
+      "source": "/guides/cloud-run",
+      "destination": "/runtimes/cloud-run"
+    },
+    {
+      "source": "/guides/fargate",
+      "destination": "/runtimes/fargate"
+    },
+    {
+      "source": "/guides/fly",
+      "destination": "/runtimes/fly"
+    },
+    {
+      "source": "/guides/s3",
+      "destination": "/runtimes/s3"
+    },
+    {
+      "source": "/guides/gcs",
+      "destination": "/runtimes/gcs"
+    },
+    {
+      "source": "/concepts/events",
+      "destination": "/concepts/events-and-results"
+    },
+    {
+      "source": "/concepts/evidence",
+      "destination": "/concepts/events-and-results"
+    },
+    {
+      "source": "/guides/events",
+      "destination": "/concepts/events-and-results"
+    },
+    {
+      "source": "/concepts/data",
+      "destination": "/concepts/data-and-security"
+    },
+    {
+      "source": "/concepts/permissions",
+      "destination": "/concepts/how-it-works"
+    },
+    {
+      "source": "/guides/fall-back-to-live",
+      "destination": "/guides/cdn"
+    },
+    {
+      "source": "/guides/emergency-stop",
+      "destination": "/concepts/experiments"
+    },
+    {
+      "source": "/guides/agents",
+      "destination": "/quickstart"
+    },
+    {
+      "source": "/reference/limits",
+      "destination": "/reference/statespace-toml"
+    },
+    {
+      "source": "/reference/cli",
+      "destination": "/reference/cli/overview"
+    },
+    {
+      "source": "/reference/api",
+      "destination": "/reference/cli/overview"
+    },
+    {
       "source": "/reference/proxy",
-      "destination": "/reference/cli"
+      "destination": "/reference/cli/proxy"
     },
     {
       "source": "/getting-started/how-it-works",
       "destination": "/concepts/how-it-works"
+    },
+    {
+      "source": "/concepts/subjects",
+      "destination": "/concepts/subjects-and-eligibility"
     }
   ]
 }
