@@ -27,7 +27,7 @@ See [ssp app](/reference/cli/app) for the name rules and flags.
 
 A build is the record of what one commit runs. It is one of these:
 
-- **An image**, by digest, such as `ghcr.io/acme/shop@sha256:…`. Docker, Kubernetes, Cloud Run, ECS Fargate, Fly.io, and AWS Lambda run images.
+- **An image**, by digest, such as `ghcr.io/acme/shop@sha256:…`. Docker, Kubernetes, ECS Fargate, Cloud Run, Fly.io, and AWS Lambda run images.
 - **A folder of files** in a bucket, such as `s3://acme-site/builds/a1b2c3d…/`. S3 and Cloud Storage serve files.
 
 Your CI records each build with `statespace-tech/action@v1`. GitHub's OIDC token proves the repo and the commit, so CI keeps no Statespace secret. See [GitHub Actions](/guides/github-actions).

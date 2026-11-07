@@ -96,33 +96,6 @@ This example runs the proxy for the Deployment `shop`:
 ssp proxy kubernetes --deployment shop --namespace prod
 ```
 
-## ssp proxy cloudrun
-
-Run each arm as a copy of a Cloud Run service. See [Cloud Run](/runtimes/cloud-run).
-
-```shell
-ssp proxy cloudrun --service <name> --region <region> \
-  [--project <project>]
-```
-
-<ParamField body="--service" type="string" required>
-  The Cloud Run service that runs live.
-</ParamField>
-
-<ParamField body="--region" type="string" required>
-  The region of the service, such as `us-east1`.
-</ParamField>
-
-<ParamField body="--project" type="string" default="the project of the proxy">
-  The Google Cloud project.
-</ParamField>
-
-This example runs the proxy for the service `shop`:
-
-```shell
-ssp proxy cloudrun --service shop --region us-east1
-```
-
 ## ssp proxy fargate
 
 Run each arm as a copy of an ECS service on Fargate. See [ECS Fargate](/runtimes/fargate).
@@ -162,6 +135,33 @@ This example runs the proxy for the service `shop` in the cluster `shop`:
 ```shell
 ssp proxy fargate --cluster shop --service shop \
   --live-url http://internal-shop.example.com
+```
+
+## ssp proxy cloudrun
+
+Run each arm as a copy of a Cloud Run service. See [Cloud Run](/runtimes/cloud-run).
+
+```shell
+ssp proxy cloudrun --service <name> --region <region> \
+  [--project <project>]
+```
+
+<ParamField body="--service" type="string" required>
+  The Cloud Run service that runs live.
+</ParamField>
+
+<ParamField body="--region" type="string" required>
+  The region of the service, such as `us-east1`.
+</ParamField>
+
+<ParamField body="--project" type="string" default="the project of the proxy">
+  The Google Cloud project.
+</ParamField>
+
+This example runs the proxy for the service `shop`:
+
+```shell
+ssp proxy cloudrun --service shop --region us-east1
 ```
 
 ## ssp proxy fly

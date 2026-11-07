@@ -94,8 +94,8 @@
             "pages": [
               "runtimes/docker",
               "runtimes/kubernetes",
-              "runtimes/cloud-run",
               "runtimes/fargate",
+              "runtimes/cloud-run",
               "runtimes/fly"
             ]
           },
