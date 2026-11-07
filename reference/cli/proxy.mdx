@@ -28,7 +28,7 @@ These flags apply to each runtime.
 - `ssp proxy` takes no `--app`. The runtime token names the app.
 - `--api` also applies. See [Global flags](/reference/cli/overview#global-flags).
 - `ssp proxy` runs until you stop it. It prints no JSON document.
-- It passes HTTP/1.1, HTTP/2, and WebSocket. On AWS Lambda, WebSocket does not pass.
+- It passes HTTP/1.1, HTTP/2, and WebSocket. On Lambda, WebSocket does not pass.
 
 This example runs the proxy on Docker, with the token in the environment:
 
@@ -96,9 +96,36 @@ This example runs the proxy for the Deployment `shop`:
 ssp proxy kubernetes --deployment shop --namespace prod
 ```
 
+## ssp proxy cloudrun
+
+Run each arm as a copy of a Cloud Run service. See [Cloud Run](/runtimes/cloud-run).
+
+```shell
+ssp proxy cloudrun --service <name> --region <region> \
+  [--project <project>]
+```
+
+<ParamField body="--service" type="string" required>
+  The Cloud Run service that runs live.
+</ParamField>
+
+<ParamField body="--region" type="string" required>
+  The region of the service, such as `us-east1`.
+</ParamField>
+
+<ParamField body="--project" type="string" default="the project of the proxy">
+  The Google Cloud project.
+</ParamField>
+
+This example runs the proxy for the service `shop`:
+
+```shell
+ssp proxy cloudrun --service shop --region us-east1
+```
+
 ## ssp proxy fargate
 
-Run each arm as a copy of an ECS service on AWS Fargate. See [AWS Fargate](/runtimes/fargate).
+Run each arm as a copy of an ECS service on Fargate. See [ECS Fargate](/runtimes/fargate).
 
 ```shell
 ssp proxy fargate --cluster <cluster> --service <name> \
@@ -135,33 +162,6 @@ This example runs the proxy for the service `shop` in the cluster `shop`:
 ```shell
 ssp proxy fargate --cluster shop --service shop \
   --live-url http://internal-shop.example.com
-```
-
-## ssp proxy cloudrun
-
-Run each arm as a copy of a Google Cloud Run service. See [Google Cloud Run](/runtimes/cloud-run).
-
-```shell
-ssp proxy cloudrun --service <name> --region <region> \
-  [--project <project>]
-```
-
-<ParamField body="--service" type="string" required>
-  The Google Cloud Run service that runs live.
-</ParamField>
-
-<ParamField body="--region" type="string" required>
-  The region of the service, such as `us-east1`.
-</ParamField>
-
-<ParamField body="--project" type="string" default="the project of the proxy">
-  The Google Cloud project.
-</ParamField>
-
-This example runs the proxy for the service `shop`:
-
-```shell
-ssp proxy cloudrun --service shop --region us-east1
 ```
 
 ## ssp proxy fly
@@ -215,7 +215,7 @@ ssp proxy lambda --function <name> [--qualifier <alias>] \
 ```
 
 <ParamField body="--function" type="string" required>
-  The AWS Lambda function that runs live. It must deploy from a container image.
+  The Lambda function that runs live. It must deploy from a container image.
 </ParamField>
 
 <ParamField body="--qualifier" type="string" default="$LATEST">
@@ -240,7 +240,7 @@ ssp proxy lambda --function shop --qualifier live
 
 ## ssp proxy s3
 
-Serve a static site and the arms from build folders in an Amazon S3 bucket. Live is the root of the bucket. See [Amazon S3](/runtimes/s3).
+Serve a static site and the arms from build folders in an S3 bucket. Live is the root of the bucket. See [S3](/runtimes/s3).
 
 ```shell
 ssp proxy s3 --bucket <bucket> [--endpoint <url>] \
@@ -275,7 +275,7 @@ ssp proxy s3 --bucket acme-site --region us-east-1 --cache
 
 ## ssp proxy gcs
 
-Serve a static site and the arms from build folders in a Google Cloud Storage bucket. Live is the root of the bucket. See [Google Cloud Storage](/runtimes/gcs).
+Serve a static site and the arms from build folders in a Cloud Storage bucket. Live is the root of the bucket. See [Cloud Storage](/runtimes/gcs).
 
 ```shell
 ssp proxy gcs --bucket <bucket> [--cache] [--fallback <file>]

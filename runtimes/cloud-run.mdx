@@ -1,7 +1,7 @@
 ---
-title: Run the proxy on Google Cloud Run
-sidebarTitle: Google Cloud Run
-description: Run ssp proxy cloudrun as its own Google Cloud Run service in front of your service. Each arm is a copy of your service with another image.
+title: Run the proxy on Cloud Run
+sidebarTitle: Cloud Run
+description: Run ssp proxy cloudrun as its own Cloud Run service in front of your service. Each arm is a copy of your service with another image.
 icon: "/images/runtimes/cloud-run.svg"
 ---
 
@@ -13,7 +13,7 @@ import ArmNotReady from '/snippets/runtime/arm-not-ready.mdx';
 import NoLiveBuild from '/snippets/runtime/no-live-build.mdx';
 import Instances from '/snippets/runtime/instances.mdx';
 
-`ssp proxy cloudrun` runs as its own Google Cloud Run service in front of your service. It runs each arm as a copy of your service with another image.
+`ssp proxy cloudrun` runs as its own Cloud Run service in front of your service. It runs each arm as a copy of your service with another image.
 
 ```text
                         ┌─► shop                        (live)
@@ -25,9 +25,9 @@ requests ─► shop-proxy ─┼─► shop-ssp-checkout-c0ffee1…  (arm)
 
 <Prerequisites />
 
-- The Google Cloud Run service `shop` in `us-east1`, in the project `acme-shop`, with the runtime service account `shop-runtime`.
+- The Cloud Run service `shop` in `us-east1`, in the project `acme-shop`, with the runtime service account `shop-runtime`.
 - The images that CI records, in the Artifact Registry repository `shop`.
-- The proxy image `ghcr.io/statespace-tech/statespace:0.5.1`, in a registry that Google Cloud Run can use.
+- The proxy image `ghcr.io/statespace-tech/statespace:0.5.1`, in a registry that Cloud Run can use.
 
 ## Set up
 
@@ -135,7 +135,7 @@ The [cloudrun example](https://github.com/statespace-tech/statespace/tree/main/e
     The reason comes from the terminal condition of the service of the arm.
   </Accordion>
   <Accordion title="The proxy gets PERMISSION_DENIED">
-    Check the bindings of the permissions step. Google Cloud Run deploys an arm only when the proxy can act as `shop-runtime` and read the image.
+    Check the bindings of the permissions step. Cloud Run deploys an arm only when the proxy can act as `shop-runtime` and read the image.
   </Accordion>
   <Accordion title="Requests to an arm time out">
     An arm has the ingress of `shop`. When the ingress is internal, the proxy must reach the arms through the same VPC as `shop`.
@@ -157,7 +157,7 @@ The [cloudrun example](https://github.com/statespace-tech/statespace/tree/main/e
   <Card title="ssp proxy cloudrun" icon="terminal" href="/reference/cli/proxy#ssp-proxy-cloudrun">
     Look up every flag.
   </Card>
-  <Card title="Fly.io" icon="plane" href="/runtimes/fly">
-    Run the proxy in front of a Fly.io app.
+  <Card title="ECS Fargate" icon="server" href="/runtimes/fargate">
+    Run the proxy in front of an ECS service.
   </Card>
 </CardGroup>

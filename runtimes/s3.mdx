@@ -1,7 +1,7 @@
 ---
-title: Run the proxy in front of Amazon S3
-sidebarTitle: Amazon S3
-description: Run ssp proxy s3 in front of a static site in an Amazon S3 bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
+title: Run the proxy in front of S3
+sidebarTitle: S3
+description: Run ssp proxy s3 in front of a static site in an S3 bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
 icon: "/images/runtimes/s3.svg"
 ---
 
@@ -15,7 +15,7 @@ import Serving from '/snippets/files/serving.mdx';
 import Missing from '/snippets/files/missing.mdx';
 import Live from '/snippets/files/live.mdx';
 
-`ssp proxy s3` serves a static site from an Amazon S3 bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
+`ssp proxy s3` serves a static site from an S3 bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
 
 ```text
                         ┌─► s3://acme-site/  (live)
@@ -30,7 +30,7 @@ visitors ─► shop-proxy ─┼─► s3://acme-site/builds/c0ffee1…/
 - A site in `acme/shop` that builds its files to `dist/`.
 - The bucket `acme-site` in `us-east-1`, or a bucket in an S3-compatible store.
 - The IAM role `acme-site-ci`, which GitHub Actions assumes with OIDC.
-- A container service near the bucket, such as AWS Fargate.
+- A container service near the bucket, such as ECS Fargate.
 
 ## Set up
 
@@ -148,7 +148,7 @@ visitors ─► shop-proxy ─┼─► s3://acme-site/builds/c0ffee1…/
   <Card title="ssp proxy s3" icon="terminal" href="/reference/cli/proxy#ssp-proxy-s3">
     Look up every flag.
   </Card>
-  <Card title="Google Cloud Storage" icon="folder" href="/runtimes/gcs">
-    Run the proxy in front of a Google Cloud Storage bucket.
+  <Card title="Cloud Storage" icon="folder" href="/runtimes/gcs">
+    Run the proxy in front of a Cloud Storage bucket.
   </Card>
 </CardGroup>

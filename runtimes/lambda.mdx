@@ -1,7 +1,7 @@
 ---
 title: Run the proxy on AWS Lambda
 sidebarTitle: AWS Lambda
-description: Run ssp proxy lambda as an ECS service in front of your function. Each arm is an AWS Lambda function with the configuration of live and another image.
+description: Run ssp proxy lambda as an ECS service in front of your function. Each arm is a Lambda function with the configuration of live and another image.
 icon: "/images/runtimes/lambda.svg"
 ---
 
@@ -13,7 +13,7 @@ import ArmNotReady from '/snippets/runtime/arm-not-ready.mdx';
 import NoLiveBuild from '/snippets/runtime/no-live-build.mdx';
 import Instances from '/snippets/runtime/instances.mdx';
 
-`ssp proxy lambda` runs as an ECS service in front of your function. It runs each arm as an AWS Lambda function with the configuration of live and another image. It invokes live and the arms itself.
+`ssp proxy lambda` runs as an ECS service in front of your function. It runs each arm as a Lambda function with the configuration of live and another image. It invokes live and the arms itself.
 
 ```text
                         ┌─► shop:live                    (live)
@@ -25,7 +25,7 @@ requests ─► shop-proxy ─┼─► shop-ssp-checkout-c0ffee1…  (arm)
 
 <Prerequisites />
 
-- The AWS Lambda function `shop` in `us-east-1`, with the alias `live` on the version that serves your traffic, and the execution role `shop-lambda`.
+- The Lambda function `shop` in `us-east-1`, with the alias `live` on the version that serves your traffic, and the execution role `shop-lambda`.
 - A function that deploys from a container image in Amazon ECR. A function from a .zip file does not work.
 - A function that takes the event of a function URL, as behind a function URL or an API Gateway HTTP API. A web app with the [AWS Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter) takes it.
 - An ECS cluster and a load balancer for the proxy, and the AWS CLI.
@@ -38,7 +38,7 @@ The [lambda example](https://github.com/statespace-tech/statespace/tree/main/exa
   <Step title="Record each build">
     <StepRecord />
 
-    Push the images to Amazon ECR. AWS Lambda takes only an image with one platform: with Docker BuildKit, build with `--provenance=false`.
+    Push the images to Amazon ECR. Lambda takes only an image with one platform: with Docker BuildKit, build with `--provenance=false`.
   </Step>
 
   <Step title="Add the app">
@@ -137,7 +137,7 @@ The [lambda example](https://github.com/statespace-tech/statespace/tree/main/exa
     }
     ```
 
-    Make the service `shop-proxy` with two tasks, behind a target group of your load balancer. The tasks need a route to the AWS Lambda API, such as a NAT gateway or a VPC endpoint.
+    Make the service `shop-proxy` with two tasks, behind a target group of your load balancer. The tasks need a route to the Lambda API, such as a NAT gateway or a VPC endpoint.
 
     ```shell
     aws ecs register-task-definition \
@@ -170,7 +170,7 @@ The [lambda example](https://github.com/statespace-tech/statespace/tree/main/exa
 - Each arm is the function `shop-ssp-<experiment>-<commit 12>`. It copies the role, memory, timeout, architecture, environment, VPC, file systems, tracing, image settings, and log format of `shop`, with another image.
 - An arm gets no trigger and no function URL, so it gets no traffic from outside the proxy. It logs to its own log group, `/aws/lambda/<name of the arm>`.
 - The tags `statespace.com/app`, `statespace.com/experiment`, and `statespace.com/commit` keep the full values. See [Your own data tools](/guides/own-tools).
-- An arm is ready when AWS Lambda says that its function is active.
+- An arm is ready when Lambda says that its function is active.
 - A request body can be at most 6 MB, the limit of an invocation. WebSocket does not pass.
 - When an experiment stops, the proxy deletes the functions of its arms. Their log groups stay.
 - Deploy live as usual, and move the alias. See [Infrastructure as code](/guides/infrastructure-as-code).
@@ -209,7 +209,7 @@ The [lambda example](https://github.com/statespace-tech/statespace/tree/main/exa
   <Card title="ssp proxy lambda" icon="terminal" href="/reference/cli/proxy#ssp-proxy-lambda">
     Look up every flag.
   </Card>
-  <Card title="Amazon S3" icon="folder" href="/runtimes/s3">
-    Run the proxy in front of a static site in an Amazon S3 bucket.
+  <Card title="S3" icon="folder" href="/runtimes/s3">
+    Run the proxy in front of a static site in a bucket.
   </Card>
 </CardGroup>
