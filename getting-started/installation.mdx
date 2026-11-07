@@ -49,7 +49,7 @@ Statespace reviews access to each new workspace. Until then, the workspace is pe
 
 ## Proxy image
 
-The proxy runs from the image `ghcr.io/statespace-tech/statespace`. Use a fixed version, such as `ghcr.io/statespace-tech/statespace:0.5.0`. On a machine with Docker, the proxy can also run as the `ssp` binary. See [Runtimes](/runtimes/docker).
+The proxy runs from the image `ghcr.io/statespace-tech/statespace`. Use a fixed version, such as `ghcr.io/statespace-tech/statespace:0.5.1`. On a machine with Docker, the proxy can also run as the `ssp` binary. See [Runtimes](/runtimes/docker).
 
 ## Upgrade
 
@@ -80,16 +80,16 @@ Releases use semantic versioning. Before 1.0, a change of the second number, suc
     To install one version, use crates.io.
 
     ```shell
-    cargo install statespace --version 0.5.0
+    cargo install statespace --version 0.5.1
     ```
   </Step>
 
   <Step title="Upgrade the proxy">
-    Change the tag of the proxy image, such as to `0.5.0`, and deploy the proxy again as you deployed it first.
+    Change the tag of the proxy image, such as to `0.5.1`, and deploy the proxy again as you deployed it first.
 
     ```yaml compose.yaml
     ssp:
-      image: ghcr.io/statespace-tech/statespace:0.5.0
+      image: ghcr.io/statespace-tech/statespace:0.5.1
     ```
   </Step>
 

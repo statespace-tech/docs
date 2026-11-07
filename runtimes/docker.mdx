@@ -60,7 +60,7 @@ The [fastapi example](https://github.com/statespace-tech/statespace/tree/main/ex
         container_name: shop
         restart: unless-stopped
       ssp:
-        image: ghcr.io/statespace-tech/statespace:0.5.0
+        image: ghcr.io/statespace-tech/statespace:0.5.1
         command: ["proxy", "docker",
           "--live-container", "shop",
           "--health", "/health"]

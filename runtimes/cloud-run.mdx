@@ -27,7 +27,7 @@ requests ─► shop-proxy ─┼─► shop-ssp-checkout-c0ffee1…  (arm)
 
 - The Google Cloud Run service `shop` in `us-east1`, in the project `acme-shop`, with the runtime service account `shop-runtime`.
 - The images that CI records, in the Artifact Registry repository `shop`.
-- The proxy image `ghcr.io/statespace-tech/statespace:0.5.0`, in a registry that Google Cloud Run can use.
+- The proxy image `ghcr.io/statespace-tech/statespace:0.5.1`, in a registry that Google Cloud Run can use.
 
 ## Set up
 
@@ -96,7 +96,7 @@ The [cloudrun example](https://github.com/statespace-tech/statespace/tree/main/e
     ```shell
     gcloud run deploy shop-proxy \
       --region us-east1 \
-      --image <registry>/statespace-tech/statespace:0.5.0 \
+      --image <registry>/statespace-tech/statespace:0.5.1 \
       --service-account "$proxy" \
       --set-secrets \
         STATESPACE_TOKEN=shop-statespace-token:latest \
