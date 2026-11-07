@@ -106,7 +106,7 @@ visitors ─► shop-proxy ─┼─► s3://acme-site/builds/c0ffee1…/
   </Step>
 
   <Step title="Send traffic to the proxy">
-    Point your domain, such as `shop.acme.com`, to the proxy, not to the bucket. See [Put a CDN in front](/guides/cdn).
+    Point your domain, such as `shop.acme.com`, to the proxy, not to the bucket. Do not change `acme-site`: a CDN can fall back to the root of the bucket. A request that goes to the bucket directly gets live and is in no arm. See [Put a CDN in front](/guides/cdn).
   </Step>
 
   <Step title="Check the result">

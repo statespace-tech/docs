@@ -89,7 +89,7 @@ The [fastapi example](https://github.com/statespace-tech/statespace/tree/main/ex
   </Step>
 
   <Step title="Send traffic to the proxy">
-    Publish no public port of `shop`: requests that go around the proxy are never in an arm. When a reverse proxy, such as nginx, already listens on port 80, change its upstream from `shop:3000` to `ssp:8080`. See [Put a CDN in front](/guides/cdn).
+    Point your traffic at port 80. When a reverse proxy, such as nginx, already listens on port 80, change its upstream from `shop:3000` to `ssp:8080`. Do not change `shop`. A request that goes to `shop` directly gets live and is in no arm. See [Put a CDN in front](/guides/cdn).
   </Step>
 
   <Step title="Check the result">

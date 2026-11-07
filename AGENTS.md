@@ -75,11 +75,13 @@ old URL in `docs.json`.
 
 ### Length
 
-- Overview: the README intro, the how-it-works diagram, then cards. Quickstart: 10 steps (or 7), about 250
+- Overview: the README intro, the how-it-works diagram, then cards. Quickstart: 5, 7, or 10 steps, about 250
   words outside code.
 - Most pages: 200 to 600 words outside code. Use H2 sections, H3 only when needed, never H4.
 - Every runtime page has the same sections, in this order: what it runs (diagram), prerequisites, steps
   (CI, token, run the proxy, check), how it works, troubleshooting, next steps.
+- Never tell the reader to change live. The step "Send traffic to the proxy" points traffic at the proxy
+  and says "Do not change `shop`" (or the bucket): live keeps its address, so a CDN or load balancer can fall back to it.
 - Cut what the reader does not need for the task of the page. Link to the one page that has the fact.
 
 - Every page has `title`, `description`, and a short `sidebarTitle` when the title is long.

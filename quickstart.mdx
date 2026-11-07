@@ -134,11 +134,13 @@ The skill tells the agent how to set up Statespace, run experiments, and read th
   </Step>
 
   <Step title="Read the evidence">
-    Show the results of each arm. Each arm's commit also has the status `statespace/shop-dev/checkout`.
+    Show the results of each arm: the latency, and the events of `statespace.toml`. Each arm's commit also has the status `statespace/shop-dev/checkout`.
 
     ```shell
     ssp experiment show checkout --app shop-dev
     ```
+
+    For all other data, filter your own data tools, such as Datadog or Grafana, by `statespace.arm` or `service.version`, with the commit of the arm. See [Your own data tools](/guides/own-tools).
   </Step>
 
   <Step title="Stop the experiment">

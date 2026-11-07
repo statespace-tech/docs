@@ -155,7 +155,7 @@ The [lambda example](https://github.com/statespace-tech/statespace/tree/main/exa
   </Step>
 
   <Step title="Send traffic to the proxy">
-    Point your domain, or the load balancer, to the target group of `shop-proxy`. Then remove the function URL and the API Gateway route of `shop`, so that all requests go through the proxy. See [Put a CDN in front](/guides/cdn).
+    Point your domain, or the load balancer, to the target group of `shop-proxy`. Do not change `shop`: it keeps its function URL or API Gateway route, so a CDN or load balancer can fall back to it. A request that goes to `shop` directly gets live and is in no arm. See [Put a CDN in front](/guides/cdn).
   </Step>
 
   <Step title="Check the result">
