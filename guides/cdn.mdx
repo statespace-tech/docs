@@ -62,7 +62,7 @@ Live keeps its own address. So the CDN or load balancer in front of the proxy ca
 
 During a fallback, all visitors get live, and the proxy counts nothing. When the proxy is back, each subject gets the same arm as before.
 
-Point the fallback to the address of live, such as the live container or Service. On S3 and Cloud Storage, use an origin that serves the root of the bucket. It does not use the path rules of the proxy.
+Point the fallback to the address of live, such as the live container or Service. On Amazon S3 and Google Cloud Storage, use an origin that serves the root of the bucket. It does not use the path rules of the proxy.
 
 <Tabs>
   <Tab title="nginx">

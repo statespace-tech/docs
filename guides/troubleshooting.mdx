@@ -35,7 +35,7 @@ Use this page for problems on every runtime. Each runtime page has a troubleshoo
     **Fix:** Push the commit, and check the action step in the run. See [Build in GitHub Actions](/guides/github-actions). When the commit has a build of the wrong kind, the message names the kind to record.
   </Accordion>
   <Accordion title="Live runs an image without a build">
-    **Cause:** The workflow that deploys live does not record its build, so the app has no live commit. On S3 and Cloud Storage, the message is `Live serves files without a build`.
+    **Cause:** The workflow that deploys live does not record its build, so the app has no live commit. On Amazon S3 and Google Cloud Storage, the message is `Live serves files without a build`.
 
     **Fix:** Add `statespace-tech/action` to the deploy workflow. See [Record the build of live](/guides/github-actions#record-the-build-of-live).
   </Accordion>

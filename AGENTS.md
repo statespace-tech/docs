@@ -67,7 +67,7 @@ Give each page one type (Diátaxis), and keep it to that type.
 | Reference | `reference/` | Complete and scannable; follows the structure of the thing it describes |
 
 The site has three tabs: **Docs** (Get started, Concepts, Guides), **Runtimes** (Containers: Docker,
-Kubernetes, Cloud Run, ECS Fargate, Fly.io; Functions: AWS Lambda; Static sites: S3, Cloud Storage), and **Reference**
+Kubernetes, AWS Fargate, Google Cloud Run, Fly.io; Functions: AWS Lambda; Static sites: Amazon S3, Google Cloud Storage), and **Reference**
 (`statespace.toml`, CEL, commit status, CLI). Each runtime page has the logo of its platform as its `icon`,
 from `images/runtimes/`: one gray (`#8A8F98`), from Simple Icons. Other pages have no icon. The HTTP API is internal: the CLI, the action, the proxy, and
 the dashboard call it. Do not document its routes. Scripts and agents use the CLI with `--json`. The runtimes are in the order of the CLI README. When you move a page, add a redirect from its

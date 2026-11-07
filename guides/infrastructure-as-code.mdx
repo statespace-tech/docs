@@ -17,11 +17,11 @@ Your infrastructure tools need no setting for Statespace. Use this page to see w
 | --- | --- | --- |
 | Docker | A container `<live>-ssp-…`, with no Compose labels | `com.statespace.app` |
 | Kubernetes | A Deployment and a Service `<deployment>-ssp-…` | `statespace.com/app` |
-| Cloud Run | A service `<service>-ssp-…` | `statespace-app` |
-| ECS Fargate | A service and task definition `<service>-ssp-…` | `statespace.com/app` |
+| AWS Fargate | A service and task definition `<service>-ssp-…` | `statespace.com/app` |
+| Google Cloud Run | A service `<service>-ssp-…` | `statespace-app` |
 | Fly.io | A Machine `ssp-…`, with no services | `statespace_app` |
 | AWS Lambda | A function `<function>-ssp-…`, with no trigger | `statespace.com/app` |
-| S3, Cloud Storage | A build folder that your CI uploads | None |
+| Amazon S3, Google Cloud Storage | A build folder that your CI uploads | None |
 
 The other labels are in [Use your own data tools](/guides/own-tools#resource-labels).
 
@@ -42,7 +42,7 @@ Keep the permissions of the proxy in your code too, such as its IAM role or Kube
 
 ## Ignore rules
 
-On S3 and Cloud Storage, the builds are folders in the bucket of live, such as `builds/`. A deploy that deletes unknown files also deletes the builds. Then the subjects of those arms get live. Exclude the folder:
+On Amazon S3 and Google Cloud Storage, the builds are folders in the bucket of live, such as `builds/`. A deploy that deletes unknown files also deletes the builds. Then the subjects of those arms get live. Exclude the folder:
 
 ```shell
 aws s3 sync dist/ s3://acme-site/ --delete \

@@ -1,7 +1,7 @@
 ---
-title: Run the proxy in front of Cloud Storage
-sidebarTitle: Cloud Storage
-description: Run ssp proxy gcs in front of a static site in a Cloud Storage bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
+title: Run the proxy in front of Google Cloud Storage
+sidebarTitle: Google Cloud Storage
+description: Run ssp proxy gcs in front of a static site in a Google Cloud Storage bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
 icon: "/images/runtimes/gcs.svg"
 ---
 
@@ -14,7 +14,7 @@ import Serving from '/snippets/files/serving.mdx';
 import Missing from '/snippets/files/missing.mdx';
 import Live from '/snippets/files/live.mdx';
 
-`ssp proxy gcs` serves a static site from a Cloud Storage bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
+`ssp proxy gcs` serves a static site from a Google Cloud Storage bucket. Live is the root of the bucket, and each arm is the build folder of its commit.
 
 ```text
                         ┌─► gs://acme-site/  (live)
@@ -29,7 +29,7 @@ visitors ─► shop-proxy ─┼─► gs://acme-site/builds/c0ffee1…/
 - A site in `acme/shop` that builds its files to `dist/`.
 - The bucket `acme-site` in the project `acme-shop`.
 - A Workload Identity Federation provider for GitHub Actions, and the service account `site-ci` with Storage Object Admin on the bucket.
-- The proxy image `ghcr.io/statespace-tech/statespace:0.5.0`, in a registry that Cloud Run can use.
+- The proxy image `ghcr.io/statespace-tech/statespace:0.5.0`, in a registry that Google Cloud Run can use.
 
 ## Set up
 
@@ -104,7 +104,7 @@ visitors ─► shop-proxy ─┼─► gs://acme-site/builds/c0ffee1…/
   </Step>
 
   <Step title="Run the proxy">
-    Deploy the proxy on Cloud Run. It works between requests, so it needs CPU that is always allocated and one instance at minimum. For a single-page app, add `--fallback,200.html` to `--args`.
+    Deploy the proxy on Google Cloud Run. It works between requests, so it needs CPU that is always allocated and one instance at minimum. For a single-page app, add `--fallback,200.html` to `--args`.
 
     ```shell
     gcloud run deploy shop-proxy \
@@ -162,7 +162,7 @@ visitors ─► shop-proxy ─┼─► gs://acme-site/builds/c0ffee1…/
   <Card title="ssp proxy gcs" icon="terminal" href="/reference/cli/proxy#ssp-proxy-gcs">
     Look up every flag.
   </Card>
-  <Card title="S3" icon="folder" href="/runtimes/s3">
-    Run the proxy in front of an S3 bucket.
+  <Card title="Amazon S3" icon="folder" href="/runtimes/s3">
+    Run the proxy in front of a static site in an Amazon S3 bucket.
   </Card>
 </CardGroup>

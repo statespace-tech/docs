@@ -15,7 +15,7 @@ The proxy runs only builds that your CI recorded. Use this guide to record each 
 
 Record each commit that can become an arm. The workflows below record each push to each branch. A branch name means nothing to Statespace.
 
-The runtime of the app sets the kind of build. Docker, Kubernetes, Cloud Run, ECS Fargate, and Fly.io run an image. S3 and Cloud Storage serve a folder of files.
+The runtime of the app sets the kind of build. Docker, Kubernetes, AWS Fargate, Google Cloud Run, Fly.io, and AWS Lambda run an image. Amazon S3 and Google Cloud Storage serve a folder of files.
 
 <Tabs>
   <Tab title="Image">
@@ -45,7 +45,7 @@ Statespace finds the live commit from the build that live runs. Add the action s
     <ActionStep />
   </Tab>
   <Tab title="Files">
-    Record the folder after the upload. Then copy the folder to the root of the bucket. See [S3](/runtimes/s3) or [Cloud Storage](/runtimes/gcs).
+    Record the folder after the upload. Then copy the folder to the root of the bucket. See [Amazon S3](/runtimes/s3) or [Google Cloud Storage](/runtimes/gcs).
 
     <ActionStepFiles />
   </Tab>
